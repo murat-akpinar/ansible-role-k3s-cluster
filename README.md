@@ -1,6 +1,6 @@
 #  Ansible Role: RKE2 Cluster
 ![release](https://img.shields.io/badge/release-v1.0-blue)
-- Şuan sadece ubutnu 22.04 denedim fakat `curl -sfL https://get.rke2.io | sh -` scripti ile kurduğu için sanırım diğer dağıtımlarda sorun olmayacaktır.
+- Şuan sadece ubutnu 22.04 denedim fakat `curl -sfL https://get.k3s.io | sh -` scripti ile kurduğu için sanırım diğer dağıtımlarda sorun olmayacaktır.
 
 
 <img src="https://k3s.io/img/k3s-logo-light.svg" alt="k3s" style="max-width: 100%;">
@@ -80,7 +80,7 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [X] k3s'nin Kurulumu
 - [X] Kubectl Komutlarının Normal Kullanıcılar Tarafından Sudo İhtiyacı Olmadan Çalıştırılması
 - [X] Worker Node'ların Master Node'a Bağlanması
-- [X] Worker Node'ların Rollendirilmesi
+- [ ] Worker Node'ların Rollendirilmesi
 
 ### Ön Tanımlı Gelecek Paketler
 - [ ] install metallb
@@ -108,10 +108,10 @@ Versions:
 
 
 kubectl get nodes
-NAME           STATUS   ROLES                       AGE     VERSION
-rke2-master    Ready    control-plane,etcd,master   4m31s   v1.27.11+rke2r1
-rke2-worker    Ready    worker-1                    2m40s   v1.27.11+rke2r1
-rke2-worker2   Ready    worker-2                    2m30s   v1.27.11+rke2r1
+NAME       STATUS   ROLES                       AGE    VERSION
+master-1   Ready    control-plane,etcd,master   117s   v1.29.5+k3s1
+master-2   Ready    control-plane,etcd,master   85s    v1.29.5+k3s1
+worker-1   Ready    <none>                      44s    v1.29.5+k3s1
 ````
 
 

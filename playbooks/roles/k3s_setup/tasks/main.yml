@@ -10,7 +10,7 @@
   ansible.builtin.import_tasks: 02_install_keepalived.yml
 
 - name: "Install k3s" 
-  ansible.builtin.import_tasks: install_k3s.yml
+  ansible.builtin.import_tasks: 03_install_k3s.yml
 
 - name: "Wellcome Message" 
   ansible.builtin.import_tasks: 00_wellcome.yml
