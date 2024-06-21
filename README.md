@@ -12,6 +12,8 @@ Bu Ansible rolü, otomatik olarak **K3S** tabanlı Kubernetes kümesi kurulumunu
 
 ## Önkoşullar
 
+- Etcd : Bir kümenin çoğunlukla çalışmasını gerektirir. İki master düğümün bulunduğu bir kümede, bir master düğüm kapandığında çoğunluk kaybolur ve bu nedenle küme yönetilemez hale gelir. BU yüzden en az 3 Mastner node olmalı
+
 - **Ansible** ve galaxy, kubernetes collectionları yüklü olması.
 
 ```bash
@@ -24,6 +26,7 @@ ansible-galaxy collection install community.general
 ````bash
 ssh-copy-id -i ~/.ssh/mykey root@192.168.1.152
 ssh-copy-id -i ~/.ssh/mykey root@192.168.1.153
+ssh-copy-id -i ~/.ssh/mykey root@192.168.1.154
 ssh-copy-id -i ~/.ssh/mykey root@192.168.1.156
 ````
 - Master ve Worker nodların hostnameleri bir birinden farklı olmalı. Hostnamectl komutu ile değiştirmeniz mümkün.
@@ -43,8 +46,8 @@ all:
           ansible_host: 192.168.1.152
         master-2:
           ansible_host: 192.168.1.153
-        # master-3:
-        #   ansible_host: 192.168.1.154
+        master-3:
+          ansible_host: 192.168.1.154
     worker:
       hosts:
         worker-1:
@@ -105,6 +108,7 @@ kubectl get nodes
 NAME       STATUS   ROLES                       AGE    VERSION
 master-1   Ready    control-plane,etcd,master   117s   v1.29.5+k3s1
 master-2   Ready    control-plane,etcd,master   85s    v1.29.5+k3s1
+master-3   Ready    control-plane,etcd,master   85s    v1.29.5+k3s1
 worker-1   Ready    <none>                      44s    v1.29.5+k3s1
 ````
 
@@ -112,7 +116,7 @@ worker-1   Ready    <none>                      44s    v1.29.5+k3s1
 # Yapı
 
 ```bash
-ansible-role-K3S-cluster/
+ansible-role-k3s-cluster/
 ├── ansible.cfg
 ├── collections
 │   └── requirements.yml

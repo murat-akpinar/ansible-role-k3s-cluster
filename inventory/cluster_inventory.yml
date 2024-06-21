@@ -6,8 +6,8 @@ all:
           ansible_host: 192.168.1.152
         master-2:
           ansible_host: 192.168.1.153
-        # master-3:
-        #   ansible_host: 192.168.1.154
+        master-3:
+          ansible_host: 192.168.1.154
     worker:
       hosts:
         worker-1:
