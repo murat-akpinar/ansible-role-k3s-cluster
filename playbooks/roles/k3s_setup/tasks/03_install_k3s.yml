@@ -1,11 +1,4 @@
-- name: Get the current hostname
-  command: hostname
-  register: current_hostname
-
-- name: Set hostname
-  command: hostnamectl set-hostname "{{ inventory_hostname }}"
-  when: current_hostname.stdout != inventory_hostname
-  become: true
+---
 
 - name: Install K3s on the first master node
   shell: |
