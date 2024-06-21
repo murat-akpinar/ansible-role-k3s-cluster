@@ -1,0 +1,21 @@
+# Steps to Wellcome Message
+---
+
+- name: Create /etc/motd with welcome message
+  ansible.builtin.template:
+    src: templates/wellcome.j2
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+
+- name: Remove all files in /etc/update-motd.d directory
+  ansible.builtin.shell: rm -rf /etc/update-motd.d/*
+  become: true
+
+- name: Restart SSH service to apply changes
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+  become: true

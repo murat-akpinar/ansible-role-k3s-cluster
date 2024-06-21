@@ -1,0 +1,58 @@
+# Hostanme
+---
+
+- name: Get current hostname
+  command: hostname
+  register: current_hostname
+
+- name: Debug current hostname
+  debug:
+    msg: "Current hostname is {{ current_hostname.stdout }}"
+
+- name: Check if hostname needs to be changed
+  set_fact:
+    hostname_change_needed: "{{ current_hostname.stdout != inventory_hostname }}"
+
+- name: Set hostname
+  command: hostnamectl set-hostname "{{ inventory_hostname }}"
+  when: hostname_change_needed
+  become: true
+
+- name: Update /etc/hosts with new hostname
+  lineinfile:
+    path: /etc/hosts
+    regexp: '127.0.1.1'
+    line: "127.0.1.1 {{ inventory_hostname }}"
+  when: hostname_change_needed
+  become: true
+
+- name: Reboot the system
+  reboot:
+    msg: "Reboot initiated by Ansible for hostname change"
+    connect_timeout: 5
+    reboot_timeout: 600
+    pre_reboot_delay: 0
+    post_reboot_delay: 30
+    test_command: whoami
+  when: hostname_change_needed
+  become: true
+
+- name: Verify hostname after reboot
+  wait_for_connection:
+    timeout: 300
+  when: hostname_change_needed
+
+- name: Print the new hostname
+  command: hostname
+  register: new_hostname
+  when: hostname_change_needed
+
+- name: Debug the new hostname
+  debug:
+    msg: "The new hostname is {{ new_hostname.stdout }}"
+  when: hostname_change_needed
+
+- name: Debug if hostname change was not needed
+  debug:
+    msg: "Hostname is already set to {{ inventory_hostname }}"
+  when: not hostname_change_needed

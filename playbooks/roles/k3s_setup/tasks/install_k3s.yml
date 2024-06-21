@@ -1,0 +1,96 @@
+---
+
+- name: Install K3s server on initial master node
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --cluster-init --tls-san {{ keepalived_vip }}" sh -
+  when: inventory_hostname == groups['master'][0]
+  register: k3s_install
+  become: true
+
+- name: Ensure K3s server is enabled and running on initial master node
+  ansible.builtin.systemd:
+    name: k3s
+    enabled: yes
+    state: started
+  when: inventory_hostname == groups['master'][0]
+  become: true
+
+- name: Wait for K3s server to become ready on initial master node
+  ansible.builtin.wait_for:
+    path: /var/lib/rancher/k3s/server/node-token
+    state: present
+  when: inventory_hostname == groups['master'][0]
+  become: true
+  retries: 5
+  delay: 10
+
+- name: Retrieve K3s token from initial master
+  shell: cat /var/lib/rancher/k3s/server/node-token
+  when: inventory_hostname == groups['master'][0]
+  register: k3s_token
+  become: true
+  run_once: true
+
+- name: Set K3s token fact
+  set_fact:
+    k3s_token: "{{ k3s_token.stdout }}"
+  run_once: true
+
+- name: Debug K3s token
+  debug:
+    msg: "K3s token is {{ k3s_token }}"
+
+- name: Install K3s server on additional master nodes
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --server https://{{ keepalived_vip }}:6443 --token {{ k3s_token }} --tls-san {{ keepalived_vip }}" sh -
+  when: inventory_hostname != groups['master'][0] and "'master' in group_names"
+  register: join_additional_master
+  become: true
+
+- name: Ensure K3s server is enabled and running on additional master nodes
+  ansible.builtin.systemd:
+    name: k3s
+    enabled: yes
+    state: started
+  when: inventory_hostname != groups['master'][0] and "'master' in group_names"
+  become: true
+
+- name: Install K3s agent on worker nodes
+  shell: |
+    curl -sfL https://get.k3s.io | K3S_URL=https://{{ keepalived_vip }}:6443 K3S_TOKEN={{ k3s_token }} sh -
+  when: "'worker' in group_names"
+  register: join_worker
+  become: true
+
+- name: Ensure K3s agent is enabled and running on worker nodes
+  ansible.builtin.systemd:
+    name: k3s-agent
+    enabled: yes
+    state: started
+  when: "'worker' in group_names"
+  become: true
+
+- name: Allow user 1000 to use kubectl without sudo
+  ansible.builtin.file:
+    path: /etc/rancher/k3s/k3s.yaml
+    owner: 1000
+    group: 1000
+    mode: '0644'
+  become: true
+
+- name: Update KUBECONFIG environment variable for user 1000
+  ansible.builtin.lineinfile:
+    path: "/home/{{ lookup('pipe', 'getent passwd 1000 | cut -d: -f1') }}/.bashrc"
+    line: 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml'
+    create: yes
+  become: true
+
+- name: Check K3s service status
+  shell: systemctl status k3s | grep -E 'Active:|Main PID:'
+  register: k3s_service_status
+  ignore_errors: true
+  become: true
+
+- name: Debug K3s service status
+  debug:
+    msg: "{{ k3s_service_status.stdout }}"
