@@ -31,15 +31,6 @@ ssh-copy-id -i ~/.ssh/mykey root@192.168.1.156
 hostnamectl set-hostname
 ````
 
-## Hızlı Başlangıç
-
-1. **Hosts Dosyasını Düzenle**: Projenin kök dizinindeki `hosts` dosyasını kendi ortamınıza göre ayarlayın. Örnek yapılandırma:
-
-```
-master1 ansible_host=192.168.1.152
-worker1 ansible_host=192.168.1.153
-worker2 ansible_host=192.168.1.156
-```
 
 2. **Envanter Dosyasını Düzenle**: Projenin kök dizinindeki `cluster_inventory.yml` dosyasını kendi ortamınıza göre ayarlayın. Örnek yapılandırma:
 
@@ -48,15 +39,20 @@ all:
   children:
     master:
       hosts:
-        master1:
+        master-1:
           ansible_host: 192.168.1.152
+        master-2:
+          ansible_host: 192.168.1.153
+        # master-3:
+        #   ansible_host: 192.168.1.154
     worker:
       hosts:
-        worker1:
-          ansible_host: 192.168.1.153
-        worker2:
+        worker-1:
           ansible_host: 192.168.1.156
-
+        # worker-2:
+        #   ansible_host: 192.168.1.156
+        # worker-3:
+        #   ansible_host: 192.168.1.157
 ```
 3. **01_install_rke2.yml**: `Label the Kubernetes nodes with specific roles` bölümünde kaç adet worker node olacaksa loop kısmı ona göre değiştirilmeli.
 ```bash
@@ -79,33 +75,36 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 
 ### RKE Cluster Kurulumu
 - [x] Sistem Gereksinimlerinin Kontrol Edilmesi
-- [X] RKE2'nin Kurulumu
+- [X] hostname'in ayarlanması
+- [X] keeplived'in Kurulumu
+- [X] k3s'nin Kurulumu
 - [X] Kubectl Komutlarının Normal Kullanıcılar Tarafından Sudo İhtiyacı Olmadan Çalıştırılması
 - [X] Worker Node'ların Master Node'a Bağlanması
 - [X] Worker Node'ların Rollendirilmesi
 
 ### Ön Tanımlı Gelecek Paketler
-- [X] install metallb
-- [X] install longhorn
-- [X] install cert-manager
-- [X] install ingress-nginx
+- [ ] install metallb
+- [ ] install longhorn
+- [ ] install cert-manager
+- [ ] install ingress-nginx
 
 ````bash
-  _____  _        ___     _____ _           _            
- |  __ \| |      |__ \   / ____| |         | |           
- | |__) | | _____   ) | | |    | |_   _ ___| |_ ___ _ __ 
- |  _  /| |/ / _ \ / /  | |    | | | | / __| __/ _ \ '__|
- | | \ \|   <  __// /_  | |____| | |_| \__ \ ||  __/ |   
- |_|  \_\_|\_\___|____|  \_____|_|\__,_|___/\__\___|_|   
-                                                         
-Rke2 Cluster / Ver: "1.0"  / Developped by: Murat Akpınar
+>>=======================================================================<<
+||                                                                       ||
+||   _  __ _____ ____     ____  _     _   _  ____  _____  _____  ____    ||
+||  | |/ /|___ // ___|   / ___|| |   | | | |/ ___||_   _|| ____||  _ \   ||
+||  | ' /   |_ \\___ \  | |    | |   | | | |\___ \  | |  |  _|  | |_) |  ||
+||  | . \  ___) |___) | | |___ | |___| |_| | ___) | | |  | |___ |  _ <   ||
+||  |_|\_\|____/|____/   \____||_____|\___/ |____/  |_|  |_____||_| \_\  ||
+||                                                                       ||
+>>=======================================================================<<
+
+k3s Cluster / Ver: "1.0"  / Developped by: Murat Akpınar
 
 Versions:
-  - rke2 v1.27.11+rke2r1
-  - metallb
-  - longhorn
-  - cert-manager
-  - ingress-nginx
+  - k3s
+
+
 
 
 kubectl get nodes
@@ -129,7 +128,7 @@ ansible-role-rke2-cluster/
 ├── LICENSE
 ├── playbooks
 │   └── roles
-│       └── rke2_setup
+│       └── k3s_setup
 │           ├── files
 │           │   └── my-charts
 │           │       ├── cert-manager
@@ -138,7 +137,6 @@ ansible-role-rke2-cluster/
 │           │       │   └── values.yaml
 │           │       ├── longhorn
 │           │       │   ├── homelab.longhorn.yaml
-│           │       │   ├── LoadBalancer.sh
 │           │       │   └── values.yaml
 │           │       └── metallb
 │           │           ├── metallb-config.yaml
@@ -149,21 +147,18 @@ ansible-role-rke2-cluster/
 │           ├── tasks
 │           │   ├── 00_system_requirements.yml
 │           │   ├── 00_wellcome.yml
-│           │   ├── 01_install_rke2.yml
-│           │   ├── 02_file_transfer.yml
-│           │   ├── 03_install_helm.yml
-│           │   ├── 04_ingress_install.yaml
-│           │   ├── 05_metallb_install.yaml
-│           │   ├── 06_longhorn_install.yaml
-│           │   ├── 07_cert_manager_install.yaml
+│           │   ├── 01_configure_hostname.yml
+│           │   ├── 02_install_keepalived.yml
+│           │   ├── install_k3s.yml
 │           │   └── main.yml
 │           ├── templates
-│           │   ├── rke2_agent_config.j2
+│           │   ├── keepalived-backup.j2
+│           │   ├── keepalived-master.j2
 │           │   └── wellcome.j2
 │           └── vars
 │               └── main.yml
 ├── README.md
 └── site.yml
 
-16 directories, 28 files
+16 directories, 24 files
 ```

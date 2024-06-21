@@ -1,4 +1,4 @@
-# Hostanme
+# Hostname
 ---
 
 - name: Get current hostname
@@ -56,3 +56,16 @@
   debug:
     msg: "Hostname is already set to {{ inventory_hostname }}"
   when: not hostname_change_needed
+
+- name: Check if IP address in inventory matches the current IP address
+  command: ip -4 addr show dev eth0
+  register: current_ip_info
+
+- name: Extract current IP address
+  set_fact:
+    current_ip: "{{ current_ip_info.stdout | regex_search('inet ([0-9.]+)', '\\1') }}"
+
+- name: Debug current IP address
+  debug:
+    msg: "Current IP address is {{ current_ip }}"
+

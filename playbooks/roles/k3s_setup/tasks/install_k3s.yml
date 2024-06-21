@@ -1,96 +1,107 @@
----
+    - name: Get the current hostname
+      command: hostname
+      register: current_hostname
 
-- name: Install K3s server on initial master node
-  shell: |
-    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --cluster-init --tls-san {{ keepalived_vip }}" sh -
-  when: inventory_hostname == groups['master'][0]
-  register: k3s_install
-  become: true
+    - name: Set hostname
+      command: hostnamectl set-hostname "{{ inventory_hostname }}"
+      when: current_hostname.stdout != inventory_hostname
+      become: true
 
-- name: Ensure K3s server is enabled and running on initial master node
-  ansible.builtin.systemd:
-    name: k3s
-    enabled: yes
-    state: started
-  when: inventory_hostname == groups['master'][0]
-  become: true
+    - name: Install K3s on the first master node
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_TOKEN=mysecret sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
+      when: inventory_hostname == groups['master'][0]
+      register: k3s_install_first_master
+      become: true
 
-- name: Wait for K3s server to become ready on initial master node
-  ansible.builtin.wait_for:
-    path: /var/lib/rancher/k3s/server/node-token
-    state: present
-  when: inventory_hostname == groups['master'][0]
-  become: true
-  retries: 5
-  delay: 10
+    - name: Ensure K3s is enabled and running on the first master node
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: yes
+        state: started
+      when: inventory_hostname == groups['master'][0]
+      become: true
 
-- name: Retrieve K3s token from initial master
-  shell: cat /var/lib/rancher/k3s/server/node-token
-  when: inventory_hostname == groups['master'][0]
-  register: k3s_token
-  become: true
-  run_once: true
+    - name: Wait for K3s server to become ready on the first master node
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        state: present
+      when: inventory_hostname == groups['master'][0]
+      become: true
+      retries: 5
+      delay: 10
 
-- name: Set K3s token fact
-  set_fact:
-    k3s_token: "{{ k3s_token.stdout }}"
-  run_once: true
+    - name: Retrieve K3s token from the first master node
+      shell: cat /var/lib/rancher/k3s/server/node-token
+      when: inventory_hostname == groups['master'][0]
+      register: k3s_token
+      become: true
+      run_once: true
 
-- name: Debug K3s token
-  debug:
-    msg: "K3s token is {{ k3s_token }}"
+    - name: Set K3s token fact
+      set_fact:
+        k3s_token: "{{ k3s_token.stdout }}"
+      run_once: true
 
-- name: Install K3s server on additional master nodes
-  shell: |
-    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --server https://{{ keepalived_vip }}:6443 --token {{ k3s_token }} --tls-san {{ keepalived_vip }}" sh -
-  when: inventory_hostname != groups['master'][0] and "'master' in group_names"
-  register: join_additional_master
-  become: true
+    - name: Debug K3s token
+      debug:
+        msg: "K3s token is {{ k3s_token }}"
 
-- name: Ensure K3s server is enabled and running on additional master nodes
-  ansible.builtin.systemd:
-    name: k3s
-    enabled: yes
-    state: started
-  when: inventory_hostname != groups['master'][0] and "'master' in group_names"
-  become: true
+    - name: Install K3s on additional master nodes
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_TOKEN={{ k3s_token }} sh -s - server --server https://{{ keepalived_vip }}:6443 --tls-san {{ keepalived_vip }}
+      when: inventory_hostname != groups['master'][0] and "'master' in group_names"
+      register: join_additional_master
+      become: true
 
-- name: Install K3s agent on worker nodes
-  shell: |
-    curl -sfL https://get.k3s.io | K3S_URL=https://{{ keepalived_vip }}:6443 K3S_TOKEN={{ k3s_token }} sh -
-  when: "'worker' in group_names"
-  register: join_worker
-  become: true
+    - name: Ensure K3s is enabled and running on additional master nodes
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: yes
+        state: started
+      when: inventory_hostname != groups['master'][0] and "'master' in group_names"
+      become: true
 
-- name: Ensure K3s agent is enabled and running on worker nodes
-  ansible.builtin.systemd:
-    name: k3s-agent
-    enabled: yes
-    state: started
-  when: "'worker' in group_names"
-  become: true
+    - name: Install K3s agent on worker nodes
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_TOKEN={{ k3s_token }} sh -s - agent --server https://{{ keepalived_vip }}:6443
+      when: "'worker' in group_names"
+      register: join_worker
+      become: true
 
-- name: Allow user 1000 to use kubectl without sudo
-  ansible.builtin.file:
-    path: /etc/rancher/k3s/k3s.yaml
-    owner: 1000
-    group: 1000
-    mode: '0644'
-  become: true
+    - name: Ensure K3s agent is enabled and running on worker nodes
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: yes
+        state: started
+      when: "'worker' in group_names"
+      become: true
 
-- name: Update KUBECONFIG environment variable for user 1000
-  ansible.builtin.lineinfile:
-    path: "/home/{{ lookup('pipe', 'getent passwd 1000 | cut -d: -f1') }}/.bashrc"
-    line: 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml'
-    create: yes
-  become: true
+    - name: Allow user 1000 to use kubectl without sudo
+      ansible.builtin.file:
+        path: /etc/rancher/k3s/k3s.yaml
+        owner: 1000
+        group: 1000
+        mode: '0644'
+      become: true
+      when: "'master' in group_names"
 
-- name: Check K3s service status
-  shell: systemctl status k3s | grep -E 'Active:|Main PID:'
-  register: k3s_service_status
-  ignore_errors: true
-  become: true
+    - name: Update KUBECONFIG environment variable for user 1000
+      ansible.builtin.lineinfile:
+        path: "/home/{{ lookup('pipe', 'getent passwd 1000 | cut -d: -f1') }}/.bashrc"
+        line: 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml'
+        create: yes
+      become: true
+      when: "'master' in group_names"
 
-- name: Debug K3s service status
-  debug:
-    msg: "{{ k3s_service_status.stdout }}"
+    - name: Check K3s service status on master nodes
+      shell: systemctl status k3s | grep -E 'Active:|Main PID:'
+      register: k3s_service_status
+      ignore_errors: true
+      become: true
+      when: "'master' in group_names"
+
+    - name: Debug K3s service status on master nodes
+      debug:
+        msg: "{{ k3s_service_status.stdout }}"
+      when: "'master' in group_names"
