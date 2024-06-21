@@ -1,4 +1,4 @@
-#  Ansible Role: RKE2 Cluster
+#  Ansible Role: K3S Cluster
 ![release](https://img.shields.io/badge/release-v1.0-blue)
 - Şuan sadece ubutnu 22.04 denedim fakat `curl -sfL https://get.k3s.io | sh -` scripti ile kurduğu için sanırım diğer dağıtımlarda sorun olmayacaktır.
 
@@ -6,9 +6,9 @@
 <img src="https://k3s.io/img/k3s-logo-light.svg" alt="k3s" style="max-width: 100%;">
 
 
-# Ansible Role: RKE2 Cluster Kurulumu
+# Ansible Role: K3S Cluster Kurulumu
 
-Bu Ansible rolü, otomatik olarak **RKE2** tabanlı Kubernetes kümesi kurulumunu gerçekleştirir. Kurulum, bir adet master ve birden fazla worker düğümünden oluşan bir yapıyı destekler.
+Bu Ansible rolü, otomatik olarak **K3S** tabanlı Kubernetes kümesi kurulumunu gerçekleştirir. Kurulum, bir adet master ve birden fazla worker düğümünden oluşan bir yapıyı destekler.
 
 ## Önkoşullar
 
@@ -53,12 +53,6 @@ all:
         #   ansible_host: 192.168.1.156
         # worker-3:
         #   ansible_host: 192.168.1.157
-```
-3. **01_install_rke2.yml**: `Label the Kubernetes nodes with specific roles` bölümünde kaç adet worker node olacaksa loop kısmı ona göre değiştirilmeli.
-```bash
-  loop:
-    - { name: '{{ worker_hostnames[0] }}', role: 'worker-1' }
-    - { name: '{{ worker_hostnames[1] }}', role: 'worker-2' }
 ```
 
 4. **Playbook'u Çalıştır**: Aşağıdaki komut ile Ansible playbook'unu çalıştırın:
@@ -118,7 +112,7 @@ worker-1   Ready    <none>                      44s    v1.29.5+k3s1
 # Yapı
 
 ```bash
-ansible-role-rke2-cluster/
+ansible-role-K3S-cluster/
 ├── ansible.cfg
 ├── collections
 │   └── requirements.yml
@@ -149,7 +143,7 @@ ansible-role-rke2-cluster/
 │           │   ├── 00_wellcome.yml
 │           │   ├── 01_configure_hostname.yml
 │           │   ├── 02_install_keepalived.yml
-│           │   ├── install_k3s.yml
+│           │   ├── 03_install_k3s.yml
 │           │   └── main.yml
 │           ├── templates
 │           │   ├── keepalived-backup.j2
