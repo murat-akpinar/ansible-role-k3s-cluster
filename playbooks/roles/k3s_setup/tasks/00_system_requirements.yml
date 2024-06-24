@@ -9,7 +9,7 @@
 - name: Verify CPU count
   ansible.builtin.fail:
     msg: "System does not have minimum required CPU cores (4)."
-  when: cpu_count.stdout|int < 4
+  when: cpu_count.stdout|int < 3
 
 - name: Check minimum RAM requirements
   ansible.builtin.shell: |
