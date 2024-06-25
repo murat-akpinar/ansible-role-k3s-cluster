@@ -29,10 +29,11 @@ ssh-copy-id -i ~/.ssh/mykey root@192.168.1.153
 ssh-copy-id -i ~/.ssh/mykey root@192.168.1.154
 ssh-copy-id -i ~/.ssh/mykey root@192.168.1.156
 ````
-- Master ve Worker nodların hostnameleri bir birinden farklı olmalı. Hostnamectl komutu ile değiştirmeniz mümkün.
-````bash
-hostnamectl set-hostname
-````
+- **keepalived_network:** vars dizininden keepalived için geçerli network kartınızı ve keeplived için bir ip adresi belirtmeniz gerekli.
+```bash
+keepalived_vip: 192.168.1.244
+keepalived_network: enp0s3
+```
 
 
 2. **Envanter Dosyasını Düzenle**: Projenin kök dizinindeki `cluster_inventory.yml` dosyasını kendi ortamınıza göre ayarlayın. Örnek yapılandırma:
