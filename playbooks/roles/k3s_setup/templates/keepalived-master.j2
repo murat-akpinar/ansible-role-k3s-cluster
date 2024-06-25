@@ -1,6 +1,6 @@
 vrrp_instance VI_1 {
     state MASTER
-    interface eth0
+    interface {{ keepalived_network }}
     virtual_router_id 51
     priority 101
     advert_int 1
