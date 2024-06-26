@@ -1,0 +1,23 @@
+# Steps to install helm
+---
+
+- name: Check if Helm is installed
+  command: which helm
+  register: helm_installed
+  failed_when: false
+  changed_when: false
+  check_mode: no
+  when: inventory_hostname == 'master-1'
+
+- name: Download Helm installation script
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    dest: /tmp/get_helm.sh
+    mode: '0700'
+  when: inventory_hostname == 'master-1' and helm_installed.rc != 0
+
+- name: Install Helm
+  ansible.builtin.shell:
+    cmd: /tmp/get_helm.sh
+    creates: /usr/local/bin/helm
+  when: inventory_hostname == 'master-1' and helm_installed.rc != 0
