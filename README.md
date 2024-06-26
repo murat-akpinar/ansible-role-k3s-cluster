@@ -71,7 +71,7 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 
 ## Yapılacaklar
 
-### RKE Cluster Kurulumu
+### K3S Cluster Kurulumu
 - [x] Sistem Gereksinimlerinin Kontrol Edilmesi
 - [X] hostname'in ayarlanması
 - [X] keeplived'in Kurulumu
@@ -101,10 +101,10 @@ k3s Cluster / Ver: "1.0"  / Developped by: Murat Akpınar
 
 Versions:
   - k3s
+````
 
 
-
-
+````bash
 kubectl get nodes
 NAME       STATUS   ROLES                       AGE    VERSION
 master-1   Ready    control-plane,etcd,master   117s   v1.29.5+k3s1
