@@ -59,11 +59,18 @@ all:
         #   ansible_host: 192.168.1.157
 ```
 
-4. **Playbook'u Çalıştır**: Aşağıdaki komut ile Ansible playbook'unu çalıştırın:
+4. **Playbook'u Çalıştırılması**: 
+- Eğer **k3s cluster** ve **helm** kurmak isterseniz site.yml kullanabilirsiniz.
 
 ```bash
 ansible-playbook -i inventory/cluster_inventory.yml site.yml
 ```
+
+- Sadece helm kurmak isterseniz **helm-install.yml** dosyasını belirtebilirsiniz.
+```bash
+ansible-playbook -i inventory/cluster_inventory.yml helm-install.yml
+```
+
 
 ## Yapılandırma
 
@@ -121,12 +128,21 @@ ansible-role-k3s-cluster/
 ├── ansible.cfg
 ├── collections
 │   └── requirements.yml
+├── helm-install.yml
 ├── hosts
 ├── inventory
 │   └── cluster_inventory.yml
 ├── LICENSE
 ├── playbooks
 │   └── roles
+│       ├── helm_install
+│       │   ├── files
+│       │   ├── handlers
+│       │   ├── tasks
+│       │   │   ├── 00_install_helm.yml
+│       │   │   └── main.yml
+│       │   ├── templates
+│       │   └── vars
 │       └── k3s_setup
 │           ├── files
 │           │   └── my-charts
@@ -159,5 +175,6 @@ ansible-role-k3s-cluster/
 ├── README.md
 └── site.yml
 
-16 directories, 24 files
+23 directories, 27 files
+
 ```
