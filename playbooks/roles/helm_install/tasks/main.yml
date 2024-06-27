@@ -1,3 +1,15 @@
 
 - name: "Install Helm" 
   ansible.builtin.import_tasks: 00_install_helm.yml
+
+- name: "Install ingress-nginx" 
+  ansible.builtin.import_tasks: 01_ingress_install.yaml
+
+- name: "Install Metallb" 
+  ansible.builtin.import_tasks: 02_metallb_install.yaml
+
+- name: "Install Longhorn" 
+  ansible.builtin.import_tasks: 03_longhorn_install.yaml
+
+- name: "Install Cert-Manager" 
+  ansible.builtin.import_tasks: 04_cert_manager_install.yaml
