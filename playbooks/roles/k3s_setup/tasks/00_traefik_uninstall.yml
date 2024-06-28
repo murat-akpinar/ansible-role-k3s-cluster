@@ -1,0 +1,32 @@
+- name: Check if Traefik is installed
+  command: kubectl get helmcharts.helm.cattle.io traefik -n kube-system
+  register: traefik_installed
+  failed_when: false
+  changed_when: false
+  when: inventory_hostname == 'master-1'
+
+- name: Delete Traefik manifest
+  command: sudo kubectl delete -f /var/lib/rancher/k3s/server/manifests/traefik.yaml
+  when: 
+    - inventory_hostname == 'master-1' 
+    - traefik_installed.rc == 0
+    - traefik_uninstall | bool
+  ignore_errors: false
+
+- name: Delete Traefik Deployment
+  command: kubectl delete deployment traefik -n kube-system
+  when: 
+    - inventory_hostname == 'master-1'
+    - traefik_installed.rc == 0
+    - traefik_uninstall | bool
+  ignore_errors: false
+  become: true
+
+- name: Delete Traefik Service
+  command: kubectl delete service traefik -n kube-system
+  when: 
+    - inventory_hostname == 'master-1'
+    - traefik_installed.rc == 0
+    - traefik_uninstall | bool
+  ignore_errors: false
+  become: true

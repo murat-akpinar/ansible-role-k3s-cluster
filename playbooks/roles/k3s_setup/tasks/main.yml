@@ -13,6 +13,9 @@
 - name: "Install k3s" 
   ansible.builtin.import_tasks: 03_install_k3s.yml
 
+- name: "Install k3s" 
+  ansible.builtin.import_tasks: 00_traefik_uninstall.yml
+
 - name: "Wellcome Message" 
   ansible.builtin.import_tasks: 00_wellcome.yml
 
