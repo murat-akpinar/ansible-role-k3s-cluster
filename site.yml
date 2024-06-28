@@ -2,4 +2,3 @@
   become: yes
   roles:
     - k3s_setup
-    - helm_install

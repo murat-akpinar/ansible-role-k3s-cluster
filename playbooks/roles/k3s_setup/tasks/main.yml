@@ -1,5 +1,6 @@
 # Main tasks for k3s setup
 ---
+
 - name: "System requirements Check" 
   ansible.builtin.import_tasks: 00_system_requirements.yml
 
@@ -14,3 +15,19 @@
 
 - name: "Wellcome Message" 
   ansible.builtin.import_tasks: 00_wellcome.yml
+
+
+- name: "Install Helm" 
+  ansible.builtin.import_tasks: 04_install_helm.yml
+
+- name: "Install ingress-nginx" 
+  ansible.builtin.import_tasks: 05_ingress_install.yaml
+
+- name: "Install Metallb" 
+  ansible.builtin.import_tasks: 06_metallb_install.yaml
+
+- name: "Install Cert-Manager" 
+  ansible.builtin.import_tasks: 07_cert_manager_install.yaml
+
+- name: "Install Longhorn" 
+  ansible.builtin.import_tasks: 08_longhorn_install.yaml
