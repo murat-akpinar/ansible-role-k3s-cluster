@@ -34,9 +34,9 @@
     - inventory_hostname == 'master-1'
     - metallb_namespace_exists.rc != 0
 
-- name: Pause for 30 seconds to allow MetalLB pods to start
+- name: Pause for 60 seconds to allow MetalLB pods to start
   ansible.builtin.pause:
-    seconds: 30
+    seconds: 60
   when: inventory_hostname == 'master-1'
 
 - name: Apply MetalLB ConfigMap
