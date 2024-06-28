@@ -1,6 +1,1 @@
 ---
-
-- name: restart keepalived
-  service:
-    name: keepalived
-    state: restarted
