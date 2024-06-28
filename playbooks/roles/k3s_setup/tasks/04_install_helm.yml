@@ -48,3 +48,7 @@
     group: 1000
     mode: '0755'
   when: inventory_hostname == 'master-1' and user_home_directory is defined
+
+- name: Delete Traefik manifest
+  command: sudo kubectl delete -f /var/lib/rancher/k3s/server/manifests/traefik.yaml
+  when: inventory_hostname == 'master-1' and traefik_uninstall | bool
