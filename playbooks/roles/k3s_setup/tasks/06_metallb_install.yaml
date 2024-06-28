@@ -8,10 +8,10 @@
   changed_when: false
   when: inventory_hostname == 'master-1'
 
-- name: Add Bitnami Helm repository
+- name: Add MetalLB Helm repository
   community.kubernetes.helm_repository:
-    name: bitnami
-    repo_url: https://charts.bitnami.com/bitnami
+    name: metallb
+    repo_url: https://metallb.github.io/metallb
   when: 
     - inventory_hostname == 'master-1'
     - metallb_namespace_exists.rc != 0
@@ -27,7 +27,7 @@
 
 - name: Install MetalLB using Helm
   ansible.builtin.command:
-    cmd: helm install metallb bitnami/metallb --namespace metallb-system --create-namespace
+    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -36,7 +36,7 @@
 
 - name: Pause for 30 seconds to allow MetalLB pods to start
   ansible.builtin.pause:
-    seconds: 35
+    seconds: 30
   when: inventory_hostname == 'master-1'
 
 - name: Apply MetalLB ConfigMap
@@ -45,3 +45,4 @@
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: inventory_hostname == 'master-1'
+

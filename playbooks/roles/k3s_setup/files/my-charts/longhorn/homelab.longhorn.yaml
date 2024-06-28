@@ -4,6 +4,7 @@ metadata:
   name: longhorn
   namespace: longhorn-system
 spec:
+  ingressClassName: nginx
   rules:
   - host: homelab.longhorn
     http:
