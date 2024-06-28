@@ -1,25 +1,40 @@
 # Steps to install NGINX Ingress
 ---
 
+- name: Check if ingress-nginx namespace exists
+  command: kubectl get namespace ingress-nginx
+  register: namespace_exists
+  failed_when: false
+  changed_when: false
+  when: inventory_hostname == 'master-1'
+
 - name: Add NGINX Ingress Helm repository
   community.kubernetes.helm_repository:
     name: ingress-nginx
     repo_url: https://kubernetes.github.io/ingress-nginx
-  when: inventory_hostname == 'master-1'
+  when: 
+    - inventory_hostname == 'master-1'
+    - namespace_exists.rc != 0
 
 - name: Update Helm repository list
   ansible.builtin.command:
     cmd: helm repo update
-  when: inventory_hostname == 'master-1'
+  when: 
+    - inventory_hostname == 'master-1'
+    - namespace_exists.rc != 0
 
 - name: Install NGINX Ingress Helm chart
   ansible.builtin.command:
     cmd: helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace -f {{ user_home_directory }}/my-charts/ingress/values.yaml
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: inventory_hostname == 'master-1'
+  when: 
+    - inventory_hostname == 'master-1'
+    - namespace_exists.rc != 0
 
 - name: Pause for 30 seconds to allow Ingress pods to start
   ansible.builtin.pause:
     seconds: 30
-  when: inventory_hostname == 'master-1'
+  when: 
+    - inventory_hostname == 'master-1'
+    - namespace_exists.rc != 0

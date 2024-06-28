@@ -1,17 +1,32 @@
-# Steps to install Metallb
+# Steps to install MetalLB
 ---
+
+- name: Check if metallb-system namespace exists
+  command: kubectl get namespace metallb-system
+  register: metallb_namespace_exists
+  failed_when: false
+  changed_when: false
+  when: inventory_hostname == 'master-1'
 
 - name: MetalLB Install
   ansible.builtin.shell:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/metallb/metallb.yaml
-  when: inventory_hostname == 'master-1'
+  when: 
+    - inventory_hostname == 'master-1'
+    - metallb_namespace_exists.rc != 0
 
 - name: Apply MetalLB ConfigMap
   ansible.builtin.shell:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/metallb/metallb-config.yaml
-  when: inventory_hostname == 'master-1'
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - metallb_namespace_exists.rc != 0
 
-- name: Pause for 30 seconds to allow Metallb pods to start
+- name: Pause for 30 seconds to allow MetalLB pods to start
   ansible.builtin.pause:
     seconds: 30
-  when: inventory_hostname == 'master-1'
+  when: 
+    - inventory_hostname == 'master-1'
+    - metallb_namespace_exists.rc != 0

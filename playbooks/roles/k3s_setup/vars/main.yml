@@ -4,7 +4,7 @@ keepalived_auth_pass: P@ssw0rd123!
 keepalived_vip: 192.168.1.244
 keepalived_network: enp0s3
 helm_install: true
-traefik_unsitall: true
+traefik_unsitall: false
 ingress_install: false
 metallb_install: false
 cert_manager_install: false
