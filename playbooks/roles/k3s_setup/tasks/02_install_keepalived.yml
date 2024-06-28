@@ -42,7 +42,6 @@
     src: keepalived-master.j2
     dest: /etc/keepalived/keepalived.conf
   when: inventory_hostname == "master-1"
-  notify: restart keepalived
   register: keepalived_config_master
 
 - name: Configure Keepalived for other masters
@@ -50,7 +49,6 @@
     src: keepalived-backup.j2
     dest: /etc/keepalived/keepalived.conf
   when: inventory_hostname != "master-1" and "'master' in group_names"
-  notify: restart keepalived
   register: keepalived_config_backup
 
 - name: Debug Keepalived configuration for master-1
