@@ -5,3 +5,7 @@ keepalived_vip: 192.168.1.244
 keepalived_network: enp0s3
 helm_install: true
 traefik_unsitall: true
+ingress_install: true
+metallb_install: true
+cert_manager_install: true
+longhorn_install: true
