@@ -1,7 +1,7 @@
 # Steps to install Metallb
 ---
 
-- name: Apply MetalLB ConfigMap
+- name: MetalLB Install
   ansible.builtin.shell:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/metallb/metallb.yaml
   when: inventory_hostname == 'master-1'
