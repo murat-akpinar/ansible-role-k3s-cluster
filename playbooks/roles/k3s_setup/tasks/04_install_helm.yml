@@ -61,4 +61,4 @@
   when: 
     - inventory_hostname == 'master-1' 
     - traefik_installed.rc == 0
-    - traefik_uninstall | bool
+    - traefik_unsitall | bool
