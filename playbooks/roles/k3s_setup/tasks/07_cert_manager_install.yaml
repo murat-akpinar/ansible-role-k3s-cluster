@@ -14,10 +14,17 @@
 
 - name: Install Cert-Manager Helm chart
   ansible.builtin.command:
-    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.14.4 --set installCRDs=true -f {{ user_home_directory }}/my-charts/ingress/values.yaml
+    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ user_home_directory }}/my-charts/ingress/values.yaml
   when: inventory_hostname == 'master-1'
 
 - name: Pause for 30 seconds to allow Cert-Manager pods to start
   ansible.builtin.pause:
     seconds: 30
+  when: inventory_hostname == 'master-1'
+
+- name: Check Cert-Manager pods status
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: cert-manager
+  register: cm_pods
   when: inventory_hostname == 'master-1'
