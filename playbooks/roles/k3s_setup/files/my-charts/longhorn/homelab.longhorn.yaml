@@ -3,8 +3,14 @@ kind: Ingress
 metadata:
   name: longhorn
   namespace: longhorn-system
+  annotations:
+    cert-manager.io/issuer: "selfsigned-issuer"
 spec:
   ingressClassName: nginx
+  tls:
+  - hosts:
+    - homelab.longhorn
+    secretName: homelab-longhorn-tls
   rules:
   - host: homelab.longhorn
     http:
