@@ -3,4 +3,4 @@ ansible_ssh_pass: murat
 keepalived_auth_pass: P@ssw0rd123!
 keepalived_vip: 192.168.1.244
 keepalived_network: enp0s3
-helm_install: false
+helm_install: true

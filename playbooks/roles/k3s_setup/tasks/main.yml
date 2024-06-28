@@ -19,15 +19,20 @@
 
 - name: "Install Helm" 
   ansible.builtin.import_tasks: 04_install_helm.yml
+  when: helm_install | default(false)
 
 - name: "Install ingress-nginx" 
   ansible.builtin.import_tasks: 05_ingress_install.yaml
+  when: helm_install | default(false)
 
 - name: "Install Metallb" 
   ansible.builtin.import_tasks: 06_metallb_install.yaml
+  when: helm_install | default(false)
 
 - name: "Install Cert-Manager" 
   ansible.builtin.import_tasks: 07_cert_manager_install.yaml
+  when: helm_install | default(false)
 
 - name: "Install Longhorn" 
   ansible.builtin.import_tasks: 08_longhorn_install.yaml
+  when: helm_install | default(false)
