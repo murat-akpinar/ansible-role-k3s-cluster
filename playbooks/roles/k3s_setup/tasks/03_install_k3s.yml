@@ -70,23 +70,6 @@
   when: "'worker' in group_names"
   become: true
 
-- name: Allow user 1000 to use kubectl without sudo
-  ansible.builtin.file:
-    path: /etc/rancher/k3s/k3s.yaml
-    owner: 1000
-    group: 1000
-    mode: '0644'
-  become: true
-  when: "'master' in group_names"
-
-- name: Update KUBECONFIG environment variable for user 1000
-  ansible.builtin.lineinfile:
-    path: "/home/{{ lookup('pipe', 'getent passwd 1000 | cut -d: -f1') }}/.bashrc"
-    line: 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml'
-    create: yes
-  become: true
-  when: "'master' in group_names"
-
 - name: Check K3s service status on master nodes
   shell: systemctl status k3s | grep -E 'Active:|Main PID:'
   register: k3s_service_status
@@ -110,3 +93,39 @@
   debug:
     msg: "{{ k3s_agent_service_status.stdout }}"
   when: "'worker' in group_names"
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when: getent_passwd_result.stdout != ''
+
+- name: Create .kube directory for user with UID 1000
+  ansible.builtin.file:
+    path: "/home/{{ uid_1000_user }}/.kube"
+    state: directory
+    mode: '0755'
+    owner: "{{ uid_1000_user }}"
+    group: "{{ uid_1000_user }}"
+  when: inventory_hostname == 'master-1' and uid_1000_user is defined
+
+- name: Copy k3s.yaml to user's kube config
+  ansible.builtin.copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ uid_1000_user }}/.kube/config"
+    remote_src: yes
+    owner: "{{ uid_1000_user }}"
+    group: "{{ uid_1000_user }}"
+    mode: '0600'
+  when: inventory_hostname == 'master-1' and uid_1000_user is defined
+
+- name: Set KUBECONFIG environment variable for user with UID 1000
+  ansible.builtin.lineinfile:
+    path: "/home/{{ uid_1000_user }}/.bashrc"
+    line: 'export KUBECONFIG=/home/{{ uid_1000_user }}/.kube/config'
+    create: yes
+  when: inventory_hostname == 'master-1' and uid_1000_user is defined

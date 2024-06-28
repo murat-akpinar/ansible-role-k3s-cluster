@@ -1,4 +1,4 @@
-# Main tasks for RKE2 setup
+# Main tasks for k3s setup
 ---
 - name: "System requirements Check" 
   ansible.builtin.import_tasks: 00_system_requirements.yml
