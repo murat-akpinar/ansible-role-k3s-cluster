@@ -50,7 +50,7 @@
   when: inventory_hostname == 'master-1' and user_home_directory is defined
 
 - name: Check if Traefik is installed
-  command: kubectl get deployment traefik -n kube-system
+  command: kubectl get helmcharts.helm.cattle.io traefik -n kube-system
   register: traefik_installed
   failed_when: false
   changed_when: false
@@ -61,4 +61,6 @@
   when: 
     - inventory_hostname == 'master-1' 
     - traefik_installed.rc == 0
-    - traefik_unsitall | bool
+    - traefik_uninstall | bool
+  ignore_errors: false
+
