@@ -50,15 +50,22 @@
   when: inventory_hostname == 'master-1' and user_home_directory is defined
 
 - name: Check if Traefik is installed
-  command: kubectl get deployment traefik -n kube-system
+  shell: "kubectl get pods --namespace kube-system | grep traefik"
   register: traefik_installed
-  failed_when: false
-  changed_when: false
+  ignore_errors: true
   when: inventory_hostname == 'master-1'
 
-- name: Delete Traefik manifest
-  command: sudo kubectl delete -f /var/lib/rancher/k3s/server/manifests/traefik.yaml
-  when: 
-  - inventory_hostname == 'master-1' 
-  - traefik_installed.rc == 0
-  - traefik_unsitall | bool
+- name: Remove Traefik if installed
+  shell: "kubectl delete helmrelease traefik --namespace kube-system"
+  when: traefik_installed.stdout != "" and traefik_uninstall | bool and inventory_hostname == 'master-1'
+
+- name: Ensure Traefik is not running
+  shell: "kubectl get pods --namespace kube-system | grep traefik"
+  register: traefik_check
+  ignore_errors: true
+  when: inventory_hostname == 'master-1'
+
+- name: Display message if Traefik is not found
+  debug:
+    msg: "Traefik is not installed"
+  when: traefik_check.stdout == "" and inventory_hostname == 'master-1'
