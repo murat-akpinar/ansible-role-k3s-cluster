@@ -76,12 +76,6 @@ all:
 ansible-playbook -i inventory/cluster_inventory.yml site.yml
 ```
 
-- Sadece helm kurmak isterseniz **helm-install.yml** dosyasını belirtebilirsiniz.
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml helm-install.yml
-```
-
-
 ## Yapılandırma
 
 `vars/main.yml` dosyasında bulunan değişkenleri kendi ihtiyaçlarınıza göre düzenleyebilirsiniz. Bu değişkenler, cluster kurulumu sırasında kullanılacak ayarları içerir.
