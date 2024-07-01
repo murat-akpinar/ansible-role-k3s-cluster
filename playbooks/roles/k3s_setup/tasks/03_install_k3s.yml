@@ -115,13 +115,13 @@
     mode: '0755'
     owner: "{{ uid_1000_user }}"
     group: "{{ uid_1000_user }}"
-  when: inventory_hostname == groups['master'][0] and uid_1000_user is defined
+  when: "'master' in group_names and uid_1000_user is defined"
 
 - name: Remove existing kube config if it exists
   ansible.builtin.file:
     path: "/home/{{ uid_1000_user }}/.kube/config"
     state: absent
-  when: inventory_hostname == groups['master'][0] and uid_1000_user is defined
+  when: "'master' in group_names and uid_1000_user is defined"
 
 - name: Create symbolic link to k3s.yaml for user's kube config
   ansible.builtin.file:
@@ -130,4 +130,4 @@
     state: link
     owner: "{{ uid_1000_user }}"
     group: "{{ uid_1000_user }}"
-  when: inventory_hostname == groups['master'][0] and uid_1000_user is defined
+  when: "'master' in group_names and uid_1000_user is defined"
