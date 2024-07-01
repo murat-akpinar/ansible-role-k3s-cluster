@@ -5,6 +5,15 @@
   changed_when: false
   when: inventory_hostname == 'master-1'
 
+- name: Wait for Traefik pods to be in Running state
+  command: kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik -o jsonpath='{.items[*].status.phase}'
+  register: traefik_pod_status
+  until: traefik_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 30
+  when: 
+    - inventory_hostname == 'master-1'
+    - traefik_installed.rc == 0
 
 - name: Delete Traefik Deployment
   command: kubectl delete deployment traefik -n kube-system
