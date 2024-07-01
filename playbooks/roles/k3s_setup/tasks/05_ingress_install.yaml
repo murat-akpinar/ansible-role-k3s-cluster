@@ -32,9 +32,12 @@
     - inventory_hostname == 'master-1'
     - namespace_exists.rc != 0
 
-- name: Pause for 30 seconds to allow Ingress pods to start
-  ansible.builtin.pause:
-    seconds: 30
+- name: Wait for Ingress pods to be in Running state
+  command: kubectl get pods -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx -o jsonpath='{.items[*].status.phase}'
+  register: ingress_pod_status
+  until: ingress_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 30
   when: 
     - inventory_hostname == 'master-1'
     - namespace_exists.rc != 0
