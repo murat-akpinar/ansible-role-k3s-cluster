@@ -62,6 +62,7 @@
   when: 
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
+    - cert_manager_install | default(false)
 
 - name: Apply homelab longhorn certificate
   ansible.builtin.command:
@@ -69,3 +70,4 @@
   when: 
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
+    - cert_manager_install | default(false)
