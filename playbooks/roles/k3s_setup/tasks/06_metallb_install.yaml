@@ -34,9 +34,12 @@
     - inventory_hostname == 'master-1'
     - metallb_namespace_exists.rc != 0
 
-- name: Pause for 60 seconds to allow MetalLB pods to start
-  ansible.builtin.pause:
-    seconds: 60
+- name: Wait for MetalLB pods to be in Running state
+  command: kubectl get pods -n metallb-system -l app=metallb -o jsonpath='{.items[*].status.phase}'
+  register: metallb_pod_status
+  until: metallb_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 30
   when: inventory_hostname == 'master-1'
 
 - name: Apply MetalLB ConfigMap
@@ -45,4 +48,3 @@
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: inventory_hostname == 'master-1'
-
