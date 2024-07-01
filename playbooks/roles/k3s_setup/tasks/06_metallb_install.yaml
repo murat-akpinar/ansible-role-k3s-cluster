@@ -34,17 +34,17 @@
     - inventory_hostname == 'master-1'
     - metallb_namespace_exists.rc != 0
 
-- name: Apply MetalLB ConfigMap
-  ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/metallb/metallb-config.yaml
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: inventory_hostname == 'master-1'
-
 - name: Wait for MetalLB pods to be in Running state
   command: kubectl get pods -n metallb-system -l app=metallb -o jsonpath='{.items[*].status.phase}'
   register: metallb_pod_status
   until: metallb_pod_status.stdout.find('Running') != -1
   retries: 10
   delay: 30
+  when: inventory_hostname == 'master-1'
+
+- name: Apply MetalLB ConfigMap
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/metallb/metallb-config.yaml
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: inventory_hostname == 'master-1'
