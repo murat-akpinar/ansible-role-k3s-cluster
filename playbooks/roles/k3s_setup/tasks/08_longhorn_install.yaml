@@ -29,6 +29,13 @@
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
 
+- name: Longhorn StorageClass
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/storageclass.yaml
+  when: 
+    - inventory_hostname == 'master-1'
+    - longhorn_namespace_exists.rc != 0
+
 - name: Longhorn ingress config
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/homelab.longhorn.yaml

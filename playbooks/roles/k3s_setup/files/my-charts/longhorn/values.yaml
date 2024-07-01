@@ -130,7 +130,7 @@ persistence:
   # -- Data locality of the default Longhorn StorageClass. (Options: "disabled", "best-effort")
   defaultDataLocality: disabled
   # -- Reclaim policy that provides instructions for handling of a volume after its claim is released. (Options: "Retain", "Delete")
-  reclaimPolicy: Delete
+  reclaimPolicy: Retain
   # -- Setting that allows you to enable live migration of a Longhorn volume from one node to another.
   migratable: false
   # -- Set NFS mount options for Longhorn StorageClass for RWX volumes
@@ -206,9 +206,9 @@ defaultSettings:
   # -- Upgrade Checker that periodically checks for new Longhorn versions. When a new version is available, a notification appears on the Longhorn UI. This setting is enabled by default
   upgradeChecker: ~
   # -- Default number of replicas for volumes created using the Longhorn UI. For Kubernetes configuration, modify the `numberOfReplicas` field in the StorageClass. The default value is "3".
-  defaultReplicaCount: ~
+  defaultReplicaCount: 3
   # -- Default Longhorn StorageClass. "storageClassName" is assigned to PVs and PVCs that are created for an existing Longhorn volume. "storageClassName" can also be used as a label, so it is possible to use a Longhorn StorageClass to bind a workload to an existing PV without creating a Kubernetes StorageClass object. The default value is "longhorn-static".
-  defaultLonghornStaticStorageClass: ~
+  defaultLonghornStaticStorageClass: longhorn-retain
   # -- Number of seconds that Longhorn waits before checking the backupstore for new backups. The default value is "300". When the value is "0", polling is disabled.
   backupstorePollInterval: ~
   # -- Number of minutes that Longhorn keeps a failed backup resource. When the value is "0", automatic deletion is disabled.
