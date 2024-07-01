@@ -35,9 +35,10 @@
     - metallb_namespace_exists.rc != 0
 
 - name: Wait for MetalLB pods to be in Running state
-  command: kubectl get pods -n metallb-system -l app=metallb -o jsonpath='{.items[*].status.phase}'
-  register: metallb_pod_status
-  until: metallb_pod_status.stdout.find('Running') != -1
+  shell: |
+    kubectl get pods -n metallb-system -o jsonpath='{.items[*].status.phase}' | grep -v Running && exit 1 || exit 0
+  register: result
+  until: result.rc == 0
   retries: 10
   delay: 30
   when: inventory_hostname == 'master-1'
