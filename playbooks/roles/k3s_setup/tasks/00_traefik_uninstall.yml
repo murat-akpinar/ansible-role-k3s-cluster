@@ -13,14 +13,14 @@
     - traefik_uninstall | bool
   ignore_errors: false
 
+
 - name: Delete Traefik Deployment
   command: kubectl delete deployment traefik -n kube-system
   when: 
     - inventory_hostname == 'master-1'
-    - traefik_installed.rc == 0
+    - traefik_installed.rc == 0 
     - traefik_uninstall | bool
-  ignore_errors: false
-  become: true
+  ignore_errors: true
 
 - name: Delete Traefik Service
   command: kubectl delete service traefik -n kube-system
@@ -28,5 +28,5 @@
     - inventory_hostname == 'master-1'
     - traefik_installed.rc == 0
     - traefik_uninstall | bool
-  ignore_errors: false
-  become: true
+  ignore_errors: true
+
