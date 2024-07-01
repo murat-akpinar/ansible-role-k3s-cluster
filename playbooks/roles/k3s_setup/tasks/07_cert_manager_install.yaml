@@ -32,9 +32,12 @@
     - inventory_hostname == 'master-1'
     - cert_manager_namespace_exists.rc != 0
 
-- name: Pause for 30 seconds to allow Cert-Manager pods to start
-  ansible.builtin.pause:
-    seconds: 30
+- name: Wait for Cert-Manager pods to be in Running state
+  command: kubectl get pods -n cert-manager -l app.kubernetes.io/name=cert-manager -o jsonpath='{.items[*].status.phase}'
+  register: cert_manager_pod_status
+  until: cert_manager_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 30
   when: 
     - inventory_hostname == 'master-1'
     - cert_manager_namespace_exists.rc != 0
