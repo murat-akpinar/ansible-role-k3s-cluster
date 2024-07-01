@@ -1,3 +1,6 @@
+# Steps to install Longhorn
+---
+
 - name: Check if longhorn-system namespace exists
   command: kubectl get namespace longhorn-system
   register: longhorn_namespace_exists
@@ -29,6 +32,16 @@
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
 
+- name: Wait for Longhorn pods to be in Running state
+  command: kubectl get pods -n longhorn-system -l app=longhorn-manager -o jsonpath='{.items[*].status.phase}'
+  register: longhorn_pod_status
+  until: longhorn_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 30
+  when: 
+    - inventory_hostname == 'master-1'
+    - longhorn_namespace_exists.rc != 0
+
 - name: Longhorn StorageClass
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/storageclass.yaml
@@ -53,13 +66,6 @@
 - name: Apply homelab longhorn certificate
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab-longhorn-certificate.yaml
-  when: 
-    - inventory_hostname == 'master-1'
-    - longhorn_namespace_exists.rc != 0
-
-- name: Pause for 60 seconds to allow Longhorn pods to start
-  ansible.builtin.pause:
-    seconds: 60
   when: 
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
