@@ -141,21 +141,12 @@ ansible-role-k3s-cluster/
 ├── ansible.cfg
 ├── collections
 │   └── requirements.yml
-├── helm-install.yml
 ├── hosts
 ├── inventory
 │   └── cluster_inventory.yml
 ├── LICENSE
 ├── playbooks
 │   └── roles
-│       ├── helm_install
-│       │   ├── files
-│       │   ├── handlers
-│       │   ├── tasks
-│       │   │   ├── 00_install_helm.yml
-│       │   │   └── main.yml
-│       │   ├── templates
-│       │   └── vars
 │       └── k3s_setup
 │           ├── files
 │           │   └── my-charts
@@ -164,20 +155,29 @@ ansible-role-k3s-cluster/
 │           │       ├── ingress
 │           │       │   └── values.yaml
 │           │       ├── longhorn
+│           │       │   ├── cert
+│           │       │   │   ├── homelab-longhorn-certificate.yaml
+│           │       │   │   └── selfsigned-issuer.yaml
 │           │       │   ├── homelab.longhorn.yaml
+│           │       │   ├── storageclass.yaml
 │           │       │   └── values.yaml
 │           │       └── metallb
-│           │           ├── metallb-config.yaml
-│           │           └── metallb.yaml
+│           │           └── metallb-config.yaml
 │           ├── handlers
 │           │   └── main.yml
 │           ├── meta
 │           ├── tasks
 │           │   ├── 00_system_requirements.yml
+│           │   ├── 00_traefik_uninstall.yml
 │           │   ├── 00_wellcome.yml
 │           │   ├── 01_configure_hostname.yml
 │           │   ├── 02_install_keepalived.yml
 │           │   ├── 03_install_k3s.yml
+│           │   ├── 04_install_helm.yml
+│           │   ├── 05_ingress_install.yaml
+│           │   ├── 06_metallb_install.yaml
+│           │   ├── 07_cert_manager_install.yaml
+│           │   ├── 08_longhorn_install.yaml
 │           │   └── main.yml
 │           ├── templates
 │           │   ├── keepalived-backup.j2
@@ -188,6 +188,6 @@ ansible-role-k3s-cluster/
 ├── README.md
 └── site.yml
 
-23 directories, 27 files
+17 directories, 32 files
 
 ```
