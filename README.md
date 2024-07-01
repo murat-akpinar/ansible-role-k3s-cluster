@@ -46,7 +46,9 @@ cert_manager_install: true
 longhorn_install: true
 ```
 
-2. **Envanter Dosyasını Düzenle**: Projenin kök dizinindeki `cluster_inventory.yml` dosyasını kendi ortamınıza göre ayarlayın. Örnek yapılandırma:
+2. **Envanter Dosyasını Düzenle**: Projenin kök dizinindeki `cluster_inventory.yml` dosyasını kendi ortamınıza göre ayarlayın.
+- Eğer hiç **worker** istemiyorsanız o kısmı açıklama satırı haline getirebilirsiniz sadece **3 Master Node HA** şeklinde kurabilirsiniz.
+Örnek yapılandırma:
 
 ```
 all:
@@ -70,7 +72,7 @@ all:
 ```
 
 4. **Playbook'u Çalıştırılması**: 
-- Eğer **k3s cluster** ve **helm** kurmak isterseniz site.yml kullanabilirsiniz.
+- Eğer **k3s cluster**  kurmak isterseniz site.yml kullanabilirsiniz.
 
 ```bash
 ansible-playbook -i inventory/cluster_inventory.yml site.yml
@@ -96,6 +98,8 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [x] install longhorn
 - [x] install cert-manager
 - [x] install ingress-nginx
+- [ ] install ELK
+- [ ] install Grafana
 
 ````bash
 >>=======================================================================<<
@@ -111,7 +115,12 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 k3s Cluster / Ver: "1.0"  / Developped by: Murat Akpınar
 
 Versions:
-  - k3s
+  - k3s v1.29.5+k3s1
+  - Cert-Manager v1.13.1
+  - Ingress-Nginx v1.0
+  - Longhorn v1.6.1
+  - Metallb v0.14.5
+
 ````
 
 

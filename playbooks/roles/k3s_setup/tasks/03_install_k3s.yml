@@ -55,10 +55,14 @@
   when: inventory_hostname != groups['master'][0] and 'master' in group_names
   become: true
 
+- name: Check if worker nodes exist
+  set_fact:
+    worker_nodes_exist: "{{ groups['worker'] is defined and groups['worker'] | length > 0 }}"
+
 - name: Install K3s agent on worker nodes
   shell: |
     curl -sfL https://get.k3s.io | K3S_URL=https://{{ keepalived_vip }}:6443 K3S_TOKEN={{ k3s_token }} sh -s - agent
-  when: "'worker' in group_names"
+  when: "'worker' in group_names and worker_nodes_exist"
   register: join_worker
   become: true
 
