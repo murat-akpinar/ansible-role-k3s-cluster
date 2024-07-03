@@ -49,4 +49,3 @@
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"  
   when: 
     - inventory_hostname == 'master-1'
-    - cert_manager_namespace_exists.rc != 0
