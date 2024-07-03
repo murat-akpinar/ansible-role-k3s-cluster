@@ -57,14 +57,6 @@
     - longhorn_namespace_exists.rc != 0
     - cert_manager_install | default(false)
 
-- name: Apply selfsigned issuer
-  ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/selfsigned-issuer.yaml
-  when: 
-    - inventory_hostname == 'master-1'
-    - longhorn_namespace_exists.rc != 0
-    - cert_manager_install | default(false)
-
 - name: Apply homelab longhorn certificate
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab-longhorn-certificate.yaml
