@@ -1,40 +1,60 @@
-- name: Check if Traefik is installed
-  command: kubectl get helmcharts.helm.cattle.io traefik -n kube-system
-  register: traefik_installed
-  failed_when: false
-  changed_when: false
-  when: inventory_hostname == 'master-1'
+- name: Ensure the k3s config directory exists
+  file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: "'master' in group_names"
 
-- name: Wait for Traefik pods to be in Running state
-  command: kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik -o jsonpath='{.items[*].status.phase}'
-  register: traefik_pod_status
-  until: traefik_pod_status.stdout.find('Running') != -1
+- name: Create or update k3s config.yaml to disable Traefik
+  block:
+    - name: Create config.yaml if it does not exist
+      copy:
+        dest: /etc/rancher/k3s/config.yaml
+        content: |
+          disable:
+            - traefik
+      when: 
+      - not lookup('file', '/etc/rancher/k3s/config.yaml', errors='ignore')
+      - "'master' in group_names"
+
+    - name: Ensure Traefik is disabled in config.yaml
+      lineinfile:
+        path: /etc/rancher/k3s/config.yaml
+        state: present
+        regexp: '^disable:'
+        line: |
+          disable:
+            - traefik
+      when: "'master' in group_names"
+
+- name: Restart k3s service
+  systemd:
+    name: k3s
+    state: restarted
+  register: k3s_restart
+  ignore_errors: true
+  when: "'master' in group_names"
+
+- name: Wait for K3s service to be in Running state
+  shell: systemctl status k3s
+  register: k3s_service_status
+  until: "k3s_service_status.stdout.find('Active: active (running)') != -1"
   retries: 10
-  delay: 30
-  when: 
-    - inventory_hostname == 'master-1'
-    - traefik_installed.rc == 0
+  delay: 5
+  become: true
+  when: "'master' in group_names"
 
-- name: Delete Traefik Deployment
-  command: kubectl delete deployment traefik -n kube-system
-  when: 
-    - inventory_hostname == 'master-1'
-    - traefik_installed.rc == 0 
-    - traefik_uninstall | bool
+
+- name: Check K3s service status on master nodes
+  shell: systemctl status k3s | grep -E 'Active:|Main PID:'
+  register: k3s_status
   ignore_errors: true
+  become: true
+  when: "'master' in group_names"
 
-- name: Delete Traefik Service
-  command: kubectl delete service traefik -n kube-system
-  when: 
-    - inventory_hostname == 'master-1'
-    - traefik_installed.rc == 0
-    - traefik_uninstall | bool
-  ignore_errors: true
-
-- name: Delete Traefik manifest
-  command: sudo kubectl delete -f /var/lib/rancher/k3s/server/manifests/traefik.yaml
-  when: 
-    - inventory_hostname == 'master-1' 
-    - traefik_installed.rc == 0
-    - traefik_uninstall | bool
-  ignore_errors: false
+- name: Debug K3s service status on master nodes
+  debug:
+    msg: "{{ k3s_status.stdout }}"
+  when: "'master' in group_names"

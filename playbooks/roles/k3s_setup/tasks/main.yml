@@ -15,6 +15,7 @@
 
 - name: "Traefik Uninstall" 
   ansible.builtin.import_tasks: 00_traefik_uninstall.yml
+  when: traefik_uninstall | default(false)
 
 - name: "Wellcome Message" 
   ansible.builtin.import_tasks: 00_wellcome.yml
