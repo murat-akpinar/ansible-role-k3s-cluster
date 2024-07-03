@@ -99,7 +99,7 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [x] install cert-manager
 - [x] install ingress-nginx
 - [ ] install ELK
-- [ ] install Grafana
+- [x] install Grafana
 
 ````bash
 >>=======================================================================<<
@@ -120,6 +120,7 @@ Versions:
   - Ingress-Nginx v1.0
   - Longhorn v1.6.1
   - Metallb v0.14.5
+  - Prometheus & Grafana
 
 ````
 
