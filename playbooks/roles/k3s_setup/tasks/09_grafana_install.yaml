@@ -33,7 +33,7 @@
 
 - name: Install Prometheus Helm chart
   ansible.builtin.command:
-    cmd: helm install prometheus prometheus-community/prometheus --namespace grafana --create-namespace -f {{ user_home_directory }}/my-charts/grafana/prometheus-values.yaml
+    cmd: helm install prometheus prometheus-community/prometheus --namespace prometheus --create-namespace -f {{ user_home_directory }}/my-charts/grafana/prometheus-values.yaml
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
