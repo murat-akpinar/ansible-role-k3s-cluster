@@ -101,3 +101,14 @@
   debug:
     msg: "Grafana admin password: {{ grafana_admin_password.stdout }}"
   when: inventory_hostname == 'master-1'
+
+- name: Retrieve Prometheus server IP address
+  ansible.builtin.shell: >
+    kubectl get svc -n prometheus prometheus-server -o jsonpath="{.spec.clusterIP}"
+  register: prometheus_server_ip
+  when: inventory_hostname == 'master-1'
+
+- name: Display Prometheus server IP address
+  debug:
+    msg: "Prometheus server IP address: {{ prometheus_server_ip.stdout }}"
+  when: inventory_hostname == 'master-1'
