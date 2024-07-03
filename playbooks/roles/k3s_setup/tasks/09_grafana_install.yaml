@@ -112,3 +112,13 @@
   debug:
     msg: "Prometheus server IP address: {{ prometheus_server_ip.stdout }}"
   when: inventory_hostname == 'master-1'
+
+- name: Construct Prometheus data URL
+  set_fact:
+    prometheus_data_url: "http://prometheus-server.prometheus.svc.cluster.local"
+  when: inventory_hostname == 'master-1'
+
+- name: Display Prometheus data URL
+  debug:
+    msg: "Prometheus data URL: {{ prometheus_data_url }}"
+  when: inventory_hostname == 'master-1'
