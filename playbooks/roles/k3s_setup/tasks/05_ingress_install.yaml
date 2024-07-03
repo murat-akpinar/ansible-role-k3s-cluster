@@ -37,7 +37,7 @@
   register: ingress_pod_status
   until: ingress_pod_status.stdout.find('Running') != -1
   retries: 10
-  delay: 30
+  delay: 60
   when: 
     - inventory_hostname == 'master-1'
     - namespace_exists.rc != 0

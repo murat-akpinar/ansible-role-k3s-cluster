@@ -1,24 +1,3 @@
-# Main tasks for k3s setup
----
-
-- name: "System requirements Check" 
-  ansible.builtin.import_tasks: 00_system_requirements.yml
-
-- name: "Configure Hostname"
-  ansible.builtin.import_tasks: 01_configure_hostname.yml
-
-- name: "Install and Configure keepalived"
-  ansible.builtin.import_tasks: 02_install_keepalived.yml
-
-- name: "Install k3s" 
-  ansible.builtin.import_tasks: 03_install_k3s.yml
-
-- name: "Traefik Uninstall" 
-  ansible.builtin.import_tasks: 00_traefik_uninstall.yml
-  when: traefik_uninstall | default(false)
-
-- name: "Wellcome Message" 
-  ansible.builtin.import_tasks: 00_wellcome.yml
 
 
 - name: "Install Helm" 

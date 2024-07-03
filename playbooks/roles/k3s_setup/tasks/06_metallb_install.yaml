@@ -40,7 +40,7 @@
   register: result
   until: result.rc == 0
   retries: 10
-  delay: 30
+  delay: 60
   when: inventory_hostname == 'master-1'
 
 - name: Apply MetalLB ConfigMap

@@ -37,7 +37,7 @@
   register: cert_manager_pod_status
   until: cert_manager_pod_status.stdout.find('Running') != -1
   retries: 10
-  delay: 30
+  delay: 60
   when: 
     - inventory_hostname == 'master-1'
     - cert_manager_namespace_exists.rc != 0
@@ -45,6 +45,8 @@
 - name: Apply selfsigned issuer
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/cert-manager/selfsigned-issuer.yaml
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"  
   when: 
     - inventory_hostname == 'master-1'
     - cert_manager_namespace_exists.rc != 0
