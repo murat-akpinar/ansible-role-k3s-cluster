@@ -1,0 +1,6 @@
+# prometheus-values.yaml
+server:
+  persistentVolume:
+    enabled: true
+    storageClass: longhorn-retain-1
+    size: 10Gi

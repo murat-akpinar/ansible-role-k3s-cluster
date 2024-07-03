@@ -1,4 +1,76 @@
-# Steps to install grafana
+# Steps to install Grafana
 ---
 
-# To do
+- name: Check if grafana namespace exists
+  command: kubectl get namespace grafana
+  register: grafana_namespace_exists
+  failed_when: false
+  changed_when: false
+  when: inventory_hostname == 'master-1'
+
+- name: Add Prometheus Helm repository
+  community.kubernetes.helm_repository:
+    name: prometheus-community
+    repo_url: https://prometheus-community.github.io/helm-charts
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_namespace_exists.rc != 0
+
+- name: Add Grafana Helm repository
+  community.kubernetes.helm_repository:
+    name: grafana
+    repo_url: https://grafana.github.io/helm-charts
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_namespace_exists.rc != 0
+
+- name: Update Helm repository list
+  ansible.builtin.command:
+    cmd: helm repo update
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_namespace_exists.rc != 0
+
+- name: Install Prometheus Helm chart
+  ansible.builtin.command:
+    cmd: helm install prometheus prometheus-community/prometheus --namespace grafana --create-namespace -f {{ user_home_directory }}/my-charts/grafana/prometheus-values.yaml
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_namespace_exists.rc != 0
+
+- name: Install Grafana Helm chart
+  ansible.builtin.command:
+    cmd: helm install grafana grafana/grafana --namespace grafana --create-namespace -f {{ user_home_directory }}/my-charts/grafana/grafana-values.yaml
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_namespace_exists.rc != 0
+
+- name: Wait for Grafana pods to be in Running state
+  command: kubectl get pods -n grafana -l app.kubernetes.io/name=grafana -o jsonpath='{.items[*].status.phase}'
+  register: grafana_pod_status
+  until: grafana_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 30
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_namespace_exists.rc == 0
+
+- name: Grafana ingress config
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/homelab.grafana.yaml
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_namespace_exists.rc != 0
+    - cert_manager_install | default(false)
+
+- name: Apply homelab.grafana certificate
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/cert/homelab-grafana-certificate.yaml
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_namespace_exists.rc != 0
+    - cert_manager_install | default(false)
