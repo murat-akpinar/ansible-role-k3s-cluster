@@ -59,6 +59,22 @@
     - inventory_hostname == 'master-1'
     - grafana_namespace_exists.rc == 0
 
+- name: Wait for Grafana PVC to be bound
+  command: kubectl get pvc -n grafana -o jsonpath='{.items[*].status.phase}'
+  register: grafana_pvc_status
+  until: grafana_pvc_status.stdout.find('Bound') != -1
+  retries: 10
+  delay: 30
+  when: inventory_hostname == 'master-1'
+
+- name: Wait for Prometheus PVC to be bound
+  command: kubectl get pvc -n prometheus -o jsonpath='{.items[*].status.phase}'
+  register: prometheus_pvc_status
+  until: prometheus_pvc_status.stdout.find('Bound') != -1
+  retries: 10
+  delay: 30
+  when: inventory_hostname == 'master-1'
+
 - name: Grafana ingress config
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/homelab.grafana.yaml
