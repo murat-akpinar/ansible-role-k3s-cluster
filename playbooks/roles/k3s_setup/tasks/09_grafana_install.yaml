@@ -90,3 +90,14 @@
     - inventory_hostname == 'master-1'
     - grafana_namespace_exists.rc != 0
     - cert_manager_install | default(false)
+
+- name: Retrieve Grafana admin password
+  ansible.builtin.shell: >
+    kubectl get secret --namespace grafana grafana -o jsonpath="{.data.admin-password}" | base64 --decode
+  register: grafana_admin_password
+  when: inventory_hostname == 'master-1'
+
+- name: Display Grafana admin password
+  debug:
+    msg: "Grafana admin password: {{ grafana_admin_password.stdout }}"
+  when: inventory_hostname == 'master-1'
