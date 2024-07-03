@@ -152,7 +152,14 @@ ansible-role-k3s-cluster/
 │           ├── files
 │           │   └── my-charts
 │           │       ├── cert-manager
+│           │       │   ├── selfsigned-issuer.yaml
 │           │       │   └── values.yaml
+│           │       ├── grafana
+│           │       │   ├── cert
+│           │       │   │   └── homelab-grafana-certificate.yaml
+│           │       │   ├── grafana-values.yaml
+│           │       │   ├── homelab.grafana.yaml
+│           │       │   └── prometheus-values.yaml
 │           │       ├── ingress
 │           │       │   └── values.yaml
 │           │       ├── longhorn
@@ -179,6 +186,7 @@ ansible-role-k3s-cluster/
 │           │   ├── 06_metallb_install.yaml
 │           │   ├── 07_cert_manager_install.yaml
 │           │   ├── 08_longhorn_install.yaml
+│           │   ├── 09_grafana_install.yaml
 │           │   └── main.yml
 │           ├── templates
 │           │   ├── keepalived-backup.j2
@@ -189,6 +197,5 @@ ansible-role-k3s-cluster/
 ├── README.md
 └── site.yml
 
-17 directories, 32 files
-
+20 directories, 38 files
 ```
