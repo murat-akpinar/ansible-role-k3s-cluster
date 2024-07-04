@@ -7,38 +7,44 @@
   failed_when: false
   changed_when: false
   check_mode: no
-  when: inventory_hostname == 'master-1'
+  when: "'master' in group_names"
 
 - name: Download Helm installation script
   ansible.builtin.get_url:
     url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
     dest: /tmp/get_helm.sh
     mode: '0700'
-  when: inventory_hostname == 'master-1' and helm_installed.rc != 0
+  when:
+  - "'master' in group_names"
+  - helm_installed.rc != 0
 
 - name: Install Helm
   ansible.builtin.shell:
     cmd: /tmp/get_helm.sh
     creates: /usr/local/bin/helm
-  when: inventory_hostname == 'master-1' and helm_installed.rc != 0
+  when: 
+  - "'master' in group_names"
+  - helm_installed.rc != 0
 
 - name: Ensure K3S server is enabled and running
   ansible.builtin.systemd:
     name: k3s.service
     enabled: true
     state: started
-  when: inventory_hostname == 'master-1'
+  when: "'master' in group_names"
 
 - name: Find home directory for UID 1000
   command: getent passwd 1000
   register: getent_passwd_output
   changed_when: false
-  when: inventory_hostname == 'master-1'
+  when: "'master' in group_names"
 
 - name: Set home directory variable
   set_fact:
     user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
-  when: inventory_hostname == 'master-1' and getent_passwd_output.stdout != ""
+  when: 
+  - "'master' in group_names" 
+  - getent_passwd_output.stdout != ""
 
 - name: Copy my-charts directory to user's home directory
   copy:
@@ -47,4 +53,6 @@
     owner: 1000
     group: 1000
     mode: '0755'
-  when: inventory_hostname == 'master-1' and user_home_directory is defined
+  when:
+  - "'master' in group_names" 
+  - user_home_directory is defined

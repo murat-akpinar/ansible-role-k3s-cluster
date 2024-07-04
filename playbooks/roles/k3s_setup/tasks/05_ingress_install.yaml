@@ -13,14 +13,14 @@
     name: ingress-nginx
     repo_url: https://kubernetes.github.io/ingress-nginx
   when: 
-    - inventory_hostname == 'master-1'
+    - "'master' in group_names"
     - namespace_exists.rc != 0
 
 - name: Update Helm repository list
   ansible.builtin.command:
     cmd: helm repo update
   when: 
-    - inventory_hostname == 'master-1'
+    - "'master' in group_names"
     - namespace_exists.rc != 0
 
 - name: Install NGINX Ingress Helm chart
