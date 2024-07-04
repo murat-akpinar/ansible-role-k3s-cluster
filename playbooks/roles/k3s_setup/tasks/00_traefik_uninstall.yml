@@ -55,7 +55,7 @@
         dest: /etc/rancher/k3s/config.yaml
         content: |
           disable:
-            - traefik
+            - servicelb
       when: 
       - not lookup('file', '/etc/rancher/k3s/config.yaml', errors='ignore')
       - "'master' in group_names"
