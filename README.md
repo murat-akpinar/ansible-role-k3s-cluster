@@ -98,8 +98,10 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [x] install longhorn
 - [x] install cert-manager
 - [x] install ingress-nginx
-- [ ] install ELK
 - [x] install Grafana
+- [ ] install ELK
+- [ ] install Fluent
+
 
 ````bash
 >>=======================================================================<<
@@ -121,6 +123,8 @@ Versions:
   - Longhorn v1.6.1
   - Metallb v0.14.5
   - Prometheus & Grafana
+  - Fluent
+  - ELK
 
 ````
 
