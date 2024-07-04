@@ -12,21 +12,21 @@
   ansible.builtin.command:
     cmd: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
   when: 
-    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
     - grafana_namespace_exists.rc != 0
 
 - name: Add Grafana Helm repository
   ansible.builtin.command:
     cmd: helm repo add grafana https://grafana.github.io/helm-charts
   when: 
-    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
     - grafana_namespace_exists.rc != 0
 
 - name: Update Helm repository list
   ansible.builtin.command:
     cmd: helm repo update
   when: 
-    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
     - grafana_namespace_exists.rc != 0
 
 - name: Install Prometheus Helm chart

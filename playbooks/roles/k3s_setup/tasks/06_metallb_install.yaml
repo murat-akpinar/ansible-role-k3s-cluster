@@ -13,7 +13,7 @@
     name: metallb
     repo_url: https://metallb.github.io/metallb
   when: 
-    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
     - metallb_namespace_exists.rc != 0
 
 - name: Update Helm repository list
@@ -22,7 +22,7 @@
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
-    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
     - metallb_namespace_exists.rc != 0
 
 - name: Install MetalLB using Helm
