@@ -98,7 +98,7 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [x] install longhorn
 - [x] install cert-manager
 - [x] install ingress-nginx
-- [x] install Grafana
+- [x] install Grafana ( Grafana Dashboard : 15759, 8171,15760 )
 - [ ] install ELK
 - [ ] install Fluent
 
