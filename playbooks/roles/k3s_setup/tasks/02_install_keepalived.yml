@@ -7,15 +7,8 @@
 
 - name: Debug Keepalived installation on Debian
   debug:
-    msg: |
-      Keepalived installed on Debian-based system with result:
-      - Changed: {{ keepalived_debian.changed }}
-      - Important Output: 
-        {{ keepalived_debian.stdout_lines[:10] | join('\n') }}
-      - Errors: 
-        {{ keepalived_debian.stderr_lines | default('No errors') }}
+    msg: "Keepalived installed on Debian-based system with result: {{ keepalived_debian }}"
   when: "'worker' not in group_names"
-
 
 - name: Install Keepalived on RedHat-based systems
   yum:
@@ -26,13 +19,7 @@
 
 - name: Debug Keepalived installation on RedHat
   debug:
-    msg: |
-      Keepalived installed on RedHat-based system with result:
-      - Changed: {{ keepalived_redhat.changed }}
-      - Important Output: 
-        {{ keepalived_redhat.stdout_lines[:10] | join('\n') }}
-      - Errors: 
-        {{ keepalived_redhat.stderr_lines | default('No errors') }}
+    msg: "Keepalived installed on RedHat-based system with result: {{ keepalived_redhat }}"
   when: "'worker' not in group_names"
 
 - name: Ensure keepalived_script user is present
