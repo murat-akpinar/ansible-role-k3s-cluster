@@ -55,7 +55,7 @@
         dest: /etc/rancher/k3s/config.yaml
         content: |
           disable:
-            - servicelb
+            - traefik
       when: 
       - not lookup('file', '/etc/rancher/k3s/config.yaml', errors='ignore')
       - "'master' in group_names"
@@ -67,7 +67,7 @@
         regexp: '^disable:'
         line: |
           disable:
-            - traefik
+            - servicelb
       when: "'master' in group_names"
 
 - name: Restart k3s service
