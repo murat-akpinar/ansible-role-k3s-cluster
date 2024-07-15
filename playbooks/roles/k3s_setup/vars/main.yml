@@ -10,4 +10,4 @@ metallb_install: true
 cert_manager_install: true
 longhorn_install: true
 grafana_install: true
-efk_install: true
+efk_install: false

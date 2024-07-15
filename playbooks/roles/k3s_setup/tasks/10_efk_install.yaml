@@ -37,6 +37,15 @@
     - inventory_hostname == 'master-1'
     - logging_namespace_exists.rc != 0
 
+- name: Install Kibana Helm chart
+  ansible.builtin.command:
+    cmd: helm install kibana elastic/kibana --namespace logging --create-namespace -f {{ user_home_directory }}/my-charts/efk/kibana-values.yaml
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+
 - name: Install Fluentd Helm chart
   ansible.builtin.command:
     cmd: helm install fluentd fluent/fluentd --namespace logging --create-namespace -f {{ user_home_directory }}/my-charts/efk/fluentd-values.yaml
@@ -46,14 +55,6 @@
     - inventory_hostname == 'master-1'
     - logging_namespace_exists.rc != 0
 
-- name: Install Kibana Helm chart
-  ansible.builtin.command:
-    cmd: helm install kibana elastic/kibana --namespace logging --create-namespace -f {{ user_home_directory }}/my-charts/efk/kibana-values.yaml
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
-    - inventory_hostname == 'master-1'
-    - logging_namespace_exists.rc != 0
 
 - name: Wait for Elasticsearch pods to be in Running state
   command: kubectl get pods -n logging -l app=elasticsearch-master -o jsonpath='{.items[*].status.phase}'
