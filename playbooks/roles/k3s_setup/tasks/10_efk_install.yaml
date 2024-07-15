@@ -16,7 +16,7 @@
 
 - name: Add Fluentd Helm repository
   ansible.builtin.command:
-    cmd: helm repo add stable https://charts.helm.sh/stable
+    cmd: helm repo add fluent https://fluent.github.io/helm-charts
   when: 
     - inventory_hostname == 'master-1'
     - logging_namespace_exists.rc != 0
