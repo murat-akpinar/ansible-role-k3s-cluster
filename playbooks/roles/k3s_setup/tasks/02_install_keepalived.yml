@@ -87,6 +87,7 @@
 - name: Extract Keepalived service active status
   set_fact:
     keepalived_active_status: "{{ keepalived_status.stdout | regex_search('Active:.*') }}"
+  when: "'worker' not in group_names"
 
 - name: Debug Keepalived service active status
   debug:
