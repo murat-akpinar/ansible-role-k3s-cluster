@@ -39,7 +39,7 @@
 
 - name: Install Fluentd Helm chart
   ansible.builtin.command:
-    cmd: helm install fluentd stable/fluentd --namespace logging --create-namespace -f {{ user_home_directory }}/my-charts/efk/fluentd-values.yaml
+    cmd: helm install fluentd fluent/fluentd --namespace logging --create-namespace -f {{ user_home_directory }}/my-charts/efk/fluentd-values.yaml
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -56,7 +56,7 @@
     - logging_namespace_exists.rc != 0
 
 - name: Wait for Elasticsearch pods to be in Running state
-  command: kubectl get pods -n logging -l app=elasticsearch -o jsonpath='{.items[*].status.phase}'
+  command: kubectl get pods -n logging -l app=elasticsearch-master -o jsonpath='{.items[*].status.phase}'
   register: elasticsearch_pod_status
   until: elasticsearch_pod_status.stdout.find('Running') != -1
   retries: 10
