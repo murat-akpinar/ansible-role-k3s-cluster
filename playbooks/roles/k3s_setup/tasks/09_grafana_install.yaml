@@ -9,17 +9,15 @@
   when: inventory_hostname == 'master-1'
 
 - name: Add Prometheus Helm repository
-  community.kubernetes.helm_repository:
-    name: prometheus
-    repo_url: https://prometheus-community.github.io/helm-charts
+  ansible.builtin.command:
+    cmd: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
   when: 
     - inventory_hostname == 'master-1'
     - grafana_namespace_exists.rc != 0
 
 - name: Add Grafana Helm repository
-  community.kubernetes.helm_repository:
-    name: grafana
-    repo_url: https://grafana.github.io/helm-charts
+  ansible.builtin.command:
+    cmd: helm repo add grafana https://grafana.github.io/helm-charts
   when: 
     - inventory_hostname == 'master-1'
     - grafana_namespace_exists.rc != 0
