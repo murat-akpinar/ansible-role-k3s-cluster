@@ -11,7 +11,7 @@ persistence:
   enabled: true
   storageClassName: longhorn-retain-1
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   size: 10Gi
 
 affinity:
