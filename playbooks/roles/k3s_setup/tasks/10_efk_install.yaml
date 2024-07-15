@@ -1,0 +1,132 @@
+# Steps to install Elasticsearch, Fluentd and Kibana
+---
+- name: Check if logging namespace exists
+  command: kubectl get namespace logging
+  register: logging_namespace_exists
+  failed_when: false
+  changed_when: false
+  when: inventory_hostname == 'master-1'
+
+- name: Add Elastic Helm repository
+  ansible.builtin.command:
+    cmd: helm repo add elastic https://helm.elastic.co
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+
+- name: Add Fluentd Helm repository
+  ansible.builtin.command:
+    cmd: helm repo add stable https://charts.helm.sh/stable
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+
+- name: Update Helm repository list
+  ansible.builtin.command:
+    cmd: helm repo update
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+
+- name: Install Elasticsearch Helm chart
+  ansible.builtin.command:
+    cmd: helm install elasticsearch elastic/elasticsearch --namespace logging --create-namespace -f {{ user_home_directory }}/my-charts/efk/elasticsearch-values.yaml
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+
+- name: Install Fluentd Helm chart
+  ansible.builtin.command:
+    cmd: helm install fluentd stable/fluentd --namespace logging --create-namespace -f {{ user_home_directory }}/my-charts/efk/fluentd-values.yaml
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+
+- name: Install Kibana Helm chart
+  ansible.builtin.command:
+    cmd: helm install kibana elastic/kibana --namespace logging --create-namespace -f {{ user_home_directory }}/my-charts/efk/kibana-values.yaml
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+
+- name: Wait for Elasticsearch pods to be in Running state
+  command: kubectl get pods -n logging -l app=elasticsearch -o jsonpath='{.items[*].status.phase}'
+  register: elasticsearch_pod_status
+  until: elasticsearch_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 60
+  when: inventory_hostname == 'master-1'
+
+- name: Wait for Fluentd pods to be in Running state
+  command: kubectl get pods -n logging -l app=fluentd -o jsonpath='{.items[*].status.phase}'
+  register: fluentd_pod_status
+  until: fluentd_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 60
+  when: inventory_hostname == 'master-1'
+
+- name: Wait for Kibana pods to be in Running state
+  command: kubectl get pods -n logging -l app=kibana -o jsonpath='{.items[*].status.phase}'
+  register: kibana_pod_status
+  until: kibana_pod_status.stdout.find('Running') != -1
+  retries: 10
+  delay: 60
+  when: inventory_hostname == 'master-1'
+
+- name: Wait for Elasticsearch PVC to be bound
+  command: kubectl get pvc -n logging -o jsonpath='{.items[*].status.phase}'
+  register: elasticsearch_pvc_status
+  until: elasticsearch_pvc_status.stdout.find('Bound') != -1
+  retries: 10
+  delay: 30
+  when: inventory_hostname == 'master-1'
+
+- name: Wait for Fluentd PVC to be bound
+  command: kubectl get pvc -n logging -o jsonpath='{.items[*].status.phase}'
+  register: fluentd_pvc_status
+  until: fluentd_pvc_status.stdout.find('Bound') != -1
+  retries: 10
+  delay: 30
+  when: inventory_hostname == 'master-1'
+
+- name: Wait for Kibana PVC to be bound
+  command: kubectl get pvc -n logging -o jsonpath='{.items[*].status.phase}'
+  register: kibana_pvc_status
+  until: kibana_pvc_status.stdout.find('Bound') != -1
+  retries: 10
+  delay: 30
+  when: inventory_hostname == 'master-1'
+
+- name: Create Kibana ingress configuration
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/efk/cert/homelab.kibana.yaml
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+    - cert_manager_install | default(false)
+
+- name: Apply Kibana certificate
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/efk/cert/homelab-kibana-certificate.yaml
+  when: 
+    - inventory_hostname == 'master-1'
+    - logging_namespace_exists.rc != 0
+    - cert_manager_install | default(false)
+
+- name: Retrieve Kibana admin password
+  ansible.builtin.shell: >
+    kubectl get secret --namespace logging kibana -o jsonpath="{.data.kibana-password}" | base64 --decode
+  register: kibana_admin_password
+  when: inventory_hostname == 'master-1'
+
+- name: Display Kibana admin password
+  debug:
+    msg: "Kibana admin password: {{ kibana_admin_password.stdout }}"
+  when: inventory_hostname == 'master-1'
+

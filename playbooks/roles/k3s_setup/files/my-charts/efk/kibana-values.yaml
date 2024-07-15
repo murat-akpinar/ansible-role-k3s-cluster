@@ -1,0 +1,13 @@
+replicas: 2
+elasticsearchHosts: "http://elasticsearch-logging:9200"
+persistence:
+  enabled: true
+  storageClass: longhorn-retain-1
+  size: 10Gi
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
