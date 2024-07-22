@@ -6,29 +6,70 @@
   register: cert_manager_namespace_exists
   failed_when: false
   changed_when: false
-  when: inventory_hostname == 'master-1'
+  when: "'master' in group_names"
+
+- name: Check if Jetstack Helm repository is already added
+  ansible.builtin.command:
+    cmd: helm repo list
+  register: helm_repo_list
+  ignore_errors: true
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  when: "'master' in group_names"
+
+- name: Fail if helm repo list failed for reasons other than no repositories
+  ansible.builtin.fail:
+    msg: "Failed to list Helm repositories: {{ helm_repo_list.stderr }}"
+  when: 
+    - "'master' in group_names"
+    - helm_repo_list.rc != 0
+    - "'Error: no repositories to show' not in helm_repo_list.stderr"
+
+- name: Extract Helm repository names
+  ansible.builtin.shell: |
+    echo "{{ helm_repo_list.stdout }}" | awk 'NR > 1 {print $1}'
+  register: helm_repo_names
+  when: "'master' in group_names"
+
+- name: Check if Jetstack Helm repository is already present
+  ansible.builtin.set_fact:
+    jetstack_repo_present: "{{ 'jetstack' in helm_repo_names.stdout }}"
+  when: "'master' in group_names"
+
+- name: Debug if Jetstack Helm repository is present
+  ansible.builtin.debug:
+    msg: "Jetstack Helm repository is present: {{ jetstack_repo_present }}"
+  when: "'master' in group_names"
 
 - name: Add Jetstack Helm repository
-  community.kubernetes.helm_repository:
-    name: jetstack
-    repo_url: https://charts.jetstack.io
-    become_user: "{{ uid_1000_user }}"
+  ansible.builtin.command:
+    cmd: helm repo add jetstack https://charts.jetstack.io
+  become: true
+  become_user: "{{ uid_1000_user }}"
   when: 
-    - inventory_hostname == 'master-1'
-    - cert_manager_namespace_exists.rc != 0
+    - "'master' in group_names"
+    - not jetstack_repo_present
+
+- name: Debug message if Jetstack Helm repository is already present
+  ansible.builtin.debug:
+    msg: "Jetstack Helm repository is already added."
+  when:
+    - "'master' in group_names"
+    - jetstack_repo_present
 
 - name: Update Helm repository list
   ansible.builtin.command:
     cmd: helm repo update
-    become_user: "{{ uid_1000_user }}"
+  become: true
+  become_user: "{{ uid_1000_user }}"
   when: 
-    - inventory_hostname == 'master-1'
-    - cert_manager_namespace_exists.rc != 0
+    - "'master' in group_names"
 
 - name: Install Cert-Manager Helm chart
   ansible.builtin.command:
     cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ user_home_directory }}/my-charts/ingress/values.yaml
-    become_user: "{{ uid_1000_user }}"  
+  become: true
+  become_user: "{{ uid_1000_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -48,7 +89,8 @@
 - name: Apply selfsigned issuer
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/cert-manager/selfsigned-issuer.yaml
-    become_user: "{{ uid_1000_user }}"
+  become: true
+  become_user: "{{ uid_1000_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"  
   when: 

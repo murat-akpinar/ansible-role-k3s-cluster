@@ -6,29 +6,70 @@
   register: longhorn_namespace_exists
   failed_when: false
   changed_when: false
-  when: inventory_hostname == 'master-1'
+  when: "'master' in group_names"
+
+- name: Check if Longhorn Helm repository is already added
+  ansible.builtin.command:
+    cmd: helm repo list
+  register: helm_repo_list
+  ignore_errors: true
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  when: "'master' in group_names"
+
+- name: Fail if helm repo list failed for reasons other than no repositories
+  ansible.builtin.fail:
+    msg: "Failed to list Helm repositories: {{ helm_repo_list.stderr }}"
+  when: 
+    - "'master' in group_names"
+    - helm_repo_list.rc != 0
+    - "'Error: no repositories to show' not in helm_repo_list.stderr"
+
+- name: Extract Helm repository names
+  ansible.builtin.shell: |
+    echo "{{ helm_repo_list.stdout }}" | awk 'NR > 1 {print $1}'
+  register: helm_repo_names
+  when: "'master' in group_names"
+
+- name: Check if Longhorn Helm repository is already present
+  ansible.builtin.set_fact:
+    longhorn_repo_present: "{{ 'longhorn' in helm_repo_names.stdout }}"
+  when: "'master' in group_names"
+
+- name: Debug if Longhorn Helm repository is present
+  ansible.builtin.debug:
+    msg: "Longhorn Helm repository is present: {{ longhorn_repo_present }}"
+  when: "'master' in group_names"
 
 - name: Add Longhorn Helm repository
-  community.kubernetes.helm_repository:
-    name: longhorn
-    repo_url: https://charts.longhorn.io
-    become_user: "{{ uid_1000_user }}"
+  ansible.builtin.command:
+    cmd: helm repo add longhorn https://charts.longhorn.io
+  become: true
+  become_user: "{{ uid_1000_user }}"
   when: 
-    - inventory_hostname == 'master-1'
-    - longhorn_namespace_exists.rc != 0
+    - "'master' in group_names"
+    - not longhorn_repo_present
+
+- name: Debug message if Longhorn Helm repository is already present
+  ansible.builtin.debug:
+    msg: "Longhorn Helm repository is already added."
+  when:
+    - "'master' in group_names"
+    - longhorn_repo_present
 
 - name: Update Helm repository list
   ansible.builtin.command:
     cmd: helm repo update
-    become_user: "{{ uid_1000_user }}"
+  become: true
+  become_user: "{{ uid_1000_user }}"
   when: 
-    - inventory_hostname == 'master-1'
-    - longhorn_namespace_exists.rc != 0
+    - "'master' in group_names"
 
 - name: Install Longhorn Helm chart
   ansible.builtin.command:
     cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ user_home_directory }}/my-charts/longhorn/values.yaml
-    become_user: "{{ uid_1000_user }}"
+  become: true
+  become_user: "{{ uid_1000_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -45,18 +86,24 @@
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
 
-- name: Longhorn StorageClass
+- name: Apply Longhorn StorageClass
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/storageclass.yaml
-    become_user: "{{ uid_1000_user }}"
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
 
-- name: Longhorn ingress config
+- name: Apply Longhorn ingress config
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab.longhorn.yaml
-    become_user: "{{ uid_1000_user }}"
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
@@ -65,7 +112,10 @@
 - name: Apply homelab.longhorn certificate
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab-longhorn-certificate.yaml
-    become_user: "{{ uid_1000_user }}"
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0

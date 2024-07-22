@@ -1,7 +1,7 @@
 ansible_user: root
 keepalived_auth_pass: P@ssw0rd123!
 keepalived_vip: 192.168.1.244
-keepalived_network: enp0s3
+keepalived_network: eth0
 helm_install: true
 traefik_uninstall: true
 ingress_install: true
