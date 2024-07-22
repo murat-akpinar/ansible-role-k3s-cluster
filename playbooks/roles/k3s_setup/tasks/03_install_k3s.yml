@@ -131,3 +131,16 @@
     owner: "{{ uid_1000_user }}"
     group: "{{ uid_1000_user }}"
   when: "'master' in group_names and uid_1000_user is defined"
+
+- name: Ensure .bashrc contains KUBECONFIG
+  lineinfile:
+    path: "/home/{{ uid_1000_user }}/.bashrc"
+    line: 'export KUBECONFIG="/home/{{ uid_1000_user }}/.kube/config"'
+    state: present
+  when: "'master' in group_names and uid_1000_user is defined"
+
+- name: Source .bashrc to apply changes
+  shell: source /home/{{ uid_1000_user }}/.bashrc
+  when: "'master' in group_names and uid_1000_user is defined"
+  args:
+    executable: /bin/bash

@@ -3,15 +3,15 @@ all:
     master:
       hosts:
         master-1:
-          ansible_host: 192.168.1.152
+          ansible_host: 192.168.1.91
         master-2:
-          ansible_host: 192.168.1.153
+          ansible_host: 192.168.1.92
         master-3:
-          ansible_host: 192.168.1.156
+          ansible_host: 192.168.1.93
     worker:
       hosts:
         worker-1:
-          ansible_host: 192.168.1.154
+          ansible_host: 192.168.1.94
 #        worker-2:
 #          ansible_host: 192.168.1.156
 #        worker-3:
