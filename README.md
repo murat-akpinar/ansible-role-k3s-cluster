@@ -99,8 +99,7 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [x] install cert-manager
 - [x] install ingress-nginx
 - [x] install Grafana ( Grafana Dashboard : 15759, 8171,15760 )
-- [ ] install ELK
-- [ ] install Fluentv
+
 
 
 ````bash
@@ -123,9 +122,6 @@ Versions:
   - Longhorn v1.6.1
   - Metallb v0.14.5
   - Prometheus & Grafana
-  - Fluent
-  - ELK
-
 ````
 
 
