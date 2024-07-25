@@ -156,17 +156,16 @@ ansible-role-k3s-cluster/
 │           │       │   └── values.yaml
 │           │       ├── grafana
 │           │       │   ├── cert
-│           │       │   │   └── homelab-grafana-certificate.yaml
+│           │       │   │   ├── homelab-grafana-certificate.yaml
+│           │       │   │   └── homelab.grafana.yaml
 │           │       │   ├── grafana-values.yaml
-│           │       │   ├── homelab.grafana.yaml
 │           │       │   └── prometheus-values.yaml
 │           │       ├── ingress
 │           │       │   └── values.yaml
 │           │       ├── longhorn
 │           │       │   ├── cert
 │           │       │   │   ├── homelab-longhorn-certificate.yaml
-│           │       │   │   └── selfsigned-issuer.yaml
-│           │       │   ├── homelab.longhorn.yaml
+│           │       │   │   └── homelab.longhorn.yaml
 │           │       │   ├── storageclass.yaml
 │           │       │   └── values.yaml
 │           │       └── metallb
@@ -197,5 +196,5 @@ ansible-role-k3s-cluster/
 ├── README.md
 └── site.yml
 
-20 directories, 38 files
+19 directories, 37 files
 ```
