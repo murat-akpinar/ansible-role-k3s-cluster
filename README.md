@@ -14,10 +14,9 @@ Bu Ansible rolü, otomatik olarak **K3S** tabanlı Kubernetes kümesi kurulumunu
 
 - Etcd : Bir kümenin çoğunlukla çalışmasını gerektirir. İki master düğümün bulunduğu bir kümede, bir master düğüm kapandığında çoğunluk kaybolur ve bu nedenle küme yönetilemez hale gelir. BU yüzden en az 3 Mastner node olmalı
 
-- **Ansible** ve galaxy, kubernetes collectionları yüklü olması.
+- **Ansible** ve galaxy collectionları yüklü olması.
 
 ```bash
-ansible-galaxy collection install community.kubernetes
 ansible-galaxy collection install community.general
 
 ```
