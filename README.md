@@ -34,15 +34,16 @@ keepalived_vip: 192.168.1.244
 keepalived_network: enp0s3
 ```
 
-- **variable** İstediğiniz ekstra içerikleri yüklemek veya yüklememek için vars/main.yml dosyasından true - false olarak yönetebilirsiniz.
+- İstediğiniz **Helm** içerikleri yüklemek veya yüklememek için vars/main.yml dosyasından true - false olarak yönetebilirsiniz.
 
 ```bash
-helm_install: true
-traefik_unsitall: true
+traefik_uninstall: true
 ingress_install: true
 metallb_install: true
 cert_manager_install: true
 longhorn_install: true
+grafana_install: true
+
 ```
 
 2. **Envanter Dosyasını Düzenle**: Projenin kök dizinindeki `cluster_inventory.yml` dosyasını kendi ortamınıza göre ayarlayın.
