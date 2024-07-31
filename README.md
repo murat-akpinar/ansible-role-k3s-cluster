@@ -49,7 +49,6 @@ grafana_install: true
 2. **Envanter Dosyasını Düzenle**: Projenin kök dizinindeki `cluster_inventory.yml` dosyasını kendi ortamınıza göre ayarlayın.
 - Eğer hiç **worker** istemiyorsanız o kısmı açıklama satırı haline getirebilirsiniz sadece **3 Master Node HA** şeklinde kurabilirsiniz.
 Örnek yapılandırma:
-
 ```
 all:
   children:
@@ -99,7 +98,6 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [x] install cert-manager
 - [x] install ingress-nginx
 - [x] install Grafana ( Grafana Dashboard : 15759, 8171,15760 )
-
 
 
 ````bash
