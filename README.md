@@ -5,7 +5,7 @@
 
 <img src="https://k3s.io/img/k3s-logo-light.svg" alt="k3s" style="max-width: 100%;">
 
-
+ 
 # Ansible Role: K3S Cluster Kurulumu
 
 Bu Ansible rolü, otomatik olarak **K3S** tabanlı Kubernetes kümesi kurulumunu gerçekleştirir. Kurulum, bir adet master ve birden fazla worker düğümünden oluşan bir yapıyı destekler.
