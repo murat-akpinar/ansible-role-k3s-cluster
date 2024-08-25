@@ -28,6 +28,18 @@ ssh-copy-id -i ~/.ssh/mykey root@192.168.1.153
 ssh-copy-id -i ~/.ssh/mykey root@192.168.1.154
 ssh-copy-id -i ~/.ssh/mykey root@192.168.1.156
 ````
+
+Aynı zamanda root kullanıcısın authorized_keys dosyasında güvenlik için aşşağıda ki satır olabilir bu komut ile onu kaldırabilirsiniz.
+
+```bash
+no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="echo 'Please login as the user \"user\" rather than the user \"root\".';echo;sleep 10;exit 142"
+```
+
+```bash
+sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="echo.*exit 142" *//g' ~/.ssh/authorized_keys
+
+```
+
 - **keepalived_network:** vars dizininden keepalived için geçerli network kartınızı ve keeplived için bir ip adresi belirtmeniz gerekli.
 ```bash
 keepalived_vip: 192.168.1.244
@@ -71,10 +83,10 @@ all:
 ```
 
 4. **Playbook'u Çalıştırılması**: 
-- Eğer **k3s cluster**  kurmak isterseniz site.yml kullanabilirsiniz.
+- Eğer **k3s cluster**  kurmak isterseniz site.yml kullanabilirsiniz. Eğer farklı bir key kullanıyorsanız `--key-file ~/.ssh/key-name` parametresi ile belirtebilirsiniz.
 
 ```bash
-ansible-playbook -i inventory/cluster_inventory.yml site.yml
+ansible-playbook -i inventory/cluster_inventory.yml site.yml 
 ```
 
 ## Yapılandırma

@@ -1,4 +1,4 @@
 - hosts: all
-  become: yes
+  become: true
   roles:
     - k3s_setup

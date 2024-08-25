@@ -11,14 +11,9 @@
     msg: "System does not have minimum required CPU cores (4)."
   when: cpu_count.stdout|int < 3
 
-- name: Check minimum RAM requirements
-  ansible.builtin.shell: |
-    free -m | grep -oP '\d+' | head -n1
-  register: ram_size
-  changed_when: false
 
 - name: Check minimum RAM requirements
   ansible.builtin.shell: free -m | awk '/^Mem:/ {print $2}'
   register: ram_size
   changed_when: false
-  failed_when: ram_size.stdout|int < 7888
+  failed_when: ram_size.stdout|int < 4096
