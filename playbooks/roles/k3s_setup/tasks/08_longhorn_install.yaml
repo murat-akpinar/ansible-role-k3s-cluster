@@ -65,6 +65,16 @@
   when: 
     - "'master' in group_names"
 
+- name: Download values.yaml for Longhorn
+  ansible.builtin.get_url:
+    url: https://github.com/murat-akpinar/ansible-role-k3s-cluster/raw/main/playbooks/roles/k3s_setup/files/my-charts/longhorn/values.yaml
+    dest: "{{ user_home_directory }}/my-charts/longhorn/values.yaml"
+    mode: '0644'
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  when: 
+    - inventory_hostname == 'master-1'
+
 - name: Install Longhorn Helm chart
   ansible.builtin.command:
     cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ user_home_directory }}/my-charts/longhorn/values.yaml

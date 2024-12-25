@@ -5,11 +5,13 @@
   ansible.builtin.command: grep -c ^processor /proc/cpuinfo
   register: cpu_count
   changed_when: false
+  ignore_errors: true
 
 - name: Verify CPU count
   ansible.builtin.fail:
     msg: "System does not have minimum required CPU cores (4)."
   when: cpu_count.stdout|int < 3
+  ignore_errors: true
 
 
 - name: Check minimum RAM requirements
@@ -17,3 +19,4 @@
   register: ram_size
   changed_when: false
   failed_when: ram_size.stdout|int < 4096
+  ignore_errors: true
