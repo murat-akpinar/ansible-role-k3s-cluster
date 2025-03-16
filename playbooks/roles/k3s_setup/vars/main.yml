@@ -9,3 +9,4 @@ metallb_install: true
 cert_manager_install: true
 longhorn_install: true
 grafana_install: true
+# ansible_ssh_private_key_file: /home/shyuuhei/.ssh/homelab # eğer farklı bir ssh key kullanıyorsanız burada belirtebilirsiniz.
