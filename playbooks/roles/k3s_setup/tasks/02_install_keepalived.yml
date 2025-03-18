@@ -1,7 +1,7 @@
 ---
 - name: "Count the number of master nodes"
   set_fact:
-    master_count: "{{ groups['master'] | length | int }}"  # Integer olarak zorla dönüştürme
+    master_count: "{{ groups['master'] | length | int }}" 
 
 - name: "Debug Master Count Type"
   debug:
