@@ -1,0 +1,27 @@
+# Chrony configuration managed by Ansible
+
+server time.google.com iburst prefer
+pool 0.ubuntu.pool.ntp.org iburst
+pool 1.ubuntu.pool.ntp.org iburst
+pool 2.ubuntu.pool.ntp.org iburst
+
+# DHCP'den gelen zaman kaynaklarını kullanma
+sourcedir /etc/chrony/sources.d
+
+# Kimlik doğrulama anahtar dosyası
+keyfile /etc/chrony/chrony.keys
+
+# Zaman sapmalarını kaydet
+driftfile /var/lib/chrony/chrony.drift
+
+# Log dosya ayarları
+logdir /var/log/chrony
+
+# RTC senkronizasyonunu etkinleştir
+rtcsync
+
+# Büyük zaman farklarını düzeltmek için
+makestep 1 3
+
+# Zaman değişimlerini daha stabil hale getir
+maxupdateskew 100.0

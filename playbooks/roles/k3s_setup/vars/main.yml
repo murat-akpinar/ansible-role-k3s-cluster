@@ -1,12 +1,12 @@
 ansible_user: root
 keepalived_auth_pass: P@ssw0rd123!
 keepalived_vip: 192.168.1.244
-keepalived_network: ens3
-helm_install: true
+keepalived_network: ens18
+helm_install: false
 traefik_uninstall: true
-ingress_install: true
-metallb_install: true
-cert_manager_install: true
-longhorn_install: true
-grafana_install: true
-# ansible_ssh_private_key_file: /home/shyuuhei/.ssh/homelab # eğer farklı bir ssh key kullanıyorsanız burada belirtebilirsiniz.
+ingress_install: false
+metallb_install: false
+cert_manager_install: false
+longhorn_install: false
+grafana_install: false
+ansible_ssh_private_key_file: /home/shyuuhei/.ssh/homelab # eğer farklı bir ssh key kullanıyorsanız burada belirtebilirsiniz.

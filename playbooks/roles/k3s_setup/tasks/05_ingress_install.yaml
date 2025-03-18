@@ -1,5 +1,7 @@
-# Steps to install NGINX Ingress
 ---
+# ============================
+# Install Nginx Ingress
+# ============================
 
 - name: Check if ingress-nginx namespace exists
   command: kubectl get namespace ingress-nginx

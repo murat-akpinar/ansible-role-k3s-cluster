@@ -1,5 +1,7 @@
-# Steps to install helm
 ---
+# ============================
+# Install Helm
+# ============================
 
 - name: Check if Helm is installed
   command: which helm

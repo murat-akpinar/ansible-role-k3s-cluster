@@ -1,4 +1,8 @@
 ---
+# ============================
+# Install Keepalived
+# ============================
+
 - name: "Count the number of master nodes"
   set_fact:
     master_count: "{{ groups['master'] | length | int }}" 
@@ -53,6 +57,10 @@
         mode: '0755'
       become: true
       when: master_count | int >= 3
+
+# ============================
+# Configure Keepalived
+# ============================
 
     - name: Configure Keepalived for first master node
       template:

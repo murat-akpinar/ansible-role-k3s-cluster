@@ -1,4 +1,7 @@
 ---
+# ============================
+# Install k3s Kubernetes Cluster
+# ============================
 
 - name: "Count the number of master nodes"
   set_fact:
@@ -18,7 +21,7 @@
 
     - name: Install K3s on the first master node
       shell: |
-        curl -sfL https://get.k3s.io | K3S_TOKEN=mysecret sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
+        curl -sfL c | K3S_TOKEN=mysecret sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
       when: inventory_hostname == groups['master'][0]
       register: k3s_install_first_master
       become: true
@@ -200,3 +203,4 @@
   when: "'master' in group_names and uid_1000_user is defined"
   args:
     executable: /bin/bash
+

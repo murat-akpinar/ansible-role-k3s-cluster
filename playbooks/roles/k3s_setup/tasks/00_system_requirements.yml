@@ -1,5 +1,7 @@
-# Check system requirements: CPU and RAM
 ---
+# ============================
+# Check system requirements
+# ============================
 
 - name: Check minimum CPU requirements
   ansible.builtin.command: grep -c ^processor /proc/cpuinfo
@@ -20,3 +22,125 @@
   changed_when: false
   failed_when: ram_size.stdout|int < 4096
   ignore_errors: true
+
+# İşletim sistemini belirleme
+- name: Gather OS distribution facts
+  ansible.builtin.setup:
+
+- name: Set OS family variable
+  ansible.builtin.set_fact:
+    os_family: "{{ ansible_facts['os_family'] }}"
+
+# ============================
+# NTP KONTROLLERİ VE KURULUMU
+# ============================
+
+- name: Check if Chrony is installed (Debian-based)
+  ansible.builtin.shell: dpkg-query -W -f='${Status}' chrony 2>/dev/null || echo "not installed"
+  register: chrony_installed_debian
+  changed_when: false
+  failed_when: false
+  when: os_family == "Debian"
+
+- name: Debug - Show if Chrony is installed (Debian-based)
+  ansible.builtin.debug:
+    msg: "Chrony installation status: {{ chrony_installed_debian.stdout }}"
+  when: os_family == "Debian"
+
+- name: Install NTP package (Debian-based)
+  ansible.builtin.apt:
+    name: chrony
+    state: present
+  when: os_family == "Debian" and "not installed" in chrony_installed_debian.stdout
+
+- name: Check if Chrony service is enabled (Debian-based)
+  ansible.builtin.shell: systemctl is-enabled chrony || echo "disabled"
+  register: chrony_enabled_debian
+  changed_when: false
+  failed_when: false
+  when: os_family == "Debian"
+
+- name: Start and enable NTP service (Debian-based)
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+  when: os_family == "Debian" and chrony_enabled_debian.stdout != "enabled"
+
+- name: Check if Chrony is installed (RHEL-based)
+  ansible.builtin.shell: rpm -q chrony 2>/dev/null || echo "not installed"
+  register: chrony_installed_rhel
+  changed_when: false
+  failed_when: false
+  when: os_family == "RedHat"
+
+- name: Debug - Show if Chrony is installed (RHEL-based)
+  ansible.builtin.debug:
+    msg: "Chrony installation status: {{ chrony_installed_rhel.stdout }}"
+  when: os_family == "RedHat"
+
+- name: Install NTP package (RHEL-based)
+  ansible.builtin.yum:
+    name: chrony
+    state: present
+  when: os_family == "RedHat" and "not installed" in chrony_installed_rhel.stdout
+
+- name: Check if Chrony service is enabled (RHEL-based)
+  ansible.builtin.shell: systemctl is-enabled chronyd || echo "disabled"
+  register: chrony_enabled_rhel
+  changed_when: false
+  failed_when: false
+  when: os_family == "RedHat"
+
+- name: Start and enable NTP service (RHEL-based)
+  ansible.builtin.service:
+    name: chronyd
+    state: started
+    enabled: true
+  when: os_family == "RedHat" and chrony_enabled_rhel.stdout != "enabled"
+
+# ============================
+# NTP SERVER KONFİGÜRASYONU
+# ============================
+
+- name: Check if NTP server is already configured (Debian-based)
+  ansible.builtin.shell: grep -q "server time.google.com iburst" /etc/chrony/chrony.conf && echo "configured" || echo "not configured"
+  register: ntp_configured_debian
+  changed_when: false
+  ignore_errors: true
+  when: os_family == "Debian"
+
+- name: Configure NTP server (Debian-based)
+  ansible.builtin.lineinfile:
+    path: /etc/chrony/chrony.conf
+    line: "server time.google.com iburst"
+    insertafter: EOF
+  notify: Restart NTP service
+  when: os_family == "Debian" and ntp_configured_debian.stdout != "configured"
+
+- name: Check if NTP server is already configured (RHEL-based)
+  ansible.builtin.shell: grep -q "server time.google.com iburst" /etc/chrony.conf && echo "configured" || echo "not configured"
+  register: ntp_configured_rhel
+  changed_when: false
+  ignore_errors: true
+  when: os_family == "RedHat"
+
+- name: Deploy Chrony configuration (Debian-based)
+  ansible.builtin.template:
+    src: chrony.j2
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart NTP service
+  when: os_family == "Debian"
+
+- name: Deploy Chrony configuration (RHEL-based)
+  ansible.builtin.template:
+    src: chrony.j2
+    dest: /etc/chrony.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart NTP service
+  when: os_family == "RedHat"

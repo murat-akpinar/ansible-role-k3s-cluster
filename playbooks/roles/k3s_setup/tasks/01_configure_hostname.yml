@@ -1,5 +1,7 @@
-# Hostname
 ---
+# ============================
+# Change Hostname
+# ============================
 
 - name: Get current hostname
   command: hostname

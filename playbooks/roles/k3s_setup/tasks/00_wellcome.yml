@@ -1,5 +1,7 @@
-# Steps to Wellcome Message
 ---
+# ============================
+# Wellcome Message
+# ============================
 
 - name: Create /etc/motd with welcome message
   ansible.builtin.template:

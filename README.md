@@ -98,6 +98,8 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 ### K3S Cluster Kurulumu
 - [x] Sistem Gereksinimlerinin Kontrol Edilmesi
 - [X] hostname'in ayarlanması
+- [X] NTP için chrony yüklenmesi ve sekronize edilmesi
+- [X] kubernetes paketlerinin update ve upgrade işlemlerinden muaf tutulması.
 - [X] keeplived'in Kurulumu
 - [X] k3s'nin Kurulumu
 - [X] Kubectl Komutlarının Normal Kullanıcılar Tarafından Sudo İhtiyacı Olmadan Çalıştırılması

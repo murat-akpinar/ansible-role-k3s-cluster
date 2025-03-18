@@ -1,1 +1,5 @@
 ---
+- name: Restart NTP service
+  ansible.builtin.service:
+    name: "{{ 'chrony' if ansible_os_family == 'Debian' else 'chronyd' }}"
+    state: restarted
