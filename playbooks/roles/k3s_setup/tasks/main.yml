@@ -1,11 +1,11 @@
 # Main tasks for k3s setup
 ---
 
-# - name: "System requirements Check" 
-#   ansible.builtin.import_tasks: 00_system_requirements.yml
+- name: "System requirements Check" 
+  ansible.builtin.import_tasks: 00_system_requirements.yml
 
-# - name: "Configure Hostname"
-#   ansible.builtin.import_tasks: 01_configure_hostname.yml
+- name: "Configure Hostname"
+  ansible.builtin.import_tasks: 01_configure_hostname.yml
 
 - name: "Install and Configure keepalived"
   ansible.builtin.import_tasks: 02_install_keepalived.yml
@@ -13,34 +13,34 @@
 - name: "Install k3s" 
   ansible.builtin.import_tasks: 03_install_k3s.yml
 
-# - name: "Traefik Uninstall" 
-#   ansible.builtin.import_tasks: 00_traefik_uninstall.yml
-#   when: traefik_uninstall | default(false)
+- name: "Traefik Uninstall" 
+  ansible.builtin.import_tasks: 00_traefik_uninstall.yml
+  when: traefik_uninstall | default(false)
 
-# - name: "Wellcome Message" 
-#   ansible.builtin.import_tasks: 00_wellcome.yml
+- name: "Wellcome Message" 
+  ansible.builtin.import_tasks: 00_wellcome.yml
 
 
-# - name: "Install Helm" 
-#   ansible.builtin.import_tasks: 04_install_helm.yml
-#   when: helm_install | default(false)
+- name: "Install Helm" 
+  ansible.builtin.import_tasks: 04_install_helm.yml
+  when: helm_install | default(false)
 
-# - name: "Install ingress-nginx" 
-#   ansible.builtin.import_tasks: 05_ingress_install.yaml
-#   when: ingress_install | default(false)
+- name: "Install ingress-nginx" 
+  ansible.builtin.import_tasks: 05_ingress_install.yaml
+  when: ingress_install | default(false)
 
-# - name: "Install Metallb" 
-#   ansible.builtin.import_tasks: 06_metallb_install.yaml
-#   when: metallb_install | default(false)
+- name: "Install Metallb" 
+  ansible.builtin.import_tasks: 06_metallb_install.yaml
+  when: metallb_install | default(false)
 
-# - name: "Install Cert-Manager" 
-#   ansible.builtin.import_tasks: 07_cert_manager_install.yaml
-#   when: cert_manager_install | default(false)
+- name: "Install Cert-Manager" 
+  ansible.builtin.import_tasks: 07_cert_manager_install.yaml
+  when: cert_manager_install | default(false)
 
-# - name: "Install Longhorn" 
-#   ansible.builtin.import_tasks: 08_longhorn_install.yaml
-#   when: longhorn_install | default(false)
+- name: "Install Longhorn" 
+  ansible.builtin.import_tasks: 08_longhorn_install.yaml
+  when: longhorn_install | default(false)
 
-# - name: "Install Grafana" 
-#   ansible.builtin.import_tasks: 09_grafana_install.yaml
-#   when: grafana_install | default(false)
+- name: "Install Grafana" 
+  ansible.builtin.import_tasks: 09_grafana_install.yaml
+  when: grafana_install | default(false)

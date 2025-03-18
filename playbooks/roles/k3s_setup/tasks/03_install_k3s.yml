@@ -8,13 +8,13 @@
     master_count: "{{ groups['master'] | length | int }}"
   when: "'master' in group_names"
 
-- name: "Debug Master Count"
+- name: "Kubernetes Debug Master Count"
   debug:
-    msg: "Master Count is {{ master_count }}. High availability cluster is properly configured!"
+    msg: "Master Count is {{ master_count }}."
   run_once: true
   when: "'master' in group_names"
 
-- name: "Skip HA setup if there are less than 3 master nodes"
+- name: "Kubernetes Skip HA setup if there are less than 3 master nodes"
   debug:
     msg: "Not enough master nodes ({{ master_count }} < 3). Skipping HA K3s installation."
   run_once: true
