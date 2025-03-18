@@ -100,7 +100,7 @@
   when: os_family == "RedHat" and chrony_enabled_rhel.stdout != "enabled"
 
 # ============================
-# NTP SERVER KONFİGÜRASYONU
+# NTP SERVER Configure
 # ============================
 
 - name: Check if NTP server is already configured (Debian-based)

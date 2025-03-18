@@ -1,5 +1,7 @@
-# Steps to install MetalLB
 ---
+# ============================
+# Install MetalLB
+# ============================
 
 - name: Check if metallb-system namespace exists
   command: kubectl get namespace metallb-system

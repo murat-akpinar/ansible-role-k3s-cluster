@@ -1,5 +1,7 @@
-# Steps to install Grafana
 ---
+# ============================
+# Install Grafana
+# ============================
 
 - name: Check if grafana namespace exists
   command: kubectl get namespace grafana

@@ -1,5 +1,7 @@
-# Steps to install Cert-Manager
 ---
+# ============================
+# Install Cert-Manager
+# ============================
 
 - name: Check if cert-manager namespace exists
   command: kubectl get namespace cert-manager

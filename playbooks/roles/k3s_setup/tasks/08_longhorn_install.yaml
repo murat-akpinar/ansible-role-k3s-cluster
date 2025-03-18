@@ -1,5 +1,7 @@
-# Steps to install Longhorn
 ---
+# ============================
+# Install Longhorn
+# ============================
 
 - name: Check if longhorn-system namespace exists
   command: kubectl get namespace longhorn-system
