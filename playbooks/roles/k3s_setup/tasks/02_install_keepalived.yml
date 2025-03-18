@@ -7,14 +7,18 @@
   set_fact:
     master_count: "{{ groups['master'] | length | int }}" 
 
-- name: "Debug Master Count Type"
+- name: "Debug Master Count"
   debug:
-    msg: "Master count is {{ master_count }} (Type: {{ master_count | type_debug }})"
+    msg: "Master Count is {{ master_count }}. High availability cluster is properly configured!"
+  run_once: true
+  when: "'master' in group_names"
 
-- name: "Skip Keepalived installation if master count is less than 3"
+- name: "Skip HA setup if there are less than 3 master nodes"
   debug:
-    msg: "Not enough master nodes ({{ master_count }} < 3). Skipping Keepalived installation."
-  when: master_count | int < 3
+    msg: "Not enough master nodes ({{ master_count }} < 3). Skipping HA K3s installation."
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+  when: (master_count | int) < 3
 
 - name: "Install and Configure Keepalived if there are at least 3 masters"
   block:

@@ -1,6 +1,6 @@
 ansible_user: root
 keepalived_auth_pass: P@ssw0rd123!
-keepalived_vip: 192.168.1.244
+keepalived_vip: 192.168.2.244
 keepalived_network: ens18
 helm_install: false
 traefik_uninstall: true

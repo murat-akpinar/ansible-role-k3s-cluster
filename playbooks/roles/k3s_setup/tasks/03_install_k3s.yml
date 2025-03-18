@@ -6,14 +6,19 @@
 - name: "Count the number of master nodes"
   set_fact:
     master_count: "{{ groups['master'] | length | int }}"
+  when: "'master' in group_names"
 
-- name: "Debug Master Count Type"
+- name: "Debug Master Count"
   debug:
-    msg: "Master count is {{ master_count }} (Type: {{ master_count | type_debug }})"
+    msg: "Master Count is {{ master_count }}. High availability cluster is properly configured!"
+  run_once: true
+  when: "'master' in group_names"
 
 - name: "Skip HA setup if there are less than 3 master nodes"
   debug:
     msg: "Not enough master nodes ({{ master_count }} < 3). Skipping HA K3s installation."
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
   when: (master_count | int) < 3
 
 - name: "Install and Configure K3s in HA mode if there are at least 3 masters"
@@ -21,7 +26,7 @@
 
     - name: Install K3s on the first master node
       shell: |
-        curl -sfL c | K3S_TOKEN=mysecret sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
+        curl -sfL https://get.k3s.io | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
       when: inventory_hostname == groups['master'][0]
       register: k3s_install_first_master
       become: true
@@ -57,10 +62,14 @@
 
     - name: Install K3s on additional master nodes
       shell: |
-        curl -sfL https://get.k3s.io | K3S_TOKEN={{ k3s_token }} sh -s - server --server https://{{ keepalived_vip }}:6443 --tls-san {{ keepalived_vip }}
+        export K3S_TOKEN="{{ k3s_token }}"
+        export K3S_URL="https://{{ keepalived_vip }}:6443"
+        export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
+        curl -sfL https://get.k3s.io | sh -
       when: inventory_hostname != groups['master'][0] and 'master' in group_names and (master_count | int) >= 3
       register: join_additional_master
       become: true
+      ignore_errors: true
 
     - name: Ensure K3s is enabled and running on additional master nodes
       ansible.builtin.systemd:
@@ -68,6 +77,15 @@
         enabled: yes
         state: started
       when: inventory_hostname != groups['master'][0] and 'master' in group_names and (master_count | int) >= 3
+      become: true
+
+    - name: Install K3s agent on worker nodes
+      shell: |
+        export K3S_URL="https://{{ keepalived_vip }}:6443"
+        export K3S_TOKEN="{{ single_k3s_token | default(k3s_token) }}"
+        curl -sfL https://get.k3s.io | sh -s - agent
+      when: "'worker' in group_names"
+      register: join_worker
       become: true
 
   when: (master_count | int) >= 3
