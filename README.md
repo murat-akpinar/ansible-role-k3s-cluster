@@ -40,10 +40,9 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 
 ```
 
-- **keepalived_network:** vars dizininden keepalived için geçerli network kartınızı ve keeplived için bir ip adresi belirtmeniz gerekli.
+- **keepalived_vip:** vars dizininden keepalived için bir ip adresi belirtmeniz gerekli bu ip adresi ile nodlar bir birine bağlanacaktır.
 ```bash
 keepalived_vip: 192.168.1.244
-keepalived_network: enp0s3
 ```
 
 - İstediğiniz **Helm** içerikleri yüklemek veya yüklememek için vars/main.yml dosyasından true - false olarak yönetebilirsiniz.
