@@ -6,54 +6,74 @@
 - name: "Count the number of master nodes"
   set_fact:
     master_count: "{{ groups['master'] | length | int }}"
-  when: "'master' in group_names"
+  run_once: true
+
+- name: "Ensure master_count is defined on all nodes"
+  set_fact:
+    master_count: "{{ master_count | default(0) }}"
+
+- name: "Detect the primary network interface"
+  set_fact:
+    keepalived_network: "{{ ansible_default_ipv4.interface }}"
+
+- name: "Debug detected network interface"
+  debug:
+    msg: "Detected primary network interface: {{ keepalived_network }}"
 
 - name: "Keepalived Debug Master Count"
   debug:
     msg: "Master Count is {{ master_count }}."
   run_once: true
-  when: "'master' in group_names"
 
-- name: "Keepalived Skip HA setup if there are less than 3 master nodes"
+- name: "Skip Keepalived installation if HA is not needed"
   debug:
     msg: "Not enough master nodes ({{ master_count }} < 3). Skipping HA K3s installation."
+  when: master_count | int < 3
   run_once: true
-  delegate_to: "{{ groups['master'][0] }}"
-  when: (master_count | int) < 3
+
+- name: "Proceed with HA setup if there are at least 3 master nodes"
+  debug:
+    msg: "HA mode detected ({{ master_count }} masters). Proceeding with Keepalived installation."
+  when: master_count | int >= 3
+  run_once: true
 
 - name: "Install and Configure Keepalived if there are at least 3 masters"
   block:
+
+    - name: Update apt cache before installing Keepalived
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
 
     - name: Install Keepalived on Debian-based systems
       apt:
         name: keepalived
         state: present
-      when: ansible_os_family == "Debian" and master_count | int >= 3
+      when: ansible_os_family == "Debian"
       register: keepalived_debian
 
     - name: Debug Keepalived installation on Debian
       debug:
         msg: "Keepalived installed on Debian-based system with result: {{ keepalived_debian }}"
-      when: ansible_os_family == "Debian" and master_count | int >= 3
+      when: ansible_os_family == "Debian"
 
     - name: Install Keepalived on RedHat-based systems
       yum:
         name: keepalived
         state: present
-      when: ansible_os_family == "RedHat" and master_count | int >= 3
+      when: ansible_os_family == "RedHat"
       register: keepalived_redhat
 
     - name: Debug Keepalived installation on RedHat
       debug:
         msg: "Keepalived installed on RedHat-based system with result: {{ keepalived_redhat }}"
-      when: ansible_os_family == "RedHat" and master_count | int >= 3
+      when: ansible_os_family == "RedHat"
 
     - name: Ensure keepalived_script user is present
       user:
         name: keepalived_script
         system: yes
         shell: /usr/sbin/nologin
-      when: master_count | int >= 3
 
     - name: Set ownership for pidof
       file:
@@ -61,7 +81,6 @@
         owner: keepalived_script
         mode: '0755'
       become: true
-      when: master_count | int >= 3
 
 # ============================
 # Configure Keepalived
@@ -71,35 +90,33 @@
       template:
         src: keepalived-master.j2
         dest: /etc/keepalived/keepalived.conf
-      when: inventory_hostname == groups['master'][0] and master_count | int >= 3
+      when: inventory_hostname == groups['master'][0]
       register: keepalived_config_master
 
     - name: Configure Keepalived for other masters
       template:
         src: keepalived-backup.j2
         dest: /etc/keepalived/keepalived.conf
-      when: inventory_hostname != groups['master'][0] and master_count | int >= 3
+      when: inventory_hostname != groups['master'][0]
       register: keepalived_config_backup
 
     - name: Debug Keepalived configuration for first master
       debug:
         msg: "Keepalived master configuration result: {{ keepalived_config_master }}"
-      when: inventory_hostname == groups['master'][0] and master_count | int >= 3
+      when: inventory_hostname == groups['master'][0]
 
     - name: Debug Keepalived configuration for other masters
       debug:
         msg: "Keepalived backup configuration result: {{ keepalived_config_backup }}"
-      when: inventory_hostname != groups['master'][0] and master_count | int >= 3
+      when: inventory_hostname != groups['master'][0]
 
     - name: Verify Keepalived configuration file
       command: cat /etc/keepalived/keepalived.conf
       register: keepalived_conf_content
-      when: master_count | int >= 3
 
     - name: Debug Keepalived configuration file content
       debug:
         msg: "Keepalived configuration file content: {{ keepalived_conf_content.stdout }}"
-      when: master_count | int >= 3
 
     - name: Start and enable Keepalived
       systemd:
@@ -107,21 +124,17 @@
         enabled: true
         state: started
       become: true
-      when: master_count | int >= 3
 
     - name: Check Keepalived service status
       command: systemctl status keepalived
       register: keepalived_status
-      when: master_count | int >= 3
 
     - name: Extract Keepalived service active status
       set_fact:
         keepalived_active_status: "{{ keepalived_status.stdout | regex_search('Active:.*') }}"
-      when: master_count | int >= 3
 
     - name: Debug Keepalived service active status
       debug:
         msg: "Keepalived service status: {{ keepalived_active_status }}"
-      when: master_count | int >= 3
 
   when: master_count | int >= 3
