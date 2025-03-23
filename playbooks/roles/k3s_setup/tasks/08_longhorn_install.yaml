@@ -109,6 +109,13 @@
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
 
+- name: "Disable local-path as default StorageClass"
+  shell: |
+    kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+  when:
+    - inventory_hostname == 'master-1'
+    - longhorn_namespace_exists.rc != 0
+
 - name: Apply Longhorn ingress config
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab.longhorn.yaml
@@ -132,3 +139,7 @@
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
     - cert_manager_install | default(false)
+
+
+
+
