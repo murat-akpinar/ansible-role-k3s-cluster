@@ -1,0 +1,75 @@
+---
+# ============================
+# Install Rancher
+# ============================
+
+- name: Find home directory for UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: "'master' in group_names"
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when: 
+    - "'master' in group_names" 
+    - getent_passwd_output.stdout != ""
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when: getent_passwd_result.stdout != ''
+
+- name: Check if Rancher namespace exists
+  command: kubectl get namespace cattle-system
+  register: rancher_namespace_exists
+  failed_when: false
+  changed_when: false
+  when: "'master' in group_names"
+
+- name: Install rancher via kubectl apply
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/rancher/rancher-deployment.yml
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - rancher_namespace_exists.rc != 0
+
+- name: Wait for Rancher pods to be in Running state
+  command: kubectl get pods -n cattle-system -l app=rancher -o jsonpath='{.items[*].status.phase}'
+  register: rancher_pod_status
+  until: rancher_pod_status.stdout.find('Running') != -1
+  retries: 15
+  delay: 30
+  when: 
+    - inventory_hostname == 'master-1'
+    - rancher_namespace_exists.rc != 0
+
+- name: Get Rancher pod name
+  shell: kubectl get pods -n cattle-system -l app=rancher -o jsonpath='{.items[1].metadata.name}'
+  register: rancher_pod_name
+  when: inventory_hostname == 'master-1'
+
+- name: Get Rancher bootstrap password from pod logs
+  shell: kubectl logs -n cattle-system {{ rancher_pod_name.stdout }} | grep "Bootstrap Password"
+  register: rancher_bootstrap_password_raw
+  when: inventory_hostname == 'master-1'
+
+- name: Extract Rancher bootstrap password
+  set_fact:
+    rancher_bootstrap_password: "{{ rancher_bootstrap_password_raw.stdout.split('Bootstrap Password: ')[1] }}"
+  when: inventory_hostname == 'master-1'
+
+- name: Show Rancher bootstrap password
+  debug:
+    msg: "Rancher Bootstrap Password: {{ rancher_bootstrap_password }}"
+  when: inventory_hostname == 'master-1'

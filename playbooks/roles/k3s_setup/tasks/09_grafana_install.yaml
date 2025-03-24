@@ -71,20 +71,26 @@
     msg: "Prometheus Helm repository is present: {{ prometheus_repo_present }}. Grafana Helm repository is present: {{ grafana_repo_present }}"
   when: "'master' in group_names"
 
-- name: Add Prometheus Helm repository
-  ansible.builtin.command:
-    cmd: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+- name: Add Prometheus Helm repository (with retries)
+  command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
   become: true
   become_user: "{{ uid_1000_user }}"
+  register: add_prometheus_repo
+  retries: 3
+  delay: 10
+  until: add_prometheus_repo.rc == 0
   when: 
     - "'master' in group_names"
     - not prometheus_repo_present
 
-- name: Add Grafana Helm repository
-  ansible.builtin.command:
-    cmd: helm repo add grafana https://grafana.github.io/helm-charts
+- name: Add Grafana Helm repository (with retries)
+  command: helm repo add grafana https://grafana.github.io/helm-charts
   become: true
   become_user: "{{ uid_1000_user }}"
+  register: add_grafana_repo
+  retries: 3
+  delay: 10
+  until: add_grafana_repo.rc == 0
   when: 
     - "'master' in group_names"
     - not grafana_repo_present

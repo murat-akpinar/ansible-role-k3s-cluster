@@ -44,3 +44,7 @@
 - name: "Install Grafana" 
   ansible.builtin.import_tasks: 09_grafana_install.yaml
   when: grafana_install | default(false)
+
+- name: "Install Rancher" 
+  ansible.builtin.import_tasks: 10_rancher_install.yaml
+  when: rancher_install | default(false)
