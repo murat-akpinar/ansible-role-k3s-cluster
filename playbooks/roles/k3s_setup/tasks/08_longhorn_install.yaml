@@ -3,6 +3,29 @@
 # Install Longhorn
 # ============================
 
+- name: Find home directory for UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: "'master' in group_names"
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when: 
+  - "'master' in group_names" 
+  - getent_passwd_output.stdout != ""
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when: getent_passwd_result.stdout != ''
+
 - name: Check if longhorn-system namespace exists
   command: kubectl get namespace longhorn-system
   register: longhorn_namespace_exists
@@ -67,15 +90,15 @@
   when: 
     - "'master' in group_names"
 
-- name: Download values.yaml for Longhorn
-  ansible.builtin.get_url:
-    url: https://raw.githubusercontent.com/longhorn/longhorn/refs/heads/master/chart/values.yaml
-    dest: "{{ user_home_directory }}/my-charts/longhorn/values.yaml"
-    mode: '0644'
-  become: true
-  become_user: "{{ uid_1000_user }}"
-  when: 
-    - inventory_hostname == 'master-1'
+# - name: Download values.yaml for Longhorn
+#   ansible.builtin.get_url:
+#     url: https://raw.githubusercontent.com/longhorn/longhorn/refs/heads/master/chart/values.yaml
+#     dest: "{{ user_home_directory }}/my-charts/longhorn/values.yaml"
+#     mode: '0644'
+#   become: true
+#   become_user: "{{ uid_1000_user }}"
+#   when: 
+#     - inventory_hostname == 'master-1'
 
 - name: Install Longhorn Helm chart
   ansible.builtin.command:

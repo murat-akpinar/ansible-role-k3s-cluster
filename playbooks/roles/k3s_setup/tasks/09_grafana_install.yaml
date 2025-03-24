@@ -3,6 +3,29 @@
 # Install Grafana
 # ============================
 
+- name: Find home directory for UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: "'master' in group_names"
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when: 
+  - "'master' in group_names" 
+  - getent_passwd_output.stdout != ""
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when: getent_passwd_result.stdout != ''
+
 - name: Check if grafana namespace exists
   command: kubectl get namespace grafana
   register: grafana_namespace_exists

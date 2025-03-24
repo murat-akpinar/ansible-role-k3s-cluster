@@ -9,10 +9,10 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - homelab.longhorn
+    - longhorn.foxhound.com.tr
     secretName: homelab-longhorn-tls
   rules:
-  - host: homelab.longhorn
+  - host: longhorn.foxhound.com.tr
     http:
       paths:
       - path: /

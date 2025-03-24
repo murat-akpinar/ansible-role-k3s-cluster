@@ -8,8 +8,9 @@ spec:
   secretName: grafana-tls
   duration: 8760h
   renewBefore: 2160h
+  commonName: grafana.foxhound.com.tr
   dnsNames:
-  - homelab.grafana
+  - grafana.foxhound.com.tr
   issuerRef:
     name: selfsigned-issuer
     kind: ClusterIssuer

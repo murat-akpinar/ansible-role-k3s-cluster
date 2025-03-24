@@ -12,7 +12,7 @@ all:
       hosts:
         worker-1:
           ansible_host: 192.168.2.231
-        # worker-2:
-        #   ansible_host: 192.168.2.232
-        # worker-3:
-        #   ansible_host: 192.168.2.233
+        worker-2:
+          ansible_host: 192.168.2.232
+        worker-3:
+          ansible_host: 192.168.2.233
