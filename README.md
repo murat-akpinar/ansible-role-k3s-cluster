@@ -109,6 +109,7 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [x] install longhorn
 - [x] install cert-manager
 - [x] install ingress-nginx
+- [x] install rancher  
 - [x] install Grafana ( Grafana Dashboard : 15760, 15757, 15759, 8171 )
 
 
@@ -123,7 +124,7 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 ||                                                                       ||
 >>=======================================================================<<
 
-k3s Cluster / Ver: "1.0"  / Developped by: Murat Akpınar
+k3s Cluster / Ver: "1.1"  / Developped by: Murat Akpınar
 
 Versions:
   - k3s v1.29.5+k3s1
@@ -131,24 +132,23 @@ Versions:
   - Ingress-Nginx v1.0
   - Longhorn v1.6.1
   - Metallb v0.14.5
+  - Rancehr v2.8.2
   - Prometheus & Grafana
 ````
 
 
 ````bash
 kubectl get nodes
-NAME       STATUS   ROLES                       AGE    VERSION
-master-1   Ready    control-plane,etcd,master   117s   v1.29.5+k3s1
-master-2   Ready    control-plane,etcd,master   85s    v1.29.5+k3s1
-master-3   Ready    control-plane,etcd,master   85s    v1.29.5+k3s1
-worker-1   Ready    <none>                      44s    v1.29.5+k3s1
+NAME       STATUS   ROLES                  AGE    VERSION
+master-1   Ready    control-plane,master   104m   v1.31.6+k3s1
+worker-1   Ready    <none>                 103m   v1.31.6+k3s1
+worker-2   Ready    <none>                 103m   v1.31.6+k3s1
+worker-3   Ready    <none>                 103m   v1.31.6+k3s1
 ````
-
 
 # Yapı
 
 ```bash
-ansible-role-k3s-cluster/
 ├── ansible.cfg
 ├── collections
 │   └── requirements.yml
@@ -178,8 +178,10 @@ ansible-role-k3s-cluster/
 │           │       │   │   └── homelab.longhorn.yaml
 │           │       │   ├── storageclass.yaml
 │           │       │   └── values.yaml
-│           │       └── metallb
-│           │           └── metallb-config.yaml
+│           │       ├── metallb
+│           │       │   └── metallb-config.yaml
+│           │       └── rancher
+│           │           └── rancher-deployment.yml
 │           ├── handlers
 │           │   └── main.yml
 │           ├── meta
@@ -196,8 +198,10 @@ ansible-role-k3s-cluster/
 │           │   ├── 07_cert_manager_install.yaml
 │           │   ├── 08_longhorn_install.yaml
 │           │   ├── 09_grafana_install.yaml
+│           │   ├── 10_rancher_install.yaml
 │           │   └── main.yml
 │           ├── templates
+│           │   ├── chrony.j2
 │           │   ├── keepalived-backup.j2
 │           │   ├── keepalived-master.j2
 │           │   └── wellcome.j2
@@ -206,5 +210,5 @@ ansible-role-k3s-cluster/
 ├── README.md
 └── site.yml
 
-19 directories, 37 files
+21 directories, 40 files
 ```
