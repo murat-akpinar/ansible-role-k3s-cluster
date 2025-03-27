@@ -110,7 +110,7 @@ ansible-playbook -i inventory/cluster_inventory.yml site.yml
 - [x] install cert-manager
 - [x] install ingress-nginx
 - [x] install rancher  
-- [x] install Grafana ( Grafana Dashboard : 15760, 15757, 15759, 8171 )
+- [x] install Grafana ( Grafana Dashboard : 15760, 15757, 15759, 8171, 18283 )
 
 
 ````bash
