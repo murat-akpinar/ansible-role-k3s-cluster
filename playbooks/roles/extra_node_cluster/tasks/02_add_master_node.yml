@@ -24,6 +24,11 @@
     existing_master_count: "{{ groups['master'] | length | int }}"
   run_once: true
 
+- name: Get first master IP address
+  set_fact:
+    first_master_ip: "{{ hostvars[groups['master'][0]]['ansible_host'] | default(groups['master'][0]) }}"
+  run_once: true
+
 - name: Check if first master was started with --cluster-init
   ansible.builtin.shell:
     cmd: |
@@ -88,7 +93,7 @@
 - name: Install K3s master node (Single master - convert to HA)
   shell: |
     export K3S_TOKEN="{{ k3s_token }}"
-    export K3S_URL="https://{{ keepalived_vip }}:6443"
+    export K3S_URL="https://{{ first_master_ip }}:6443"
     export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
