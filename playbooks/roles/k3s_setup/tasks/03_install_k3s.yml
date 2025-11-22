@@ -24,6 +24,11 @@
 - name: "Install and Configure K3s in HA mode if there are at least 3 masters"
   block:
 
+    - name: Set K3s version environment variable
+      set_fact:
+        k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"
+      run_once: true
+
     - name: Check if K3s is already installed on first master
       command: systemctl is-active k3s
       register: k3s_first_master_status
@@ -34,6 +39,7 @@
 
     - name: Install K3s on the first master node
       shell: |
+        {{ k3s_version_env | default('') }}
         curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
       when: 
         - inventory_hostname == groups['master'][0]
@@ -85,6 +91,7 @@
         export K3S_TOKEN="{{ k3s_token }}"
         export K3S_URL="https://{{ keepalived_vip }}:6443"
         export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
+        {{ k3s_version_env | default('') }}
         curl -sfL {{ k3s_install_url }} | sh -
       when: 
         - inventory_hostname != groups['master'][0] 
@@ -115,6 +122,7 @@
       shell: |
         export K3S_URL="https://{{ keepalived_vip }}:6443"
         export K3S_TOKEN="{{ single_k3s_token | default(k3s_token) }}"
+        {{ k3s_version_env | default('') }}
         curl -sfL {{ k3s_install_url }} | sh -s - agent
       when: 
         - "'worker' in group_names"
@@ -127,6 +135,11 @@
 - name: "Single Master Setup (No HA) if less than 3 masters"
   block:
 
+    - name: Set K3s version environment variable (single master)
+      set_fact:
+        k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"
+      run_once: true
+
     - name: Check if K3s is already installed on single master
       command: systemctl is-active k3s
       register: k3s_single_master_status
@@ -137,6 +150,7 @@
 
     - name: Install K3s on the single master node
       shell: |
+        {{ k3s_version_env | default('') }}
         curl -sfL {{ k3s_install_url }} | sh -
       when: 
         - inventory_hostname == groups['master'][0]
@@ -187,6 +201,7 @@
 
     - name: Install K3s agent on worker nodes
       shell: |
+        {{ k3s_version_env | default('') }}
         curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ single_k3s_token }} sh -
       when: 
         - "'worker' in group_names"
