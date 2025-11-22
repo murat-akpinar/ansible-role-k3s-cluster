@@ -1,0 +1,42 @@
+---
+# Check current K3s versions on all nodes
+---
+
+- name: Get current K3s version on master nodes
+  shell: k3s --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
+  register: current_k3s_version_master
+  changed_when: false
+  failed_when: false
+  when: "'master' in group_names"
+  become: true
+
+- name: Get current K3s version on worker nodes
+  shell: k3s-agent --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
+  register: current_k3s_version_worker
+  changed_when: false
+  failed_when: false
+  when: "'worker' in group_names"
+  become: true
+
+- name: Display current K3s versions
+  debug:
+    msg: "Node {{ inventory_hostname }}: Current version = {{ current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout) }}, Target version = {{ k3s_target_version }}"
+  when: "'master' in group_names or 'worker' in group_names"
+
+- name: Set fact for current version
+  set_fact:
+    current_k3s_version: "{{ current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout) }}"
+  when: "'master' in group_names or 'worker' in group_names"
+
+- name: Check if upgrade is needed
+  set_fact:
+    upgrade_needed: "{{ (current_k3s_version != k3s_target_version) or (upgrade_force | default(false)) }}"
+  when: "'master' in group_names or 'worker' in group_names"
+
+- name: Skip upgrade if version matches
+  debug:
+    msg: "Node {{ inventory_hostname }}: Already running {{ k3s_target_version }}, skipping upgrade"
+  when: 
+    - "'master' in group_names or 'worker' in group_names"
+    - not upgrade_needed | default(true)
+

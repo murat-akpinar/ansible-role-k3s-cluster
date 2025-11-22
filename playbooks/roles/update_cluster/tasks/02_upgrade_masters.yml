@@ -1,0 +1,240 @@
+---
+# Upgrade Master Nodes with Rolling Update Strategy
+---
+
+- name: Find home directory for UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: "'master' in group_names"
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when: 
+  - "'master' in group_names" 
+  - getent_passwd_output.stdout != ""
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when: getent_passwd_result.stdout != ''
+
+- name: Count master nodes
+  set_fact:
+    master_count: "{{ groups['master'] | length | int }}"
+  when: "'master' in group_names"
+
+- name: Get K3s token from first master
+  shell: cat /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_raw
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - upgrade_needed | default(true)
+  become: true
+  changed_when: false
+  run_once: true
+
+- name: Set K3s token fact
+  set_fact:
+    k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
+  when: k3s_token_raw.stdout is defined
+  run_once: true
+
+- name: Get keepalived VIP from vars
+  set_fact:
+    keepalived_vip: "{{ keepalived_vip | default('192.168.1.244') }}"
+  run_once: true
+
+- name: Upgrade first master node (cluster-init)
+  block:
+    - name: Drain first master node
+      ansible.builtin.command:
+        cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --force
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+
+    - name: Upgrade K3s on first master (HA mode)
+      shell: |
+        curl -sfL {{ k3s_install_url }} | INSTALL_K3S_VERSION={{ k3s_target_version }} sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+      become: true
+      register: upgrade_first_master
+
+    - name: Wait for K3s to be ready on first master
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        state: present
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+      become: true
+      retries: 10
+      delay: 10
+
+    - name: Uncordon first master node
+      ansible.builtin.command:
+        cmd: kubectl uncordon {{ inventory_hostname }}
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+
+    - name: Wait for pods to stabilize after first master upgrade
+      ansible.builtin.pause:
+        seconds: "{{ upgrade_wait_for_pods }}"
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - upgrade_needed | default(true)
+    - (master_count | int) >= 3
+
+- name: Upgrade additional master nodes (HA mode)
+  block:
+    - name: Drain additional master node
+      ansible.builtin.command:
+        cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --force
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - inventory_hostname != groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+
+    - name: Upgrade K3s on additional master nodes
+      shell: |
+        export K3S_TOKEN="{{ k3s_token }}"
+        export K3S_URL="https://{{ keepalived_vip }}:6443"
+        export INSTALL_K3S_VERSION={{ k3s_target_version }}
+        export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
+        curl -sfL {{ k3s_install_url }} | sh -
+      when: 
+        - inventory_hostname != groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+      become: true
+      register: upgrade_additional_master
+
+    - name: Wait for K3s to be ready on additional master
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        state: present
+      when: 
+        - inventory_hostname != groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+      become: true
+      retries: 10
+      delay: 10
+
+    - name: Uncordon additional master node
+      ansible.builtin.command:
+        cmd: kubectl uncordon {{ inventory_hostname }}
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - inventory_hostname != groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+
+    - name: Wait for pods to stabilize after additional master upgrade
+      ansible.builtin.pause:
+        seconds: "{{ upgrade_wait_for_pods }}"
+      when: 
+        - inventory_hostname != groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+
+  when: 
+    - inventory_hostname != groups['master'][0]
+    - upgrade_needed | default(true)
+    - (master_count | int) >= 3
+
+- name: Upgrade single master node
+  block:
+    - name: Drain single master node
+      ansible.builtin.command:
+        cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --force
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) < 3
+
+    - name: Upgrade K3s on single master
+      shell: |
+        curl -sfL {{ k3s_install_url }} | INSTALL_K3S_VERSION={{ k3s_target_version }} sh -
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) < 3
+      become: true
+      register: upgrade_single_master
+
+    - name: Wait for K3s to be ready on single master
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        state: present
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) < 3
+      become: true
+      retries: 10
+      delay: 10
+
+    - name: Uncordon single master node
+      ansible.builtin.command:
+        cmd: kubectl uncordon {{ inventory_hostname }}
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) < 3
+
+    - name: Wait for pods to stabilize after single master upgrade
+      ansible.builtin.pause:
+        seconds: "{{ upgrade_wait_for_pods }}"
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - upgrade_needed | default(true)
+        - (master_count | int) < 3
+
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - upgrade_needed | default(true)
+    - (master_count | int) < 3
+

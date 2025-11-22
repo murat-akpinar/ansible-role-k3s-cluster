@@ -227,6 +227,93 @@ kubectl get pvc -A
 - **Production Ortamları**: En az 2 replica (`longhorn-retain-2`) kullanın
 - **Kritik Veriler**: 3 replica (`longhorn-retain-3`) kullanın
 
+### K3s Cluster Upgrade (Rolling Update)
+
+Cluster'ınızı **kesintisiz** bir şekilde güncellemek için rolling update stratejisi kullanılır. Upgrade işlemi node'ları sırayla günceller, böylece cluster çalışmaya devam eder.
+
+#### Upgrade Süreci
+
+1. **Versiyon Kontrolü**: Tüm node'ların mevcut K3s versiyonları kontrol edilir
+2. **Master Node'ları Güncelleme** (Sırayla):
+   - Master node'lar **tek tek** (`serial: 1`) güncellenir
+   - Her master node için:
+     - Node **drain** edilir (pod'lar diğer node'lara taşınır)
+     - K3s upgrade edilir
+     - Node **uncordon** edilir (yeni pod'lar alabilir)
+     - Pod'ların stabilize olması beklenir (60 saniye)
+3. **Worker Node'ları Güncelleme** (Sırayla):
+   - Worker node'lar **tek tek** (`serial: 1`) güncellenir
+   - Her worker node için aynı süreç uygulanır
+4. **Cluster Doğrulama**: Tüm node'ların Ready durumda olduğu ve pod'ların çalıştığı kontrol edilir
+
+#### Upgrade Çalıştırma
+
+1. **Versiyon Belirleme**: `playbooks/roles/update_cluster/vars/main.yml` dosyasında güncellenecek versiyonu belirtin:
+
+```yaml
+k3s_target_version: "v1.31.6+k3s1"  # Güncellenecek K3s versiyonu
+```
+
+2. **Upgrade Komutu**:
+
+```bash
+ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
+```
+
+#### Upgrade Yapılandırması
+
+`playbooks/roles/update_cluster/vars/main.yml` dosyasında ayarlanabilir parametreler:
+
+```yaml
+k3s_target_version: "v1.31.6+k3s1"  # Güncellenecek versiyon
+upgrade_drain_timeout: 300          # Drain timeout (saniye)
+upgrade_wait_for_pods: 60           # Pod stabilize bekleme süresi (saniye)
+upgrade_force: false                 # Versiyon eşleşse bile zorla upgrade
+```
+
+#### Önemli Notlar
+
+⚠️ **Backup**: Upgrade öncesi önemli verilerinizi yedekleyin
+⚠️ **Test**: Production'a uygulamadan önce test ortamında deneyin
+⚠️ **Versiyon Uyumluluğu**: K3s versiyonları arasında uyumluluk kontrolü yapın
+⚠️ **Etcd**: HA kurulumlarda etcd uyumluluğu önemlidir, master node'ları önce güncelleyin
+⚠️ **Rolling Update**: Node'lar sırayla güncellenir, cluster kesintisiz çalışmaya devam eder
+
+#### Upgrade Sonrası Kontrol
+
+Upgrade sonrası cluster durumunu kontrol etmek için:
+
+```bash
+# Node durumunu kontrol et
+kubectl get nodes
+
+# Pod durumunu kontrol et
+kubectl get pods --all-namespaces
+
+# K3s versiyonunu kontrol et
+kubectl version --short
+```
+
+#### Troubleshooting
+
+Upgrade sırasında sorun yaşarsanız:
+
+1. Node durumunu kontrol edin:
+   ```bash
+   kubectl get nodes
+   ```
+
+2. Node'u manuel olarak uncordon edin:
+   ```bash
+   kubectl uncordon <node-name>
+   ```
+
+3. K3s servis durumunu kontrol edin:
+   ```bash
+   systemctl status k3s  # Master node'larda
+   systemctl status k3s-agent  # Worker node'larda
+   ```
+
 ## Yapılacaklar
 
 ### K3S Cluster Kurulumu

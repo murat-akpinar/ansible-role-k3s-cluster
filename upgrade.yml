@@ -1,0 +1,30 @@
+---
+# Upgrade Master Nodes (Rolling Update)
+- hosts: master
+  become: true
+  serial: 1  # Master node'ları sırayla güncelle (rolling update)
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
+  roles:
+    - update_cluster
+
+# Upgrade Worker Nodes (Rolling Update)
+- hosts: worker
+  become: true
+  serial: 1  # Worker node'ları sırayla güncelle (rolling update)
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
+  roles:
+    - update_cluster
+
+# Verify Cluster Status After Upgrade
+# Not: Verify task'ı sadece master node'da çalışır çünkü kubectl ve kubeconfig sadece master'da var
+#      Task içinde zaten 'when: inventory_hostname == groups['master'][0]' ile sadece ilk master'da çalışır
+- hosts: master
+  become: true
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
+  tasks:
+    - name: "Verify Cluster Status After Upgrade"
+      ansible.builtin.import_tasks: playbooks/roles/update_cluster/tasks/04_verify_cluster.yml
+

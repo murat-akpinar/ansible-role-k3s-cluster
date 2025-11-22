@@ -1,0 +1,15 @@
+---
+# Main tasks for K3s cluster upgrade
+---
+
+- name: "Check Current K3s Versions"
+  ansible.builtin.import_tasks: 01_check_versions.yml
+
+- name: "Upgrade Master Nodes (Rolling Update)"
+  ansible.builtin.import_tasks: 02_upgrade_masters.yml
+  when: "'master' in group_names"
+
+- name: "Upgrade Worker Nodes (Rolling Update)"
+  ansible.builtin.import_tasks: 03_upgrade_workers.yml
+  when: "'worker' in group_names"
+
