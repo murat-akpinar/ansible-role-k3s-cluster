@@ -12,9 +12,10 @@
 
 - name: Set K3s token fact (for all workers)
   set_fact:
-    k3s_token: "{{ hostvars[groups['master'][0]]['k3s_token_raw'].stdout | default('') }}"
-  when: "'worker' in group_names"
-  run_once: true
+    k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
+  when: 
+    - "'worker' in group_names"
+    - k3s_token_raw.stdout is defined
 
 - name: Get keepalived VIP from vars
   set_fact:
