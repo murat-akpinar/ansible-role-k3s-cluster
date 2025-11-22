@@ -314,6 +314,95 @@ Upgrade sırasında sorun yaşarsanız:
    systemctl status k3s-agent  # Worker node'larda
    ```
 
+### Extra Node Ekleme (Mevcut Cluster'a Yeni Node Ekleme)
+
+Mevcut K3s cluster'ınıza yeni master veya worker node'lar ekleyebilirsiniz. Bu işlem **idempotent**'tir, yani zaten cluster'a eklenmiş node'ları tekrar eklemez.
+
+#### Önkoşullar
+
+1. **Inventory'ye Yeni Node Ekleme**: `inventory/cluster_inventory.yml` dosyasına yeni node'u ekleyin:
+
+```yaml
+all:
+  children:
+    master:
+      hosts:
+        master-1:
+          ansible_host: 192.168.1.145
+        master-2:
+          ansible_host: 192.168.1.146
+        master-3:
+          ansible_host: 192.168.1.147
+        master-4:  # Yeni master node
+          ansible_host: 192.168.1.148
+    worker:
+      hosts:
+        worker-1:
+          ansible_host: 192.168.1.245
+        worker-2:
+          ansible_host: 192.168.1.246
+        worker-3:
+          ansible_host: 192.168.1.247
+        worker-4:  # Yeni worker node
+          ansible_host: 192.168.1.249
+```
+
+2. **SSH Erişimi**: Yeni node'lara SSH erişimi olmalı ve sudo yetkisi bulunmalıdır.
+
+#### Kullanım Örnekleri
+
+**1. Tek bir worker node eklemek için:**
+```bash
+ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit worker-4
+```
+
+**2. Tek bir master node eklemek için:**
+```bash
+ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit master-4
+```
+
+**3. Tüm yeni node'ları eklemek için:**
+```bash
+ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
+```
+
+**4. Sadece worker node'ları eklemek için:**
+```bash
+ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit worker
+```
+
+**5. Sadece master node'ları eklemek için:**
+```bash
+ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit master
+```
+
+#### Özellikler
+
+✅ **Otomatik Hostname Yapılandırması**: Yeni node'un hostname'i otomatik olarak ayarlanır (gerekirse reboot yapılır)
+✅ **NTP Yapılandırması**: Chrony kurulumu ve yapılandırması otomatik yapılır
+✅ **Idempotent**: Zaten cluster'a eklenmiş node'ları tekrar eklemez
+✅ **Versiyon Uyumluluğu**: Yeni node'lar mevcut cluster versiyonu ile uyumlu kurulur
+✅ **HA Desteği**: 3+ master node'lu HA cluster'lara master ekleyebilir
+✅ **Single Master Desteği**: Tek master node'lu cluster'lara master ekleyerek HA'ya dönüştürebilir
+
+#### Önemli Notlar
+
+⚠️ **Versiyon Uyumluluğu**: Yeni node'ların versiyonu mevcut cluster versiyonu ile uyumlu olmalıdır. Versiyon `playbooks/roles/k3s_setup/vars/main.yml` dosyasındaki `k3s_version` değişkeninden alınır.
+
+⚠️ **Hostname Değişikliği**: Eğer node'un hostname'i inventory'deki isimle eşleşmiyorsa, hostname değiştirilir ve sistem reboot edilir.
+
+⚠️ **Token Güvenliği**: K3s token'ı otomatik olarak ilk master node'dan alınır.
+
+#### Doğrulama
+
+Node'un başarıyla eklendiğini kontrol etmek için:
+
+```bash
+kubectl get nodes
+```
+
+Yeni node'un `Ready` durumunda olduğunu görmelisiniz.
+
 ## Yapılacaklar
 
 ### K3S Cluster Kurulumu
