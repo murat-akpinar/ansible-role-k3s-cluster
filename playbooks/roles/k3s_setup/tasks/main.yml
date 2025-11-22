@@ -26,25 +26,25 @@
   when: helm_install | default(false)
 
 - name: "Install ingress-nginx" 
-  ansible.builtin.import_tasks: 05_ingress_install.yaml
+  ansible.builtin.import_tasks: 05_ingress_install.yml
   when: ingress_install | default(false)
 
 - name: "Install Metallb" 
-  ansible.builtin.import_tasks: 06_metallb_install.yaml
+  ansible.builtin.import_tasks: 06_metallb_install.yml
   when: metallb_install | default(false)
 
 - name: "Install Cert-Manager" 
-  ansible.builtin.import_tasks: 07_cert_manager_install.yaml
+  ansible.builtin.import_tasks: 07_cert_manager_install.yml
   when: cert_manager_install | default(false)
 
 - name: "Install Longhorn" 
-  ansible.builtin.import_tasks: 08_longhorn_install.yaml
+  ansible.builtin.import_tasks: 08_longhorn_install.yml
   when: longhorn_install | default(false)
 
 - name: "Install Grafana" 
-  ansible.builtin.import_tasks: 09_grafana_install.yaml
+  ansible.builtin.import_tasks: 09_grafana_install.yml
   when: grafana_install | default(false)
 
 - name: "Install Rancher" 
-  ansible.builtin.import_tasks: 10_rancher_install.yaml
+  ansible.builtin.import_tasks: 10_rancher_install.yml
   when: rancher_install | default(false)

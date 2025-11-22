@@ -113,7 +113,7 @@
 
 - name: Install Prometheus Helm chart
   ansible.builtin.command:
-    cmd: helm install prometheus prometheus-community/prometheus --namespace prometheus --create-namespace -f {{ user_home_directory }}/my-charts/grafana/prometheus-values.yaml
+    cmd: helm install prometheus prometheus-community/prometheus --namespace prometheus --create-namespace -f {{ user_home_directory }}/my-charts/grafana/prometheus-values.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -124,7 +124,7 @@
 
 - name: Install Grafana Helm chart
   ansible.builtin.command:
-    cmd: helm install grafana grafana/grafana --namespace grafana --create-namespace -f {{ user_home_directory }}/my-charts/grafana/grafana-values.yaml
+    cmd: helm install grafana grafana/grafana --namespace grafana --create-namespace -f {{ user_home_directory }}/my-charts/grafana/grafana-values.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -161,7 +161,7 @@
 
 - name: Apply Grafana ingress config
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/cert/homelab.grafana.yaml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/cert/homelab.grafana.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -173,7 +173,7 @@
 
 - name: Apply homelab.grafana certificate
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/cert/homelab-grafana-certificate.yaml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/cert/homelab-grafana-certificate.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:

@@ -1,6 +1,6 @@
 ---
 # ============================
-# Install MetalLB
+# Install Nginx Ingress
 # ============================
 
 - name: Find home directory for UID 1000
@@ -26,14 +26,14 @@
     uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
-- name: Check if metallb-system namespace exists
-  command: kubectl get namespace metallb-system
-  register: metallb_namespace_exists
+- name: Check if ingress-nginx namespace exists
+  command: kubectl get namespace ingress-nginx
+  register: namespace_exists
   failed_when: false
   changed_when: false
   when: "'master' in group_names"
 
-- name: Check if MetalLB Helm repository is already added
+- name: Check if NGINX Ingress Helm repository is already added
   ansible.builtin.command:
     cmd: helm repo list
   register: helm_repo_list
@@ -56,31 +56,31 @@
   register: helm_repo_names
   when: "'master' in group_names"
 
-- name: Check if MetalLB Helm repository is already present
+- name: Check if NGINX Ingress Helm repository is already present
   ansible.builtin.set_fact:
-    metallb_repo_present: "{{ 'metallb' in helm_repo_names.stdout }}"
+    nginx_ingress_repo_present: "{{ 'ingress-nginx' in helm_repo_names.stdout }}"
   when: "'master' in group_names"
 
-- name: Debug if MetalLB Helm repository is present
+- name: Debug if NGINX Ingress Helm repository is present
   ansible.builtin.debug:
-    msg: "MetalLB Helm repository is present: {{ metallb_repo_present }}"
+    msg: "NGINX Ingress Helm repository is present: {{ nginx_ingress_repo_present }}"
   when: "'master' in group_names"
 
-- name: Add MetalLB Helm repository
+- name: Add NGINX Ingress Helm repository
   ansible.builtin.command:
-    cmd: helm repo add metallb https://metallb.github.io/metallb
+    cmd: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
   become: true
   become_user: "{{ uid_1000_user }}"
   when: 
     - "'master' in group_names"
-    - not metallb_repo_present
+    - not nginx_ingress_repo_present
 
-- name: Debug message if MetalLB Helm repository is already present
+- name: Debug message if NGINX Ingress Helm repository is already present
   ansible.builtin.debug:
-    msg: "MetalLB Helm repository is already added."
+    msg: "NGINX Ingress Helm repository is already added."
   when:
     - "'master' in group_names"
-    - metallb_repo_present
+    - nginx_ingress_repo_present
 
 - name: Update Helm repository list
   ansible.builtin.command:
@@ -90,31 +90,23 @@
   when: 
     - "'master' in group_names"
 
-- name: Install MetalLB using Helm
+- name: Install NGINX Ingress Helm chart
   ansible.builtin.command:
-    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace
+    cmd: helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace -f {{ user_home_directory }}/my-charts/ingress/values.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
     - inventory_hostname == 'master-1'
-    - metallb_namespace_exists.rc != 0
+    - namespace_exists.rc != 0
 
-- name: Wait for MetalLB pods to be in Running state
-  shell: |
-    kubectl get pods -n metallb-system -o jsonpath='{.items[*].status.phase}' | grep -v Running && exit 1 || exit 0
-  register: result
-  until: result.rc == 0
+- name: Wait for Ingress pods to be in Running state
+  command: kubectl get pods -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx -o jsonpath='{.items[*].status.phase}'
+  register: ingress_pod_status
+  until: ingress_pod_status.stdout.find('Running') != -1
   retries: 10
   delay: 60
-  when: inventory_hostname == 'master-1'
-
-- name: Apply MetalLB ConfigMap
-  ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/metallb/metallb-config.yaml
-  become: true
-  become_user: "{{ uid_1000_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: inventory_hostname == 'master-1'
+  when: 
+    - inventory_hostname == 'master-1'
+    - namespace_exists.rc != 0

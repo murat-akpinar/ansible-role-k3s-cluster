@@ -1,6 +1,6 @@
 ---
 # ============================
-# Install Nginx Ingress
+# Install Cert-Manager
 # ============================
 
 - name: Find home directory for UID 1000
@@ -26,14 +26,14 @@
     uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
-- name: Check if ingress-nginx namespace exists
-  command: kubectl get namespace ingress-nginx
-  register: namespace_exists
+- name: Check if cert-manager namespace exists
+  command: kubectl get namespace cert-manager
+  register: cert_manager_namespace_exists
   failed_when: false
   changed_when: false
   when: "'master' in group_names"
 
-- name: Check if NGINX Ingress Helm repository is already added
+- name: Check if Jetstack Helm repository is already added
   ansible.builtin.command:
     cmd: helm repo list
   register: helm_repo_list
@@ -56,31 +56,31 @@
   register: helm_repo_names
   when: "'master' in group_names"
 
-- name: Check if NGINX Ingress Helm repository is already present
+- name: Check if Jetstack Helm repository is already present
   ansible.builtin.set_fact:
-    nginx_ingress_repo_present: "{{ 'ingress-nginx' in helm_repo_names.stdout }}"
+    jetstack_repo_present: "{{ 'jetstack' in helm_repo_names.stdout }}"
   when: "'master' in group_names"
 
-- name: Debug if NGINX Ingress Helm repository is present
+- name: Debug if Jetstack Helm repository is present
   ansible.builtin.debug:
-    msg: "NGINX Ingress Helm repository is present: {{ nginx_ingress_repo_present }}"
+    msg: "Jetstack Helm repository is present: {{ jetstack_repo_present }}"
   when: "'master' in group_names"
 
-- name: Add NGINX Ingress Helm repository
+- name: Add Jetstack Helm repository
   ansible.builtin.command:
-    cmd: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    cmd: helm repo add jetstack https://charts.jetstack.io
   become: true
   become_user: "{{ uid_1000_user }}"
   when: 
     - "'master' in group_names"
-    - not nginx_ingress_repo_present
+    - not jetstack_repo_present
 
-- name: Debug message if NGINX Ingress Helm repository is already present
+- name: Debug message if Jetstack Helm repository is already present
   ansible.builtin.debug:
-    msg: "NGINX Ingress Helm repository is already added."
+    msg: "Jetstack Helm repository is already added."
   when:
     - "'master' in group_names"
-    - nginx_ingress_repo_present
+    - jetstack_repo_present
 
 - name: Update Helm repository list
   ansible.builtin.command:
@@ -90,23 +90,33 @@
   when: 
     - "'master' in group_names"
 
-- name: Install NGINX Ingress Helm chart
+- name: Install Cert-Manager Helm chart
   ansible.builtin.command:
-    cmd: helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace -f {{ user_home_directory }}/my-charts/ingress/values.yaml
+    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ user_home_directory }}/my-charts/ingress/values.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
     - inventory_hostname == 'master-1'
-    - namespace_exists.rc != 0
+    - cert_manager_namespace_exists.rc != 0
 
-- name: Wait for Ingress pods to be in Running state
-  command: kubectl get pods -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx -o jsonpath='{.items[*].status.phase}'
-  register: ingress_pod_status
-  until: ingress_pod_status.stdout.find('Running') != -1
+- name: Wait for Cert-Manager pods to be in Running state
+  command: kubectl get pods -n cert-manager -l app.kubernetes.io/name=cert-manager -o jsonpath='{.items[*].status.phase}'
+  register: cert_manager_pod_status
+  until: cert_manager_pod_status.stdout.find('Running') != -1
   retries: 10
   delay: 60
   when: 
     - inventory_hostname == 'master-1'
-    - namespace_exists.rc != 0
+    - cert_manager_namespace_exists.rc != 0
+
+- name: Apply selfsigned issuer
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/cert-manager/selfsigned-issuer.yml
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"  
+  when: 
+    - inventory_hostname == 'master-1'

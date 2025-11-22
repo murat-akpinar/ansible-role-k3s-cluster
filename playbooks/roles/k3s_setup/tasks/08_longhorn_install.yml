@@ -102,7 +102,7 @@
 
 - name: Install Longhorn Helm chart
   ansible.builtin.command:
-    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ user_home_directory }}/my-charts/longhorn/values.yaml
+    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ user_home_directory }}/my-charts/longhorn/values.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -123,7 +123,7 @@
 
 - name: Apply Longhorn StorageClass
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/storageclass.yaml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/storageclass.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -141,7 +141,7 @@
 
 - name: Apply Longhorn ingress config
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab.longhorn.yaml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab.longhorn.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -153,7 +153,7 @@
 
 - name: Apply homelab.longhorn certificate
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab-longhorn-certificate.yaml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab-longhorn-certificate.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:

@@ -1,6 +1,6 @@
 ---
 # ============================
-# Install Cert-Manager
+# Install MetalLB
 # ============================
 
 - name: Find home directory for UID 1000
@@ -26,14 +26,14 @@
     uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
-- name: Check if cert-manager namespace exists
-  command: kubectl get namespace cert-manager
-  register: cert_manager_namespace_exists
+- name: Check if metallb-system namespace exists
+  command: kubectl get namespace metallb-system
+  register: metallb_namespace_exists
   failed_when: false
   changed_when: false
   when: "'master' in group_names"
 
-- name: Check if Jetstack Helm repository is already added
+- name: Check if MetalLB Helm repository is already added
   ansible.builtin.command:
     cmd: helm repo list
   register: helm_repo_list
@@ -56,31 +56,31 @@
   register: helm_repo_names
   when: "'master' in group_names"
 
-- name: Check if Jetstack Helm repository is already present
+- name: Check if MetalLB Helm repository is already present
   ansible.builtin.set_fact:
-    jetstack_repo_present: "{{ 'jetstack' in helm_repo_names.stdout }}"
+    metallb_repo_present: "{{ 'metallb' in helm_repo_names.stdout }}"
   when: "'master' in group_names"
 
-- name: Debug if Jetstack Helm repository is present
+- name: Debug if MetalLB Helm repository is present
   ansible.builtin.debug:
-    msg: "Jetstack Helm repository is present: {{ jetstack_repo_present }}"
+    msg: "MetalLB Helm repository is present: {{ metallb_repo_present }}"
   when: "'master' in group_names"
 
-- name: Add Jetstack Helm repository
+- name: Add MetalLB Helm repository
   ansible.builtin.command:
-    cmd: helm repo add jetstack https://charts.jetstack.io
+    cmd: helm repo add metallb https://metallb.github.io/metallb
   become: true
   become_user: "{{ uid_1000_user }}"
   when: 
     - "'master' in group_names"
-    - not jetstack_repo_present
+    - not metallb_repo_present
 
-- name: Debug message if Jetstack Helm repository is already present
+- name: Debug message if MetalLB Helm repository is already present
   ansible.builtin.debug:
-    msg: "Jetstack Helm repository is already added."
+    msg: "MetalLB Helm repository is already added."
   when:
     - "'master' in group_names"
-    - jetstack_repo_present
+    - metallb_repo_present
 
 - name: Update Helm repository list
   ansible.builtin.command:
@@ -90,33 +90,31 @@
   when: 
     - "'master' in group_names"
 
-- name: Install Cert-Manager Helm chart
+- name: Install MetalLB using Helm
   ansible.builtin.command:
-    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ user_home_directory }}/my-charts/ingress/values.yaml
+    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
     - inventory_hostname == 'master-1'
-    - cert_manager_namespace_exists.rc != 0
+    - metallb_namespace_exists.rc != 0
 
-- name: Wait for Cert-Manager pods to be in Running state
-  command: kubectl get pods -n cert-manager -l app.kubernetes.io/name=cert-manager -o jsonpath='{.items[*].status.phase}'
-  register: cert_manager_pod_status
-  until: cert_manager_pod_status.stdout.find('Running') != -1
+- name: Wait for MetalLB pods to be in Running state
+  shell: |
+    kubectl get pods -n metallb-system -o jsonpath='{.items[*].status.phase}' | grep -v Running && exit 1 || exit 0
+  register: result
+  until: result.rc == 0
   retries: 10
   delay: 60
-  when: 
-    - inventory_hostname == 'master-1'
-    - cert_manager_namespace_exists.rc != 0
+  when: inventory_hostname == 'master-1'
 
-- name: Apply selfsigned issuer
+- name: Apply MetalLB ConfigMap
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/cert-manager/selfsigned-issuer.yaml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/metallb/metallb-config.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"  
-  when: 
-    - inventory_hostname == 'master-1'
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: inventory_hostname == 'master-1'
