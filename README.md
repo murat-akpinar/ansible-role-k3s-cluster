@@ -176,6 +176,57 @@ Yerel erişim için `/etc/hosts` dosyanıza şu satırları ekleyin:
 kubectl get svc -n ingress-nginx ingress-nginx-controller
 ```
 
+### Longhorn StorageClass ve Veri Kalıcılığı
+
+Longhorn, Kubernetes için dağıtılmış blok depolama sağlar. Kurulum sırasında otomatik olarak 6 farklı StorageClass oluşturulur:
+
+#### StorageClass'lar
+
+| StorageClass | ReclaimPolicy | Replica Sayısı | Kullanım Amacı |
+|-------------|---------------|---------------|----------------|
+| `longhorn-retain-1` | Retain | 1 | Single Master kurulumlar için |
+| `longhorn-retain-2` | Retain | 2 | HA kurulumlar için (önerilen) |
+| `longhorn-retain-3` | Retain | 3 | Yüksek veri güvenliği gereken durumlar |
+| `longhorn-delete-1` | Delete | 1 | Geçici veriler için |
+| `longhorn-delete-2` | Delete | 2 | Geçici veriler için (HA) |
+| `longhorn-delete-3` | Delete | 3 | Geçici veriler için (yüksek güvenlik) |
+
+#### Mevcut PVC Yapılandırması
+
+Kurulumda kullanılan StorageClass'lar:
+
+- **Prometheus**: `longhorn-retain-2` (HA için 2 replica)
+- **Alertmanager**: `longhorn-retain-2` (HA için 2 replica)
+- **Grafana**: `longhorn-retain-2` (HA için 2 replica)
+
+#### Veri Kalıcılığı ve Güvenlik
+
+✅ **ReclaimPolicy: Retain** - PVC silinse bile volume'lar korunur, manuel temizlik gerekir
+✅ **Pod Restart**: Veri korunur (PVC bağlı kalır)
+✅ **Node Restart**: Veri korunur (Longhorn volume'lar farklı node'larda replike edilir)
+✅ **HA Kurulum**: `longhorn-retain-2` ile bir node çökse bile veri kaybı olmaz
+
+#### StorageClass Kontrolü
+
+Mevcut StorageClass'ları kontrol etmek için:
+
+```bash
+kubectl get storageclass
+```
+
+PVC'leri kontrol etmek için:
+
+```bash
+kubectl get pvc -A
+```
+
+#### Öneriler
+
+- **HA Kurulumlar (3+ Master)**: `longhorn-retain-2` veya `longhorn-retain-3` kullanın
+- **Single Master**: `longhorn-retain-1` yeterlidir
+- **Production Ortamları**: En az 2 replica (`longhorn-retain-2`) kullanın
+- **Kritik Veriler**: 3 replica (`longhorn-retain-3`) kullanın
+
 ## Yapılacaklar
 
 ### K3S Cluster Kurulumu
