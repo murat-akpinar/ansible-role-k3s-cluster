@@ -150,7 +150,7 @@
     insertafter: EOF
   when: os_family == "Debian" and ntp_configured_debian.stdout != "configured"
   become: true
-  notify: Restart NTP service
+  register: ntp_config_debian
 
 - name: Check if NTP server is already configured (RHEL-based)
   ansible.builtin.shell: grep -q "server time.google.com iburst" /etc/chrony.conf && echo "configured" || echo "not configured"
@@ -166,19 +166,23 @@
     insertafter: EOF
   when: os_family == "RedHat" and ntp_configured_rhel.stdout != "configured"
   become: true
-  notify: Restart NTP service
+  register: ntp_config_rhel
 
 - name: Restart NTP service (Debian-based)
   ansible.builtin.service:
     name: chrony
     state: restarted
-  when: os_family == "Debian"
+  when: 
+    - os_family == "Debian"
+    - ntp_config_debian.changed | default(false)
   become: true
 
 - name: Restart NTP service (RHEL-based)
   ansible.builtin.service:
     name: chronyd
     state: restarted
-  when: os_family == "RedHat"
+  when: 
+    - os_family == "RedHat"
+    - ntp_config_rhel.changed | default(false)
   become: true
 
