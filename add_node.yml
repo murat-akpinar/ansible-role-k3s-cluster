@@ -1,6 +1,9 @@
 ---
 # Add extra nodes to existing K3s cluster
 # Usage: ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit new-node-name
+#
+# Note: After adding master nodes, run install_keepalived.yml to set up HA:
+#       ansible-playbook -i inventory/cluster_inventory.yml install_keepalived.yml
 
 - hosts: all
   become: true

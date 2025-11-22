@@ -24,21 +24,8 @@
     msg: "Master Count is {{ master_count }}."
   run_once: true
 
-- name: "Skip Keepalived installation if HA is not needed"
-  debug:
-    msg: "Not enough master nodes ({{ master_count }} < 3). Skipping Keepalived installation."
-  when: master_count | int < 3
-  run_once: true
-
-- name: "Proceed with HA setup if there are at least 3 master nodes"
-  debug:
-    msg: "HA mode detected ({{ master_count }} masters). Proceeding with Keepalived installation."
-  when: master_count | int >= 3
-  run_once: true
-
-- name: "Install and Configure Keepalived if there are at least 3 masters"
+- name: "Install Keepalived package (if not already installed)"
   block:
-
     - name: Update apt cache before installing Keepalived
       apt:
         update_cache: yes
@@ -80,6 +67,21 @@
         owner: keepalived_script
         mode: '0755'
       become: true
+
+- name: "Skip Keepalived configuration if HA is not needed"
+  debug:
+    msg: "Not enough master nodes ({{ master_count }} < 3). Keepalived installed but not configured. Will be configured when 3+ masters are available."
+  when: master_count | int < 3
+  run_once: true
+
+- name: "Proceed with HA setup if there are at least 3 master nodes"
+  debug:
+    msg: "HA mode detected ({{ master_count }} masters). Proceeding with Keepalived configuration."
+  when: master_count | int >= 3
+  run_once: true
+
+- name: "Configure and Start Keepalived if there are at least 3 masters"
+  block:
 
 # ============================
 # Configure Keepalived

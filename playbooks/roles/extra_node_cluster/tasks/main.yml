@@ -11,10 +11,6 @@
   ansible.builtin.import_tasks: 02_add_master_node.yml
   when: "'master' in group_names"
 
-- name: "Install and Configure Keepalived (if 3+ masters after adding nodes)"
-  ansible.builtin.import_tasks: 04_install_keepalived.yml
-  when: "'master' in group_names"
-
 - name: "Add Worker Node to Cluster"
   ansible.builtin.import_tasks: 03_add_worker_node.yml
   when: "'worker' in group_names"
