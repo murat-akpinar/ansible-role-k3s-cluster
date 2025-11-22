@@ -256,6 +256,20 @@ Kurulum, **master sayısına göre otomatik olarak** values dosyalarını seçer
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml
 ```
 
+### Cluster Upgrade
+
+```bash
+# Tüm node'larda upgrade etme
+ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
+```
+
+### Cluster'a Yeni Node Ekleme
+
+```bash
+# Extra node ekleme
+ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
+```
+
 ### Cluster Durumunu Kontrol Etme
 
 ```bash

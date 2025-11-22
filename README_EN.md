@@ -411,6 +411,20 @@ all:
 ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
 ```
 
+### Cluster Upgrade
+
+```bash
+# Upgrade on all nodes
+ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
+```
+
+### Adding a New Node to the Cluster
+
+```bash
+# Adding an extra node
+ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
+```
+
 ### Features
 
 ✅ **Automatic Hostname Configuration**: New node's hostname is automatically set (reboot if necessary)  
