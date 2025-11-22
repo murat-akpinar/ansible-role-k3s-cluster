@@ -1,0 +1,11 @@
+---
+# Add extra nodes to existing K3s cluster
+# Usage: ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit new-node-name
+
+- hosts: all
+  become: true
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
+  roles:
+    - extra_node_cluster
+

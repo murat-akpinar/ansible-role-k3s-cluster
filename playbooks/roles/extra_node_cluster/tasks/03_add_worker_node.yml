@@ -1,0 +1,134 @@
+---
+# Add Worker Node to existing K3s cluster
+
+- name: Get K3s token from first master (for workers to join)
+  shell: cat /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_raw
+  become: true
+  changed_when: false
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+
+- name: Set K3s token fact (for all workers)
+  set_fact:
+    k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
+  when: k3s_token_raw is defined
+  run_once: true
+
+- name: Get keepalived VIP from vars
+  set_fact:
+    keepalived_vip: "{{ keepalived_vip | default('192.168.1.244') }}"
+  run_once: true
+
+- name: Count existing master nodes
+  set_fact:
+    existing_master_count: "{{ groups['master'] | length | int }}"
+  run_once: true
+
+- name: Set K3s version environment variable
+  set_fact:
+    k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"
+  run_once: true
+
+- name: Install K3s agent on worker node (HA mode)
+  shell: |
+    export K3S_URL="https://{{ keepalived_vip }}:6443"
+    export K3S_TOKEN="{{ k3s_token }}"
+    {% if k3s_version_env | default('') != '' %}
+    export {{ k3s_version_env }}
+    {% endif %}
+    curl -sfL {{ k3s_install_url }} | sh -s - agent
+  when: 
+    - "'worker' in group_names"
+    - not node_already_joined | default(false)
+    - (existing_master_count | int) >= 3
+  become: true
+  register: join_worker_ha
+
+- name: Install K3s agent on worker node (Single master)
+  shell: |
+    {% if k3s_version_env | default('') != '' %}
+    export {{ k3s_version_env }}
+    {% endif %}
+    curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ k3s_token }} sh -
+  when: 
+    - "'worker' in group_names"
+    - not node_already_joined | default(false)
+    - (existing_master_count | int) < 3
+  become: true
+  register: join_worker_single
+
+- name: Ensure K3s agent is enabled and running on worker node
+  ansible.builtin.systemd:
+    name: k3s-agent
+    enabled: yes
+    state: started
+  when: 
+    - "'worker' in group_names"
+    - not node_already_joined | default(false)
+  become: true
+
+- name: Wait for K3s agent to be ready on worker node
+  ansible.builtin.wait_for:
+    path: /var/lib/rancher/k3s/agent/node-token
+    state: present
+  when: 
+    - "'worker' in group_names"
+    - not node_already_joined | default(false)
+  become: true
+  retries: 10
+  delay: 10
+
+- name: Find home directory for UID 1000 (on master node for kubectl commands)
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  delegate_to: "{{ groups['master'][0] }}"
+  run_once: true
+
+- name: Set home directory variable (for all workers)
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when: 
+    - getent_passwd_output is defined
+    - getent_passwd_output.stdout is defined
+    - getent_passwd_output.stdout != ""
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+  delegate_to: "{{ groups['master'][0] }}"
+  run_once: true
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when: getent_passwd_result.stdout != ''
+  run_once: true
+
+- name: Verify worker node joined successfully
+  shell: kubectl get nodes {{ inventory_hostname }}
+  register: verify_worker_join
+  changed_when: false
+  failed_when: false
+  when: 
+    - "'worker' in group_names"
+    - not node_already_joined | default(false)
+  become: true
+  become_user: "{{ uid_1000_user | default('root') }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
+  delegate_to: "{{ groups['master'][0] }}"
+  retries: 5
+  delay: 10
+
+- name: Display worker node join status
+  debug:
+    msg: "Worker node {{ inventory_hostname }} successfully joined the cluster"
+  when: 
+    - "'worker' in group_names"
+    - verify_worker_join is defined
+    - verify_worker_join.rc is defined
+    - verify_worker_join.rc == 0
+

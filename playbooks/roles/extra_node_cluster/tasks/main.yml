@@ -1,0 +1,14 @@
+---
+# Main tasks for adding extra nodes to existing K3s cluster
+
+- name: "Check if node is already part of cluster"
+  ansible.builtin.import_tasks: 01_check_existing_node.yml
+
+- name: "Add Master Node to Cluster"
+  ansible.builtin.import_tasks: 02_add_master_node.yml
+  when: "'master' in group_names"
+
+- name: "Add Worker Node to Cluster"
+  ansible.builtin.import_tasks: 03_add_worker_node.yml
+  when: "'worker' in group_names"
+

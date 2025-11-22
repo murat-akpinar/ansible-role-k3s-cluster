@@ -1,0 +1,109 @@
+---
+# Add Master Node to existing K3s cluster
+
+- name: Get K3s token from first master
+  shell: cat /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_raw
+  become: true
+  changed_when: false
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+
+- name: Set K3s token fact
+  set_fact:
+    k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
+  when: k3s_token_raw.stdout is defined
+
+- name: Get keepalived VIP from vars
+  set_fact:
+    keepalived_vip: "{{ keepalived_vip | default('192.168.1.244') }}"
+  run_once: true
+
+- name: Count existing master nodes
+  set_fact:
+    existing_master_count: "{{ groups['master'] | length | int }}"
+  run_once: true
+
+- name: Set K3s version environment variable
+  set_fact:
+    k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"
+  run_once: true
+
+- name: Install K3s master node (HA mode - 3+ masters)
+  shell: |
+    export K3S_TOKEN="{{ k3s_token }}"
+    export K3S_URL="https://{{ keepalived_vip }}:6443"
+    export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
+    {% if k3s_version_env | default('') != '' %}
+    export {{ k3s_version_env }}
+    {% endif %}
+    curl -sfL {{ k3s_install_url }} | sh -
+  when: 
+    - "'master' in group_names"
+    - not node_already_joined | default(false)
+    - (existing_master_count | int) >= 2
+  become: true
+  register: join_master_ha
+
+- name: Install K3s master node (Single master - convert to HA)
+  shell: |
+    export K3S_TOKEN="{{ k3s_token }}"
+    export K3S_URL="https://{{ keepalived_vip }}:6443"
+    export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
+    {% if k3s_version_env | default('') != '' %}
+    export {{ k3s_version_env }}
+    {% endif %}
+    curl -sfL {{ k3s_install_url }} | sh -
+  when: 
+    - "'master' in group_names"
+    - not node_already_joined | default(false)
+    - (existing_master_count | int) == 1
+  become: true
+  register: join_master_single
+
+- name: Ensure K3s is enabled and running on master node
+  ansible.builtin.systemd:
+    name: k3s
+    enabled: yes
+    state: started
+  when: 
+    - "'master' in group_names"
+    - not node_already_joined | default(false)
+  become: true
+
+- name: Wait for K3s to be ready on master node
+  ansible.builtin.wait_for:
+    path: /var/lib/rancher/k3s/server/node-token
+    state: present
+  when: 
+    - "'master' in group_names"
+    - not node_already_joined | default(false)
+  become: true
+  retries: 10
+  delay: 10
+
+- name: Verify master node joined successfully
+  shell: kubectl get nodes {{ inventory_hostname }}
+  register: verify_master_join
+  changed_when: false
+  failed_when: false
+  when: 
+    - "'master' in group_names"
+    - not node_already_joined | default(false)
+  become: true
+  become_user: "{{ uid_1000_user | default('root') }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
+  delegate_to: "{{ groups['master'][0] }}"
+  retries: 5
+  delay: 10
+
+- name: Display master node join status
+  debug:
+    msg: "Master node {{ inventory_hostname }} successfully joined the cluster"
+  when: 
+    - "'master' in group_names"
+    - verify_master_join is defined
+    - verify_master_join.rc is defined
+    - verify_master_join.rc == 0
+

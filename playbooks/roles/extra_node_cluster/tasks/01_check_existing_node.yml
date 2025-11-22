@@ -1,0 +1,43 @@
+---
+# Check if node is already part of the cluster
+
+- name: Check if K3s is already installed on master node
+  command: systemctl is-active k3s
+  register: k3s_master_status
+  changed_when: false
+  failed_when: false
+  when: "'master' in group_names"
+  become: true
+
+- name: Check if K3s agent is already installed on worker node
+  command: systemctl is-active k3s-agent
+  register: k3s_worker_status
+  changed_when: false
+  failed_when: false
+  when: "'worker' in group_names"
+  become: true
+
+- name: Set fact for node already joined (master)
+  set_fact:
+    node_already_joined: "{{ k3s_master_status.rc == 0 }}"
+  when: 
+    - "'master' in group_names"
+    - k3s_master_status is defined
+
+- name: Set fact for node already joined (worker)
+  set_fact:
+    node_already_joined: "{{ k3s_worker_status.rc == 0 }}"
+  when: 
+    - "'worker' in group_names"
+    - k3s_worker_status is defined
+
+- name: Set default fact for node already joined
+  set_fact:
+    node_already_joined: false
+  when: node_already_joined is not defined
+
+- name: Skip if node is already part of cluster
+  debug:
+    msg: "Node {{ inventory_hostname }} is already part of the cluster, skipping join process"
+  when: node_already_joined | default(false)
+
