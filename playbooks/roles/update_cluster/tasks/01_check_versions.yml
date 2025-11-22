@@ -28,6 +28,73 @@
     current_k3s_version: "{{ current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout) }}"
   when: "'master' in group_names or 'worker' in group_names"
 
+- name: Check if downgrade attempt (prevent downgrade)
+  shell: |
+    python3 << 'EOF'
+    import re
+    import sys
+    
+    def parse_version(version_str):
+        """Parse K3s version string (e.g., 'v1.32.8+k3s1') to tuple (major, minor, patch)"""
+        if version_str == "not_installed":
+            return (0, 0, 0)
+        # Remove 'v' prefix and '+k3s1' suffix, extract version numbers
+        version_clean = re.sub(r'^v', '', version_str)
+        version_clean = re.sub(r'\+.*$', '', version_clean)
+        parts = version_clean.split('.')
+        major = int(parts[0]) if len(parts) > 0 else 0
+        minor = int(parts[1]) if len(parts) > 1 else 0
+        patch = int(parts[2]) if len(parts) > 2 else 0
+        return (major, minor, patch)
+    
+    current = "{{ current_k3s_version }}"
+    target = "{{ k3s_target_version }}"
+    
+    if current == "not_installed":
+        # If not installed, allow any version
+        sys.exit(0)
+    
+    current_ver = parse_version(current)
+    target_ver = parse_version(target)
+    
+    # Compare versions
+    if target_ver < current_ver:
+        print(f"ERROR: Downgrade detected! Current: {current} ({current_ver}), Target: {target} ({target_ver})")
+        sys.exit(1)
+    elif target_ver == current_ver:
+        print(f"INFO: Versions match: {current}")
+        sys.exit(0)
+    else:
+        print(f"INFO: Upgrade detected: {current} -> {target}")
+        sys.exit(0)
+    EOF
+  register: version_check_result
+  changed_when: false
+  failed_when: false
+  when: 
+    - "'master' in group_names or 'worker' in group_names"
+    - current_k3s_version != "not_installed"
+    - not upgrade_force | default(false)
+  run_once: true
+
+- name: Fail if downgrade detected
+  fail:
+    msg: |
+      ❌ DOWNGRADE DETECTED! ❌
+      
+      Current version: {{ current_k3s_version }}
+      Target version: {{ k3s_target_version }}
+      
+      Downgrade is not allowed for safety reasons.
+      If you really need to downgrade, you must do it manually.
+      
+      To force upgrade (not recommended), set upgrade_force: true in vars/main.yml
+  when: 
+    - "'master' in group_names or 'worker' in group_names"
+    - version_check_result.rc == 1
+    - not upgrade_force | default(false)
+  run_once: true
+
 - name: Check if upgrade is needed
   set_fact:
     upgrade_needed: "{{ (current_k3s_version != k3s_target_version) or (upgrade_force | default(false)) }}"

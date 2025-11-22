@@ -14,7 +14,7 @@ ansible_ssh_private_key_file: /home/shyuuhei/.ssh/homelab # eğer farklı bir ss
 # External URLs and Download Links
 k3s_install_url: https://get.k3s.io
 # K3s Version (boş bırakılırsa en son versiyon kurulur, örnek: "v1.29.5+k3s1")
-k3s_version: ""  # Örnek: "v1.29.5+k3s1" - Upgrade testi için düşük versiyon kullanabilirsiniz
+k3s_version: "v1.32.8+k3s1"  # Örnek: "v1.29.5+k3s1" - Upgrade testi için düşük versiyon kullanabilirsiniz
 helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 
 # Helm Repository URLs

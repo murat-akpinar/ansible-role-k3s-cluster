@@ -39,7 +39,9 @@
 
     - name: Install K3s on the first master node
       shell: |
-        {{ k3s_version_env | default('') }}
+        {% if k3s_version_env | default('') != '' %}
+        export {{ k3s_version_env }}
+        {% endif %}
         curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
       when: 
         - inventory_hostname == groups['master'][0]
@@ -91,11 +93,13 @@
         export K3S_TOKEN="{{ k3s_token }}"
         export K3S_URL="https://{{ keepalived_vip }}:6443"
         export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
-        {{ k3s_version_env | default('') }}
+        {% if k3s_version_env | default('') != '' %}
+        export {{ k3s_version_env }}
+        {% endif %}
         curl -sfL {{ k3s_install_url }} | sh -
       when: 
         - inventory_hostname != groups['master'][0] 
-        - 'master' in group_names 
+        - "'master' in group_names"
         - (master_count | int) >= 3
         - k3s_additional_master_status.rc != 0
       register: join_additional_master
@@ -122,7 +126,9 @@
       shell: |
         export K3S_URL="https://{{ keepalived_vip }}:6443"
         export K3S_TOKEN="{{ single_k3s_token | default(k3s_token) }}"
-        {{ k3s_version_env | default('') }}
+        {% if k3s_version_env | default('') != '' %}
+        export {{ k3s_version_env }}
+        {% endif %}
         curl -sfL {{ k3s_install_url }} | sh -s - agent
       when: 
         - "'worker' in group_names"
@@ -150,7 +156,9 @@
 
     - name: Install K3s on the single master node
       shell: |
-        {{ k3s_version_env | default('') }}
+        {% if k3s_version_env | default('') != '' %}
+        export {{ k3s_version_env }}
+        {% endif %}
         curl -sfL {{ k3s_install_url }} | sh -
       when: 
         - inventory_hostname == groups['master'][0]
@@ -201,7 +209,9 @@
 
     - name: Install K3s agent on worker nodes
       shell: |
-        {{ k3s_version_env | default('') }}
+        {% if k3s_version_env | default('') != '' %}
+        export {{ k3s_version_env }}
+        {% endif %}
         curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ single_k3s_token }} sh -
       when: 
         - "'worker' in group_names"
