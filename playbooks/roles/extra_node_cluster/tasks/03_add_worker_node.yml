@@ -12,10 +12,18 @@
 
 - name: Set K3s token fact (for all workers)
   set_fact:
-    k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
+    k3s_token: "{{ hostvars[groups['master'][0]]['k3s_token_raw'].stdout | default('') }}"
   when: 
     - "'worker' in group_names"
-    - k3s_token_raw.stdout is defined
+    - hostvars[groups['master'][0]]['k3s_token_raw'] is defined
+    - hostvars[groups['master'][0]]['k3s_token_raw'].stdout is defined
+
+- name: Fail if K3s token is not available
+  ansible.builtin.fail:
+    msg: "K3s token could not be retrieved from master node. Make sure the master node is accessible and K3s is running."
+  when:
+    - "'worker' in group_names"
+    - k3s_token is not defined or k3s_token | default('') == ''
 
 - name: Get keepalived VIP from vars
   set_fact:
@@ -36,7 +44,7 @@
 - name: Install K3s agent on worker node (HA mode)
   shell: |
     export K3S_URL="https://{{ keepalived_vip }}:6443"
-    export K3S_TOKEN="{{ k3s_token }}"
+    export K3S_TOKEN="{{ k3s_token | default('') }}"
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
     {% endif %}
@@ -45,6 +53,8 @@
     - "'worker' in group_names"
     - not node_already_joined | default(false)
     - (existing_master_count | int) >= 3
+    - k3s_token is defined
+    - k3s_token | default('') != ''
   become: true
   register: join_worker_ha
 
@@ -53,11 +63,13 @@
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
     {% endif %}
-    curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ k3s_token }} sh -
+    curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ k3s_token | default('') }} sh -
   when: 
     - "'worker' in group_names"
     - not node_already_joined | default(false)
     - (existing_master_count | int) < 3
+    - k3s_token is defined
+    - k3s_token | default('') != ''
   become: true
   register: join_worker_single
 

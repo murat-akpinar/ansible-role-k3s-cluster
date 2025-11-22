@@ -16,5 +16,5 @@ all:
           ansible_host: 192.168.1.246
         worker-3:
           ansible_host: 192.168.1.247
-        # worker-4:
-        #   ansible_host: 192.168.1.249
+        worker-4:
+          ansible_host: 192.168.1.249
