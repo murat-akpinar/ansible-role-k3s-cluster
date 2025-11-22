@@ -2,6 +2,21 @@
 # Rebalance pods across worker nodes after upgrade
 # This ensures pods are evenly distributed, especially to newly added nodes
 
+- name: Check if any node was upgraded
+  set_fact:
+    any_upgrade_occurred: "{{ groups['all'] | map('extract', hostvars, 'upgrade_needed') | select('equalto', true) | list | length > 0 }}"
+  when: inventory_hostname == groups['master'][0]
+  run_once: true
+
+- name: Skip rebalancing if no upgrade occurred
+  debug:
+    msg: "⏭️  SKIPPING REBALANCE - No nodes were upgraded (all nodes already at target version). Rebalancing not needed."
+  when:
+    - inventory_hostname == groups['master'][0]
+    - any_upgrade_occurred is defined
+    - not any_upgrade_occurred
+  run_once: true
+
 - name: Find home directory for UID 1000
   command: getent passwd 1000
   register: getent_passwd_output
@@ -28,53 +43,49 @@
     - inventory_hostname == groups['master'][0]
     - getent_passwd_result.stdout != ''
 
-- name: Display current pod distribution across worker nodes
-  ansible.builtin.shell:
-    cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
-  become: true
-  become_user: "{{ uid_1000_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: inventory_hostname == groups['master'][0]
-  delegate_to: "{{ groups['master'][0] }}"
-  register: current_pod_distribution
-  changed_when: false
-
-- name: Show current pod distribution
-  ansible.builtin.debug:
-    msg: "Current Pod Distribution (before rebalancing): {{ current_pod_distribution.stdout_lines | default([]) | join(' | ') }}"
-  when: 
-    - inventory_hostname == groups['master'][0]
-    - current_pod_distribution.stdout_lines is defined
-
-- name: Get all worker nodes
-  ansible.builtin.shell:
-    cmd: kubectl get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | sort
-  become: true
-  become_user: "{{ uid_1000_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: inventory_hostname == groups['master'][0]
-  delegate_to: "{{ groups['master'][0] }}"
-  register: all_worker_nodes
-  changed_when: false
-
-- name: Display worker nodes to rebalance
-  ansible.builtin.debug:
-    msg: |
-      Worker nodes that will be rebalanced (drain and uncordon):
-      {{ all_worker_nodes.stdout_lines | default(['None']) | join('\n') }}
-  when:
-    - inventory_hostname == groups['master'][0]
-    - all_worker_nodes.stdout is defined
-    - all_worker_nodes.stdout != ""
-
 - name: Rebalance pods by draining and uncordoning worker nodes
   when:
     - inventory_hostname == groups['master'][0]
-    - all_worker_nodes.stdout is defined
-    - all_worker_nodes.stdout != ""
+    - any_upgrade_occurred | default(false)
   block:
+    - name: Get all worker nodes
+      ansible.builtin.shell:
+        cmd: kubectl get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | sort
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      delegate_to: "{{ groups['master'][0] }}"
+      register: all_worker_nodes
+      changed_when: false
+
+    - name: Display worker nodes to rebalance
+      ansible.builtin.debug:
+        msg: |
+          Worker nodes that will be rebalanced (drain and uncordon):
+          {{ all_worker_nodes.stdout_lines | default(['None']) | join('\n') }}
+      when:
+        - inventory_hostname == groups['master'][0]
+        - all_worker_nodes.stdout is defined
+        - all_worker_nodes.stdout != ""
+    - name: Display current pod distribution across worker nodes
+      ansible.builtin.shell:
+        cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      delegate_to: "{{ groups['master'][0] }}"
+      register: current_pod_distribution
+      changed_when: false
+
+    - name: Show current pod distribution
+      ansible.builtin.debug:
+        msg: "Current Pod Distribution (before rebalancing): {{ current_pod_distribution.stdout_lines | default([]) | join(' | ') }}"
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - current_pod_distribution.stdout_lines is defined
+
     - name: Drain worker node for rebalancing
       ansible.builtin.command:
         cmd: kubectl drain {{ item }} --ignore-daemonsets --delete-emptydir-data --timeout=300s --grace-period=60s --force
@@ -86,6 +97,7 @@
       register: drain_results
       failed_when: false
       changed_when: drain_results.rc == 0
+      when: all_worker_nodes.stdout is defined and all_worker_nodes.stdout != ""
       loop: "{{ all_worker_nodes.stdout_lines | default([]) }}"
       loop_control:
         label: "{{ item }}"
@@ -119,6 +131,7 @@
       register: uncordon_results
       failed_when: false
       changed_when: uncordon_results.rc == 0
+      when: all_worker_nodes.stdout is defined and all_worker_nodes.stdout != ""
       loop: "{{ all_worker_nodes.stdout_lines | default([]) }}"
       loop_control:
         label: "{{ item }}"
@@ -141,22 +154,21 @@
         - uncordon_results.results is defined
         - uncordon_results.results | selectattr('changed', 'equalto', true) | list | length > 0
 
-- name: Display final pod distribution across worker nodes
-  ansible.builtin.shell:
-    cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
-  become: true
-  become_user: "{{ uid_1000_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: inventory_hostname == groups['master'][0]
-  delegate_to: "{{ groups['master'][0] }}"
-  register: final_pod_distribution
-  changed_when: false
+    - name: Display final pod distribution across worker nodes
+      ansible.builtin.shell:
+        cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      delegate_to: "{{ groups['master'][0] }}"
+      register: final_pod_distribution
+      changed_when: false
 
-- name: Show final pod distribution
-  ansible.builtin.debug:
-    msg: "Final Pod Distribution (after rebalancing): {{ final_pod_distribution.stdout_lines | default([]) | join(' | ') }}"
-  when: 
-    - inventory_hostname == groups['master'][0]
-    - final_pod_distribution.stdout_lines is defined
+    - name: Show final pod distribution
+      ansible.builtin.debug:
+        msg: "Final Pod Distribution (after rebalancing): {{ final_pod_distribution.stdout_lines | default([]) | join(' | ') }}"
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - final_pod_distribution.stdout_lines is defined
 
