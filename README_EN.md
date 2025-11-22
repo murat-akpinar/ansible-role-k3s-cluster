@@ -141,8 +141,6 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml
 # If using a different SSH key
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --key-file ~/.ssh/your_key
 
-# Install on specific nodes only
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --limit master-1,worker-1
 ```
 
 ## 📖 Detailed Installation
@@ -257,15 +255,6 @@ Installation **automatically selects** values files based on master count:
 ```bash
 # Install on all nodes
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml
-
-# Install on master nodes only
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --limit master
-
-# Install on worker nodes only
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --limit worker
-
-# Install on specific nodes
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --limit master-1,worker-1
 ```
 
 ### Check Cluster Status
@@ -343,12 +332,6 @@ k3s_upgrade_version: "v1.32.9+k3s1"
 ```bash
 # Upgrade all nodes
 ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
-
-# Upgrade master nodes only
-ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml --limit master
-
-# Upgrade worker nodes only
-ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml --limit worker
 ```
 
 ### Upgrade Configuration
@@ -422,29 +405,10 @@ all:
 
 ### Usage Examples
 
-**To add a single worker node:**
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit worker-3
-```
-
-**To add a single master node:**
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit master-4
-```
 
 **To add all new nodes:**
 ```bash
 ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
-```
-
-**To add worker nodes only:**
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit worker
-```
-
-**To add master nodes only:**
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit master
 ```
 
 ### Features

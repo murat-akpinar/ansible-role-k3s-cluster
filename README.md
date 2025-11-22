@@ -140,9 +140,6 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml
 
 # Farklı SSH key kullanıyorsanız
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --key-file ~/.ssh/your_key
-
-# Sadece belirli node'larda kurulum
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --limit master-1,worker-1
 ```
 
 ## 📖 Detaylı Kurulum
@@ -257,15 +254,6 @@ Kurulum, **master sayısına göre otomatik olarak** values dosyalarını seçer
 ```bash
 # Tüm node'larda kurulum
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml
-
-# Sadece master node'larda kurulum
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --limit master
-
-# Sadece worker node'larda kurulum
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --limit worker
-
-# Belirli node'larda kurulum
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --limit master-1,worker-1
 ```
 
 ### Cluster Durumunu Kontrol Etme
@@ -343,12 +331,6 @@ k3s_upgrade_version: "v1.32.9+k3s1"
 ```bash
 # Tüm node'ları upgrade et
 ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
-
-# Sadece master node'ları upgrade et
-ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml --limit master
-
-# Sadece worker node'ları upgrade et
-ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml --limit worker
 ```
 
 ### Upgrade Yapılandırması
@@ -422,29 +404,9 @@ all:
 
 ### Kullanım Örnekleri
 
-**Tek bir worker node eklemek için:**
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit worker-3
-```
-
-**Tek bir master node eklemek için:**
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit master-4
-```
-
 **Tüm yeni node'ları eklemek için:**
 ```bash
 ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
-```
-
-**Sadece worker node'ları eklemek için:**
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit worker
-```
-
-**Sadece master node'ları eklemek için:**
-```bash
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --limit master
 ```
 
 ### Özellikler
