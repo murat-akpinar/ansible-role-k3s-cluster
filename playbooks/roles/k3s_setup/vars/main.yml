@@ -29,3 +29,6 @@ helm_repo_grafana: https://grafana.github.io/helm-charts
 
 # Internal Service URLs
 prometheus_data_url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+
+# NTP Configuration
+ntp_server: time.google.com

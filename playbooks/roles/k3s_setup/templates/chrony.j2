@@ -1,6 +1,6 @@
 # Chrony configuration managed by Ansible
 
-server time.google.com iburst prefer
+server {{ ntp_server }} iburst prefer
 pool 0.ubuntu.pool.ntp.org iburst
 pool 1.ubuntu.pool.ntp.org iburst
 pool 2.ubuntu.pool.ntp.org iburst

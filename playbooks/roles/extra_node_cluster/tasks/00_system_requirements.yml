@@ -137,7 +137,7 @@
 # ============================
 
 - name: Check if NTP server is already configured (Debian-based)
-  ansible.builtin.shell: grep -q "server time.google.com iburst" /etc/chrony/chrony.conf && echo "configured" || echo "not configured"
+  ansible.builtin.shell: grep -q "server {{ ntp_server }} iburst" /etc/chrony/chrony.conf && echo "configured" || echo "not configured"
   register: ntp_configured_debian
   changed_when: false
   ignore_errors: true
@@ -146,14 +146,14 @@
 - name: Configure NTP server (Debian-based)
   ansible.builtin.lineinfile:
     path: /etc/chrony/chrony.conf
-    line: "server time.google.com iburst"
+    line: "server {{ ntp_server }} iburst"
     insertafter: EOF
   when: os_family == "Debian" and ntp_configured_debian.stdout != "configured"
   become: true
   register: ntp_config_debian
 
 - name: Check if NTP server is already configured (RHEL-based)
-  ansible.builtin.shell: grep -q "server time.google.com iburst" /etc/chrony.conf && echo "configured" || echo "not configured"
+  ansible.builtin.shell: grep -q "server {{ ntp_server }} iburst" /etc/chrony.conf && echo "configured" || echo "not configured"
   register: ntp_configured_rhel
   changed_when: false
   ignore_errors: true
@@ -162,7 +162,7 @@
 - name: Configure NTP server (RHEL-based)
   ansible.builtin.lineinfile:
     path: /etc/chrony.conf
-    line: "server time.google.com iburst"
+    line: "server {{ ntp_server }} iburst"
     insertafter: EOF
   when: os_family == "RedHat" and ntp_configured_rhel.stdout != "configured"
   become: true
