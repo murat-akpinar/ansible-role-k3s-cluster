@@ -12,3 +12,18 @@
   ansible.builtin.import_tasks: 03_upgrade_workers.yml
   when: "'worker' in group_names"
 
+- name: "Cleanup Stuck Nodes (Uncordon SchedulingDisabled nodes)"
+  ansible.builtin.import_tasks: 05_cleanup_stuck_nodes.yml
+  when: inventory_hostname == groups['master'][0]
+  run_once: true
+
+- name: "Rebalance Pods Across Worker Nodes"
+  ansible.builtin.import_tasks: 06_rebalance_pods.yml
+  when: inventory_hostname == groups['master'][0]
+  run_once: true
+
+- name: "Verify Cluster Status After Upgrade"
+  ansible.builtin.import_tasks: 04_verify_cluster.yml
+  when: inventory_hostname == groups['master'][0]
+  run_once: true
+
