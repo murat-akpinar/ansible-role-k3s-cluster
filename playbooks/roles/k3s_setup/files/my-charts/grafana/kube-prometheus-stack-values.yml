@@ -15,10 +15,11 @@ prometheus:
         memory: 1Gi
     
     # Storage Configuration
+    # Using longhorn-retain-2 for HA: 2 replicas for data redundancy
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: longhorn-retain-1
+          storageClassName: longhorn-retain-2
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
@@ -68,10 +69,11 @@ alertmanager:
         memory: 500Mi
     
     # Storage Configuration
+    # Using longhorn-retain-2 for HA: 2 replicas for data redundancy
     storage:
       volumeClaimTemplate:
         spec:
-          storageClassName: longhorn-retain-1
+          storageClassName: longhorn-retain-2
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
@@ -117,9 +119,10 @@ grafana:
       memory: 500Mi
   
   # Persistence
+  # Using longhorn-retain-2 for HA: 2 replicas for data redundancy
   persistence:
     enabled: true
-    storageClassName: longhorn-retain-1
+    storageClassName: longhorn-retain-2
     accessModes:
       - ReadWriteOnce
     size: 10Gi
