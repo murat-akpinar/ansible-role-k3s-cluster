@@ -1,6 +1,9 @@
 # K3s Upgrade Configuration
-k3s_install_url: https://get.k3s.io
-k3s_target_version: "v1.32.9+k3s1"  # Güncellenecek K3s versiyonu
+# Note: Target version is determined from k3s_setup/vars/main.yml:
+#   - If k3s_upgrade_version is set, it will be used for upgrade
+#   - If k3s_upgrade_version is empty, k3s_version will be used
+# Upgrade will only happen if current version < target version
+# If current version >= target version, upgrade will be skipped
 
 # Upgrade Settings
 upgrade_drain_timeout: 600  # Drain timeout in seconds (increased for PVC-heavy workloads)
