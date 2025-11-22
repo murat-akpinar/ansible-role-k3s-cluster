@@ -51,7 +51,8 @@
   ansible.builtin.command:
     cmd: helm repo list
   register: helm_repo_list
-  ignore_errors: true
+  failed_when: false
+  changed_when: false
   become: true
   become_user: "{{ uid_1000_user }}"
   when: "'master' in group_names"
@@ -62,7 +63,7 @@
   when:
     - "'master' in group_names"
     - helm_repo_list.rc != 0
-    - "'Error: no repositories to show' not in helm_repo_list.stderr"
+    - "'no repositories' not in helm_repo_list.stderr | default('')"
 
 - name: Extract Helm repository names
   ansible.builtin.shell: |
