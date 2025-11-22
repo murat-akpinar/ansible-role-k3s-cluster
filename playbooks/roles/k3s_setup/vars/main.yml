@@ -10,3 +10,18 @@ longhorn_install: true
 grafana_install: true
 rancher_install: true
 ansible_ssh_private_key_file: /home/shyuuhei/.ssh/homelab # eğer farklı bir ssh key kullanıyorsanız burada belirtebilirsiniz.
+
+# External URLs and Download Links
+k3s_install_url: https://get.k3s.io
+helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+
+# Helm Repository URLs
+helm_repo_ingress_nginx: https://kubernetes.github.io/ingress-nginx
+helm_repo_metallb: https://metallb.github.io/metallb
+helm_repo_cert_manager: https://charts.jetstack.io
+helm_repo_longhorn: https://charts.longhorn.io
+helm_repo_prometheus: https://prometheus-community.github.io/helm-charts
+helm_repo_grafana: https://grafana.github.io/helm-charts
+
+# Internal Service URLs
+prometheus_data_url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090

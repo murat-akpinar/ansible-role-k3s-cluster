@@ -26,7 +26,7 @@
 
     - name: Install K3s on the first master node
       shell: |
-        curl -sfL https://get.k3s.io | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
+        curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
       when: inventory_hostname == groups['master'][0]
       register: k3s_install_first_master
       become: true
@@ -65,7 +65,7 @@
         export K3S_TOKEN="{{ k3s_token }}"
         export K3S_URL="https://{{ keepalived_vip }}:6443"
         export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
-        curl -sfL https://get.k3s.io | sh -
+        curl -sfL {{ k3s_install_url }} | sh -
       when: inventory_hostname != groups['master'][0] and 'master' in group_names and (master_count | int) >= 3
       register: join_additional_master
       become: true
@@ -83,7 +83,7 @@
       shell: |
         export K3S_URL="https://{{ keepalived_vip }}:6443"
         export K3S_TOKEN="{{ single_k3s_token | default(k3s_token) }}"
-        curl -sfL https://get.k3s.io | sh -s - agent
+        curl -sfL {{ k3s_install_url }} | sh -s - agent
       when: "'worker' in group_names"
       register: join_worker
       become: true
@@ -95,7 +95,7 @@
 
     - name: Install K3s on the single master node
       shell: |
-        curl -sfL https://get.k3s.io | sh -
+        curl -sfL {{ k3s_install_url }} | sh -
       when: inventory_hostname == groups['master'][0]
       register: k3s_install_single_master
       become: true
@@ -135,7 +135,7 @@
 
     - name: Install K3s agent on worker nodes
       shell: |
-        curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ single_k3s_token }} sh -
+        curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ single_k3s_token }} sh -
       when: "'worker' in group_names"
       register: join_worker
       become: true

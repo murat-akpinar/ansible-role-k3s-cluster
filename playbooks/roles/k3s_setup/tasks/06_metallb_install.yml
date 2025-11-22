@@ -68,7 +68,7 @@
 
 - name: Add MetalLB Helm repository
   ansible.builtin.command:
-    cmd: helm repo add metallb https://metallb.github.io/metallb
+    cmd: helm repo add metallb {{ helm_repo_metallb }}
   become: true
   become_user: "{{ uid_1000_user }}"
   when: 

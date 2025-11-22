@@ -1,0 +1,88 @@
+# kube-prometheus-stack values
+# This file contains the main configuration for kube-prometheus-stack
+# Includes: Prometheus, Grafana, Alertmanager, Node Exporter, Kube State Metrics
+
+# Prometheus Configuration
+prometheus:
+  prometheusSpec:
+    # Resources
+    resources:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    
+    # Storage Configuration
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn-retain-1
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+    
+    # Retention
+    retention: 30d
+    
+    # Replicas
+    replicas: 1
+
+# Alertmanager Configuration
+alertmanager:
+  alertmanagerSpec:
+    # Resources
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 500Mi
+    
+    # Storage Configuration
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn-retain-1
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+    
+    # Replicas
+    replicas: 1
+
+# Grafana Configuration
+grafana:
+  # Resources
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 500Mi
+  
+  # Persistence
+  persistence:
+    enabled: true
+    storageClassName: longhorn-retain-1
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+  
+  # Admin credentials (will be auto-generated if not set)
+  adminUser: admin
+  adminPassword: admin  # Change this or use secret
+
+# Node Exporter (enabled by default)
+nodeExporter:
+  enabled: true
+
+# Kube State Metrics (enabled by default)
+kubeStateMetrics:
+  enabled: true
+

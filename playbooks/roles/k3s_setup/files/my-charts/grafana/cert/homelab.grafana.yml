@@ -1,9 +1,10 @@
 # grafana-ingress.yaml
+# Updated for kube-prometheus-stack (namespace: monitoring, service: kube-prometheus-stack-grafana)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: grafana
-  namespace: grafana
+  namespace: monitoring
   annotations:
     cert-manager.io/issuer: "selfsigned-issuer"
 spec:
@@ -20,6 +21,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: grafana
+            name: kube-prometheus-stack-grafana
             port:
               number: 80

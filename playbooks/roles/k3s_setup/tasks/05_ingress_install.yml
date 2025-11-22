@@ -68,7 +68,7 @@
 
 - name: Add NGINX Ingress Helm repository
   ansible.builtin.command:
-    cmd: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    cmd: helm repo add ingress-nginx {{ helm_repo_ingress_nginx }}
   become: true
   become_user: "{{ uid_1000_user }}"
   when: 

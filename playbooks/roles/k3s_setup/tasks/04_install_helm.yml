@@ -23,7 +23,7 @@
 
 - name: Download Helm installation script
   ansible.builtin.get_url:
-    url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    url: "{{ helm_install_script_url }}"
     dest: /tmp/get_helm.sh
     mode: '0700'
   when:

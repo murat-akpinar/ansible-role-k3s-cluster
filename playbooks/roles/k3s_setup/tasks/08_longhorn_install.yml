@@ -68,7 +68,7 @@
 
 - name: Add Longhorn Helm repository
   ansible.builtin.command:
-    cmd: helm repo add longhorn https://charts.longhorn.io
+    cmd: helm repo add longhorn {{ helm_repo_longhorn }}
   become: true
   become_user: "{{ uid_1000_user }}"
   when: 
