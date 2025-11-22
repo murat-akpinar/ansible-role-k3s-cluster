@@ -1,6 +1,9 @@
 ---
 # Main tasks for adding extra nodes to existing K3s cluster
 
+- name: "Configure System Requirements (Hostname and NTP)"
+  ansible.builtin.import_tasks: 00_system_requirements.yml
+
 - name: "Check if node is already part of cluster"
   ansible.builtin.import_tasks: 01_check_existing_node.yml
 

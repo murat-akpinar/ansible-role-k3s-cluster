@@ -1,0 +1,184 @@
+---
+# ============================
+# System Requirements for New Nodes
+# ============================
+# This file includes hostname configuration and NTP setup
+# Similar to k3s_setup role but for adding extra nodes
+
+# ============================
+# Configure Hostname
+# ============================
+
+- name: Get current hostname
+  ansible.builtin.command: hostname
+  register: current_hostname
+  changed_when: false
+
+- name: Debug current hostname
+  ansible.builtin.debug:
+    msg: "Current hostname is {{ current_hostname.stdout }}"
+
+- name: Check if hostname needs to be changed
+  ansible.builtin.set_fact:
+    hostname_change_needed: "{{ current_hostname.stdout != inventory_hostname }}"
+
+- name: Set hostname
+  ansible.builtin.command: hostnamectl set-hostname "{{ inventory_hostname }}"
+  when: hostname_change_needed
+  become: true
+
+- name: Update /etc/hosts with new hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '127.0.1.1'
+    line: "127.0.1.1 {{ inventory_hostname }}"
+  when: hostname_change_needed
+  become: true
+
+- name: Reboot the system for hostname change
+  ansible.builtin.reboot:
+    msg: "Reboot initiated by Ansible for hostname change"
+    connect_timeout: 5
+    reboot_timeout: 600
+    pre_reboot_delay: 0
+    post_reboot_delay: 60
+    test_command: whoami
+  when: hostname_change_needed
+  become: true
+
+- name: Verify hostname after reboot
+  ansible.builtin.wait_for_connection:
+    timeout: 300
+  when: hostname_change_needed
+
+- name: Print the new hostname
+  ansible.builtin.command: hostname
+  register: new_hostname
+  when: hostname_change_needed
+  changed_when: false
+
+- name: Debug the new hostname
+  ansible.builtin.debug:
+    msg: "The new hostname is {{ new_hostname.stdout }}"
+  when: hostname_change_needed
+
+- name: Debug if hostname change was not needed
+  ansible.builtin.debug:
+    msg: "Hostname is already set to {{ inventory_hostname }}"
+  when: not hostname_change_needed
+
+# ============================
+# NTP Configuration
+# ============================
+
+- name: Gather OS distribution facts
+  ansible.builtin.setup:
+
+- name: Set OS family variable
+  ansible.builtin.set_fact:
+    os_family: "{{ ansible_facts['os_family'] }}"
+
+- name: Check if Chrony is installed (Debian-based)
+  ansible.builtin.shell: dpkg-query -W -f='${Status}' chrony 2>/dev/null || echo "not installed"
+  register: chrony_installed_debian
+  changed_when: false
+  failed_when: false
+  when: os_family == "Debian"
+
+- name: Install NTP package (Debian-based)
+  ansible.builtin.apt:
+    name: chrony
+    state: present
+  when: os_family == "Debian" and "not installed" in chrony_installed_debian.stdout
+
+- name: Check if Chrony service is enabled (Debian-based)
+  ansible.builtin.shell: systemctl is-enabled chrony || echo "disabled"
+  register: chrony_enabled_debian
+  changed_when: false
+  failed_when: false
+  when: os_family == "Debian"
+
+- name: Start and enable NTP service (Debian-based)
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+  when: os_family == "Debian" and chrony_enabled_debian.stdout != "enabled"
+
+- name: Check if Chrony is installed (RHEL-based)
+  ansible.builtin.shell: rpm -q chrony 2>/dev/null || echo "not installed"
+  register: chrony_installed_rhel
+  changed_when: false
+  failed_when: false
+  when: os_family == "RedHat"
+
+- name: Install NTP package (RHEL-based)
+  ansible.builtin.yum:
+    name: chrony
+    state: present
+  when: os_family == "RedHat" and "not installed" in chrony_installed_rhel.stdout
+
+- name: Check if Chrony service is enabled (RHEL-based)
+  ansible.builtin.shell: systemctl is-enabled chronyd || echo "disabled"
+  register: chrony_enabled_rhel
+  changed_when: false
+  failed_when: false
+  when: os_family == "RedHat"
+
+- name: Start and enable NTP service (RHEL-based)
+  ansible.builtin.service:
+    name: chronyd
+    state: started
+    enabled: true
+  when: os_family == "RedHat" and chrony_enabled_rhel.stdout != "enabled"
+
+# ============================
+# NTP Server Configuration
+# ============================
+
+- name: Check if NTP server is already configured (Debian-based)
+  ansible.builtin.shell: grep -q "server time.google.com iburst" /etc/chrony/chrony.conf && echo "configured" || echo "not configured"
+  register: ntp_configured_debian
+  changed_when: false
+  ignore_errors: true
+  when: os_family == "Debian"
+
+- name: Configure NTP server (Debian-based)
+  ansible.builtin.lineinfile:
+    path: /etc/chrony/chrony.conf
+    line: "server time.google.com iburst"
+    insertafter: EOF
+  when: os_family == "Debian" and ntp_configured_debian.stdout != "configured"
+  become: true
+  notify: Restart NTP service
+
+- name: Check if NTP server is already configured (RHEL-based)
+  ansible.builtin.shell: grep -q "server time.google.com iburst" /etc/chrony.conf && echo "configured" || echo "not configured"
+  register: ntp_configured_rhel
+  changed_when: false
+  ignore_errors: true
+  when: os_family == "RedHat"
+
+- name: Configure NTP server (RHEL-based)
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    line: "server time.google.com iburst"
+    insertafter: EOF
+  when: os_family == "RedHat" and ntp_configured_rhel.stdout != "configured"
+  become: true
+  notify: Restart NTP service
+
+- name: Restart NTP service (Debian-based)
+  ansible.builtin.service:
+    name: chrony
+    state: restarted
+  when: os_family == "Debian"
+  become: true
+
+- name: Restart NTP service (RHEL-based)
+  ansible.builtin.service:
+    name: chronyd
+    state: restarted
+  when: os_family == "RedHat"
+  become: true
+
