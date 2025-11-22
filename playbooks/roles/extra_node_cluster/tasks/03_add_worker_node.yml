@@ -30,6 +30,7 @@
 - name: Set K3s version environment variable
   set_fact:
     k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"
+  when: "'worker' in group_names"
   run_once: true
 
 - name: Install K3s agent on worker node (HA mode)
@@ -70,7 +71,7 @@
     - not node_already_joined | default(false)
   become: true
 
-- name: Wait for K3s agent to be ready on worker node
+- name: Wait for K3s agent node-token file to be created
   ansible.builtin.wait_for:
     path: /var/lib/rancher/k3s/agent/node-token
     state: present
@@ -78,8 +79,8 @@
     - "'worker' in group_names"
     - not node_already_joined | default(false)
   become: true
-  retries: 10
-  delay: 10
+  retries: 6
+  delay: 5
 
 - name: Find home directory for UID 1000 (on master node for kubectl commands)
   command: getent passwd 1000
@@ -109,8 +110,8 @@
   when: getent_passwd_result.stdout != ''
   run_once: true
 
-- name: Verify worker node joined successfully
-  shell: kubectl get nodes {{ inventory_hostname }}
+- name: Wait for worker node to appear in cluster
+  ansible.builtin.shell: kubectl get nodes {{ inventory_hostname }} --no-headers
   register: verify_worker_join
   changed_when: false
   failed_when: false
@@ -122,8 +123,27 @@
   environment:
     KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
   delegate_to: "{{ groups['master'][0] }}"
-  retries: 5
-  delay: 10
+  retries: 12
+  delay: 5
+  until: verify_worker_join.rc == 0
+
+- name: Wait for worker node to be Ready
+  ansible.builtin.shell: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q True
+  register: verify_worker_ready
+  changed_when: false
+  failed_when: false
+  when: 
+    - "'worker' in group_names"
+    - not node_already_joined | default(false)
+    - verify_worker_join.rc == 0
+  become: true
+  become_user: "{{ uid_1000_user | default('root') }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
+  delegate_to: "{{ groups['master'][0] }}"
+  retries: 12
+  delay: 5
+  until: verify_worker_ready.rc == 0
 
 - name: Display worker node join status
   debug:

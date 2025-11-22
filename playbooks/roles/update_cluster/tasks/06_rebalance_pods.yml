@@ -1,0 +1,162 @@
+---
+# Rebalance pods across worker nodes after upgrade
+# This ensures pods are evenly distributed, especially to newly added nodes
+
+- name: Find home directory for UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: inventory_hostname == groups['master'][0]
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when:
+    - inventory_hostname == groups['master'][0]
+    - getent_passwd_output.stdout != ""
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+  when: inventory_hostname == groups['master'][0]
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when:
+    - inventory_hostname == groups['master'][0]
+    - getent_passwd_result.stdout != ''
+
+- name: Display current pod distribution across worker nodes
+  ansible.builtin.shell:
+    cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: inventory_hostname == groups['master'][0]
+  delegate_to: "{{ groups['master'][0] }}"
+  register: current_pod_distribution
+  changed_when: false
+
+- name: Show current pod distribution
+  ansible.builtin.debug:
+    msg: |
+      Current Pod Distribution (before rebalancing):
+      {{ current_pod_distribution.stdout_lines | default(['No pods found']) | join('\n') }}
+  when: inventory_hostname == groups['master'][0]
+
+- name: Get all worker nodes
+  ansible.builtin.shell:
+    cmd: kubectl get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | sort
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: inventory_hostname == groups['master'][0]
+  delegate_to: "{{ groups['master'][0] }}"
+  register: all_worker_nodes
+  changed_when: false
+
+- name: Display worker nodes to rebalance
+  ansible.builtin.debug:
+    msg: |
+      Worker nodes that will be rebalanced (drain and uncordon):
+      {{ all_worker_nodes.stdout_lines | default(['None']) | join('\n') }}
+  when:
+    - inventory_hostname == groups['master'][0]
+    - all_worker_nodes.stdout is defined
+    - all_worker_nodes.stdout != ""
+
+- name: Rebalance pods by draining and uncordoning worker nodes
+  when:
+    - inventory_hostname == groups['master'][0]
+    - all_worker_nodes.stdout is defined
+    - all_worker_nodes.stdout != ""
+  block:
+    - name: Drain worker node for rebalancing
+      ansible.builtin.command:
+        cmd: kubectl drain {{ item }} --ignore-daemonsets --delete-emptydir-data --timeout=300s --grace-period=60s --force
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      delegate_to: "{{ groups['master'][0] }}"
+      register: drain_results
+      failed_when: false
+      changed_when: drain_results.rc == 0
+      loop: "{{ all_worker_nodes.stdout_lines | default([]) }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Display drain results
+      ansible.builtin.debug:
+        msg: "Drain of {{ item.item }} completed with RC: {{ item.rc }}"
+      loop: "{{ drain_results.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when:
+        - inventory_hostname == groups['master'][0]
+        - drain_results.results is defined
+
+    - name: Wait for pods to reschedule after draining
+      ansible.builtin.pause:
+        seconds: 30
+      when:
+        - inventory_hostname == groups['master'][0]
+        - drain_results.results is defined
+        - drain_results.results | selectattr('changed', 'equalto', true) | list | length > 0
+
+    - name: Uncordon worker nodes
+      ansible.builtin.command:
+        cmd: kubectl uncordon {{ item }}
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      delegate_to: "{{ groups['master'][0] }}"
+      register: uncordon_results
+      failed_when: false
+      changed_when: uncordon_results.rc == 0
+      loop: "{{ all_worker_nodes.stdout_lines | default([]) }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Display uncordon results
+      ansible.builtin.debug:
+        msg: "Uncordon of {{ item.item }} completed with RC: {{ item.rc }}"
+      loop: "{{ uncordon_results.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when:
+        - inventory_hostname == groups['master'][0]
+        - uncordon_results.results is defined
+
+    - name: Wait for pods to stabilize after rebalancing
+      ansible.builtin.pause:
+        seconds: 30
+      when:
+        - inventory_hostname == groups['master'][0]
+        - uncordon_results.results is defined
+        - uncordon_results.results | selectattr('changed', 'equalto', true) | list | length > 0
+
+- name: Display final pod distribution across worker nodes
+  ansible.builtin.shell:
+    cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: inventory_hostname == groups['master'][0]
+  delegate_to: "{{ groups['master'][0] }}"
+  register: final_pod_distribution
+  changed_when: false
+
+- name: Show final pod distribution
+  ansible.builtin.debug:
+    msg: |
+      Final Pod Distribution (after rebalancing):
+      {{ final_pod_distribution.stdout_lines | default(['No pods found']) | join('\n') }}
+  when: inventory_hostname == groups['master'][0]
+

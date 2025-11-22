@@ -1,0 +1,102 @@
+---
+# Cleanup stuck nodes (uncordon nodes that are SchedulingDisabled)
+# This task runs after upgrade to ensure no nodes are left in SchedulingDisabled state
+
+- name: Find home directory for UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: inventory_hostname == groups['master'][0]
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - getent_passwd_output.stdout != ""
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+  when: inventory_hostname == groups['master'][0]
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - getent_passwd_result.stdout != ''
+
+- name: Get all nodes with SchedulingDisabled status
+  ansible.builtin.command:
+    cmd: kubectl get nodes -o jsonpath='{range .items[?(@.spec.unschedulable==true)]}{.metadata.name}{"\n"}{end}'
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: inventory_hostname == groups['master'][0]
+  delegate_to: "{{ groups['master'][0] }}"
+  register: stuck_nodes
+  changed_when: false
+  failed_when: false
+
+- name: Display stuck nodes found
+  ansible.builtin.debug:
+    msg: |
+      Found nodes with SchedulingDisabled status:
+      {{ stuck_nodes.stdout_lines | default(['None']) | join('\n') }}
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - stuck_nodes.stdout is defined
+    - stuck_nodes.stdout != ""
+
+- name: Uncordon stuck nodes
+  ansible.builtin.command:
+    cmd: kubectl uncordon {{ item }}
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - stuck_nodes.stdout is defined
+    - stuck_nodes.stdout != ""
+    - item | trim != ""
+  delegate_to: "{{ groups['master'][0] }}"
+  loop: "{{ stuck_nodes.stdout_lines | default([]) }}"
+  register: uncordon_results
+  failed_when: false
+
+- name: Display uncordon results
+  ansible.builtin.debug:
+    msg: "Uncordoned node: {{ item.item }} (rc: {{ item.rc }})"
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - uncordon_results.results is defined
+  loop: "{{ uncordon_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Verify no stuck nodes remain
+  ansible.builtin.command:
+    cmd: kubectl get nodes -o jsonpath='{range .items[?(@.spec.unschedulable==true)]}{.metadata.name}{"\n"}{end}' | wc -l
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: inventory_hostname == groups['master'][0]
+  delegate_to: "{{ groups['master'][0] }}"
+  register: remaining_stuck_nodes
+  changed_when: false
+  failed_when: false
+
+- name: Display cleanup summary
+  ansible.builtin.debug:
+    msg: |
+      Cleanup Summary:
+      - Stuck nodes found: {{ stuck_nodes.stdout_lines | default([]) | length }}
+      - Nodes uncordoned: {{ uncordon_results.results | default([]) | selectattr('rc', 'equalto', 0) | list | length }}
+      - Remaining stuck nodes: {{ remaining_stuck_nodes.stdout | trim | default('0') }}
+  when: inventory_hostname == groups['master'][0]
+

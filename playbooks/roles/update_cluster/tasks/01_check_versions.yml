@@ -10,7 +10,14 @@
   become: true
 
 - name: Get current K3s version on worker nodes
-  shell: k3s-agent --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
+  shell: |
+    if command -v k3s-agent &> /dev/null; then
+      k3s-agent --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
+    elif [ -f /usr/local/bin/k3s-agent ]; then
+      /usr/local/bin/k3s-agent --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
+    else
+      echo "not_installed"
+    fi
   register: current_k3s_version_worker
   changed_when: false
   failed_when: false

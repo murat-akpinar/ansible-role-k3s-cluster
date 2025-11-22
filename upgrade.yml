@@ -17,6 +17,26 @@
   roles:
     - update_cluster
 
+# Cleanup Stuck Nodes (uncordon nodes left in SchedulingDisabled state)
+# This runs after upgrade to ensure no nodes are stuck after timeout or errors
+- hosts: master
+  become: true
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
+  tasks:
+    - name: "Cleanup Stuck Nodes (Uncordon SchedulingDisabled nodes)"
+      ansible.builtin.import_tasks: playbooks/roles/update_cluster/tasks/05_cleanup_stuck_nodes.yml
+
+# Rebalance Pods After Worker Upgrade
+# This ensures pods are evenly distributed across all worker nodes, including newly added ones
+- hosts: master
+  become: true
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
+  tasks:
+    - name: "Rebalance Pods Across Worker Nodes"
+      ansible.builtin.import_tasks: playbooks/roles/update_cluster/tasks/06_rebalance_pods.yml
+
 # Verify Cluster Status After Upgrade
 # Not: Verify task'ı sadece master node'da çalışır çünkü kubectl ve kubeconfig sadece master'da var
 #      Task içinde zaten 'when: inventory_hostname == groups['master'][0]' ile sadece ilk master'da çalışır
