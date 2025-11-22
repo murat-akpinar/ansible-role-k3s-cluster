@@ -33,6 +33,20 @@
   changed_when: false
   when: "'master' in group_names"
 
+- name: Check if cert-manager Helm release exists
+  ansible.builtin.command:
+    cmd: helm list -n cert-manager -q
+  register: cert_manager_helm_release
+  failed_when: false
+  changed_when: false
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
+    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
+
 - name: Check if Jetstack Helm repository is already added
   ansible.builtin.command:
     cmd: helm repo list
@@ -90,9 +104,31 @@
   when: 
     - "'master' in group_names"
 
-- name: Install Cert-Manager Helm chart
+- name: Count the number of master nodes
+  set_fact:
+    master_count: "{{ groups['master'] | length | int }}"
+  when: "'master' in group_names"
+  run_once: true
+
+- name: Set cert-manager values file for HA (3+ masters)
+  set_fact:
+    cert_manager_values_file: "{{ user_home_directory }}/my-charts/cert-manager/values-ha.yml"
+  when:
+    - "'master' in group_names"
+    - (master_count | default(0) | int) >= 3
+  run_once: true
+
+- name: Set cert-manager values file for single master
+  set_fact:
+    cert_manager_values_file: "{{ user_home_directory }}/my-charts/cert-manager/values-single-master.yml"
+  when:
+    - "'master' in group_names"
+    - (master_count | default(0) | int) < 3
+  run_once: true
+
+- name: Install Cert-Manager Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ user_home_directory }}/my-charts/ingress/values.yml
+    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -100,6 +136,21 @@
   when: 
     - inventory_hostname == 'master-1'
     - cert_manager_namespace_exists.rc != 0
+    - (cert_manager_helm_release.stdout | default('') | trim) == ''
+    - (master_count | default(0) | int) >= 3
+
+- name: Install Cert-Manager Helm chart (Single Master)
+  ansible.builtin.command:
+    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ cert_manager_values_file }}
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - cert_manager_namespace_exists.rc != 0
+    - (cert_manager_helm_release.stdout | default('') | trim) == ''
+    - (master_count | default(0) | int) < 3
 
 - name: Wait for Cert-Manager pods to be in Running state
   command: kubectl get pods -n cert-manager -l app.kubernetes.io/name=cert-manager -o jsonpath='{.items[*].status.phase}'
@@ -110,6 +161,7 @@
   when: 
     - inventory_hostname == 'master-1'
     - cert_manager_namespace_exists.rc != 0
+    - (cert_manager_helm_release.stdout | default('') | trim) == ''
 
 - name: Apply selfsigned issuer
   ansible.builtin.command:

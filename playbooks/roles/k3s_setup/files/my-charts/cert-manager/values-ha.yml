@@ -1,0 +1,100 @@
+# Cert-Manager values for HA setup (3+ masters)
+# Master preferred, worker fallback strategy
+
+# Controller
+replicaCount: 2
+
+# Master preferred, worker fallback
+tolerations:
+  - key: "node-role.kubernetes.io/master"
+    operator: "Equal"
+    value: "system"
+    effect: "NoSchedule"
+
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - cert-manager
+            - key: app.kubernetes.io/component
+              operator: In
+              values:
+                - controller
+        topologyKey: "kubernetes.io/hostname"
+
+# Webhook
+webhook:
+  replicaCount: 3
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - cert-manager
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - webhook
+          topologyKey: "kubernetes.io/hostname"
+
+# CA Injector
+cainjector:
+  replicaCount: 2
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - cert-manager
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - cainjector
+          topologyKey: "kubernetes.io/hostname"
+
+

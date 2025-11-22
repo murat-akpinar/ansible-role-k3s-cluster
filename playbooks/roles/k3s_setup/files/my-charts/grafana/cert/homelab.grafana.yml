@@ -11,10 +11,10 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - grafana.foxhound.com.tr
+    - grafana.homelab.local
     secretName: grafana-tls
   rules:
-  - host: grafana.foxhound.com.tr
+  - host: grafana.homelab.local
     http:
       paths:
       - path: /

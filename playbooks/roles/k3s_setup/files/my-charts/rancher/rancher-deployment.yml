@@ -68,30 +68,4 @@ spec:
       port: 443
       targetPort: 443
   type: ClusterIP
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: rancher-ingress
-  namespace: cattle-system
-  annotations:
-    cert-manager.io/issuer: "selfsigned-issuer"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - rancher.foxhound.com.tr
-      secretName: rancher-tls
-  rules:
-    - host: rancher.foxhound.com.tr
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: rancher
-                port:
-                  number: 443
 

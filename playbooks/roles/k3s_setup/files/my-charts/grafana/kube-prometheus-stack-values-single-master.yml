@@ -1,0 +1,90 @@
+# kube-prometheus-stack values for Single Master setup
+# Master preferred, worker fallback strategy
+# Overrides for single master configuration
+
+# Prometheus Configuration
+prometheus:
+  prometheusSpec:
+    # Single Master: 1 replica
+    replicas: 1
+    
+    # Master preferred, worker fallback
+    tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        value: "system"
+        effect: "NoSchedule"
+    
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: Exists
+      # Preferred pod anti-affinity for single master
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - prometheus
+              topologyKey: "kubernetes.io/hostname"
+
+# Alertmanager Configuration
+alertmanager:
+  alertmanagerSpec:
+    # Single Master: 1 replica
+    replicas: 1
+    
+    # Master preferred, worker fallback
+    tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        value: "system"
+        effect: "NoSchedule"
+    
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: Exists
+      # Preferred pod anti-affinity for single master
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - alertmanager
+              topologyKey: "kubernetes.io/hostname"
+
+# Kube State Metrics
+kubeStateMetrics:
+  # Master preferred, worker fallback
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+

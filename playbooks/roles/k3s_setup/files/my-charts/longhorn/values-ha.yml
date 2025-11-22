@@ -1,0 +1,72 @@
+# Longhorn values for HA setup (3+ masters)
+# Master preferred, worker fallback strategy
+
+global:
+  # Master preferred, worker fallback
+  # Toleration allows scheduling on tainted masters
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  # Preferred nodeSelector prefers masters but allows workers in emergency
+  nodeSelector: {}
+
+# Persistence settings
+persistence:
+  # HA setup: 3 replicas for high availability
+  defaultClassReplicaCount: 3
+
+# CSI component replica counts for HA
+csi:
+  attacherReplicaCount: 3
+  provisionerReplicaCount: 3
+  resizerReplicaCount: 3
+  snapshotterReplicaCount: 3
+
+# Longhorn Manager (DaemonSet - runs on all nodes, but prefers masters)
+longhornManager:
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector: {}
+
+# Longhorn Driver Deployer
+longhornDriver:
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector: {}
+
+# Longhorn UI
+longhornUI:
+  replicas: 2
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - longhorn-ui
+          topologyKey: "kubernetes.io/hostname"
+  nodeSelector: {}
+

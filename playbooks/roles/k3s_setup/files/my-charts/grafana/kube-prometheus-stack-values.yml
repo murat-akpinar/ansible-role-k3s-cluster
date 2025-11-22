@@ -1,5 +1,5 @@
-# kube-prometheus-stack values
-# This file contains the main configuration for kube-prometheus-stack
+# kube-prometheus-stack values for HA setup (3+ masters)
+# Master preferred, worker fallback strategy
 # Includes: Prometheus, Grafana, Alertmanager, Node Exporter, Kube State Metrics
 
 # Prometheus Configuration
@@ -27,8 +27,33 @@ prometheus:
     # Retention
     retention: 30d
     
-    # Replicas
-    replicas: 1
+    # Replicas for HA
+    replicas: 2
+    
+    # Master preferred, worker fallback
+    tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        value: "system"
+        effect: "NoSchedule"
+    
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: Exists
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - prometheus
+            topologyKey: "kubernetes.io/hostname"
 
 # Alertmanager Configuration
 alertmanager:
@@ -52,8 +77,33 @@ alertmanager:
             requests:
               storage: 2Gi
     
-    # Replicas
-    replicas: 1
+    # Replicas for HA
+    replicas: 2
+    
+    # Master preferred, worker fallback
+    tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        value: "system"
+        effect: "NoSchedule"
+    
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: Exists
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - alertmanager
+            topologyKey: "kubernetes.io/hostname"
 
 # Grafana Configuration
 grafana:
@@ -77,6 +127,10 @@ grafana:
   # Admin credentials (will be auto-generated if not set)
   adminUser: admin
   adminPassword: admin  # Change this or use secret
+  
+  # Operator configuration
+  operator:
+    dashboardsConfigMapRefEnabled: false
 
 # Node Exporter (enabled by default)
 nodeExporter:
@@ -85,4 +139,19 @@ nodeExporter:
 # Kube State Metrics (enabled by default)
 kubeStateMetrics:
   enabled: true
+  # Master preferred, worker fallback
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
 

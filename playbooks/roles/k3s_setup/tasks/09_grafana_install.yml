@@ -33,6 +33,20 @@
   changed_when: false
   when: "'master' in group_names"
 
+- name: Check if kube-prometheus-stack Helm release exists
+  ansible.builtin.command:
+    cmd: helm list -n monitoring -q
+  register: kube_prometheus_stack_helm_release
+  failed_when: false
+  changed_when: false
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
+    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
+
 - name: Check if Prometheus Helm repository is already added
   ansible.builtin.command:
     cmd: helm repo list
@@ -92,9 +106,15 @@
   become_user: "{{ uid_1000_user }}"
   when: "'master' in group_names"
 
-- name: Install kube-prometheus-stack Helm chart
+- name: Count the number of master nodes
+  set_fact:
+    master_count: "{{ groups['master'] | length | int }}"
+  when: "'master' in group_names"
+  run_once: true
+
+- name: Install kube-prometheus-stack Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml
+    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -102,6 +122,21 @@
   when:
     - inventory_hostname == 'master-1'
     - monitoring_namespace_exists.rc != 0
+    - (kube_prometheus_stack_helm_release.stdout | default('') | trim) == ''
+    - (master_count | default(0) | int) >= 3
+
+- name: Install kube-prometheus-stack Helm chart (Single Master)
+  ansible.builtin.command:
+    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-single-master.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
+    - inventory_hostname == 'master-1'
+    - monitoring_namespace_exists.rc != 0
+    - (kube_prometheus_stack_helm_release.stdout | default('') | trim) == ''
+    - (master_count | default(0) | int) < 3
 
 - name: Wait for kube-prometheus-stack pods to be in Running state
   command: kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[*].status.phase}'
@@ -112,6 +147,7 @@
   when:
     - inventory_hostname == 'master-1'
     - monitoring_namespace_exists.rc != 0
+    - (kube_prometheus_stack_helm_release.stdout | default('') | trim) == ''
 
 - name: Wait for Prometheus pods to be in Running state
   command: kubectl get pods -n monitoring -l app.kubernetes.io/name=prometheus -o jsonpath='{.items[*].status.phase}'
@@ -122,6 +158,7 @@
   when:
     - inventory_hostname == 'master-1'
     - monitoring_namespace_exists.rc != 0
+    - (kube_prometheus_stack_helm_release.stdout | default('') | trim) == ''
 
 - name: Wait for Grafana PVC to be bound
   command: kubectl get pvc -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[*].status.phase}'

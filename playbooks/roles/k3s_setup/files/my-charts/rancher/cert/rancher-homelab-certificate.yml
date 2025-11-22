@@ -1,16 +1,16 @@
-# grafana-certificate.yaml
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: grafana-certificate
-  namespace: monitoring
+  name: rancher-homelab-cert
+  namespace: cattle-system
 spec:
-  secretName: grafana-tls
+  secretName: rancher-homelab-tls
   duration: 8760h
   renewBefore: 2160h
-  commonName: grafana.homelab.local
+  commonName: rancher.homelab.local
   dnsNames:
-  - grafana.homelab.local
+  - rancher.homelab.local
   issuerRef:
     name: selfsigned-issuer
     kind: ClusterIssuer
+

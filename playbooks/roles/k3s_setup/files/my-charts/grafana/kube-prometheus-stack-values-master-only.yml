@@ -1,0 +1,73 @@
+# kube-prometheus-stack values for Master/Worker separation
+# System pods run on master nodes with fallback to workers
+# Application pods (Grafana) run on worker nodes
+
+# Prometheus Configuration
+prometheus:
+  prometheusSpec:
+    # Master preferred, worker fallback
+    tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        value: "system"
+        effect: "NoSchedule"
+    
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: Exists
+
+# Alertmanager Configuration
+alertmanager:
+  alertmanagerSpec:
+    # Master preferred, worker fallback
+    tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        value: "system"
+        effect: "NoSchedule"
+    
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: Exists
+
+# Grafana Configuration
+# Note: Grafana is an application, so it should run on worker nodes
+# We explicitly do NOT add tolerations here so it runs on workers
+grafana:
+  # No tolerations - runs on worker nodes
+  # No nodeSelector - can run anywhere, but prefers workers (no master taint)
+  operator:
+    dashboardsConfigMapRefEnabled: false
+
+# Kube State Metrics
+kubeStateMetrics:
+  # Master preferred, worker fallback
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+
+# Node Exporter runs on all nodes (DaemonSet)
+nodeExporter:
+  enabled: true
+

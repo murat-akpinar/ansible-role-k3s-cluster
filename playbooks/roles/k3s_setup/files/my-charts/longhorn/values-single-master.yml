@@ -1,0 +1,63 @@
+# Longhorn values for Single Master setup
+# Master preferred, worker fallback strategy
+
+global:
+  # Master preferred, worker fallback
+  # Toleration allows scheduling on tainted masters
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  # Preferred nodeSelector prefers masters but allows workers in emergency
+  nodeSelector: {}
+
+# Persistence settings
+persistence:
+  # Single Master setup: 1 replica
+  defaultClassReplicaCount: 1
+
+# CSI component replica counts for Single Master
+csi:
+  attacherReplicaCount: 1
+  provisionerReplicaCount: 1
+  resizerReplicaCount: 1
+  snapshotterReplicaCount: 1
+
+# Longhorn Manager (DaemonSet - runs on all nodes, but prefers masters)
+longhornManager:
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector: {}
+
+# Longhorn Driver Deployer
+longhornDriver:
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector: {}
+
+# Longhorn UI
+longhornUI:
+  replicas: 1
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+  nodeSelector: {}
+

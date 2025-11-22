@@ -54,6 +54,28 @@
     - inventory_hostname == 'master-1'
     - rancher_namespace_exists.rc != 0
 
+- name: Apply Rancher ingress config
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/rancher/cert/rancher.homelab.yml
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - rancher_namespace_exists.rc != 0
+
+- name: Apply rancher.homelab.local certificate
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/rancher/cert/rancher-homelab-certificate.yml
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - rancher_namespace_exists.rc != 0
+
 - name: Get Rancher pod name
   shell: kubectl get pods -n cattle-system -l app=rancher -o jsonpath='{.items[1].metadata.name}'
   register: rancher_pod_name

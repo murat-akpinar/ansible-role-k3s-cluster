@@ -33,6 +33,20 @@
   changed_when: false
   when: "'master' in group_names"
 
+- name: Check if longhorn Helm release exists
+  ansible.builtin.command:
+    cmd: helm list -n longhorn-system -q
+  register: longhorn_helm_release
+  failed_when: false
+  changed_when: false
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
+    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
+
 - name: Check if Longhorn Helm repository is already added
   ansible.builtin.command:
     cmd: helm repo list
@@ -90,19 +104,31 @@
   when: 
     - "'master' in group_names"
 
-# - name: Download values.yaml for Longhorn
-#   ansible.builtin.get_url:
-#     url: https://raw.githubusercontent.com/longhorn/longhorn/refs/heads/master/chart/values.yaml
-#     dest: "{{ user_home_directory }}/my-charts/longhorn/values.yaml"
-#     mode: '0644'
-#   become: true
-#   become_user: "{{ uid_1000_user }}"
-#   when: 
-#     - inventory_hostname == 'master-1'
+- name: Count the number of master nodes
+  set_fact:
+    master_count: "{{ groups['master'] | length | int }}"
+  when: "'master' in group_names"
+  run_once: true
 
-- name: Install Longhorn Helm chart
+- name: Set longhorn values file for HA (3+ masters)
+  set_fact:
+    longhorn_values_file: "{{ user_home_directory }}/my-charts/longhorn/values-ha.yml"
+  when:
+    - "'master' in group_names"
+    - (master_count | default(0) | int) >= 3
+  run_once: true
+
+- name: Set longhorn values file for single master
+  set_fact:
+    longhorn_values_file: "{{ user_home_directory }}/my-charts/longhorn/values-single-master.yml"
+  when:
+    - "'master' in group_names"
+    - (master_count | default(0) | int) < 3
+  run_once: true
+
+- name: Install Longhorn Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ user_home_directory }}/my-charts/longhorn/values.yml
+    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ longhorn_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -110,6 +136,21 @@
   when: 
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
+    - (longhorn_helm_release.stdout | default('') | trim) == ''
+    - (master_count | default(0) | int) >= 3
+
+- name: Install Longhorn Helm chart (Single Master)
+  ansible.builtin.command:
+    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ longhorn_values_file }}
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - longhorn_namespace_exists.rc != 0
+    - (longhorn_helm_release.stdout | default('') | trim) == ''
+    - (master_count | default(0) | int) < 3
 
 - name: Wait for Longhorn pods to be in Running state
   command: kubectl get pods -n longhorn-system -l app=longhorn-manager -o jsonpath='{.items[*].status.phase}'
@@ -120,6 +161,7 @@
   when: 
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
+    - (longhorn_helm_release.stdout | default('') | trim) == ''
 
 - name: Apply Longhorn StorageClass
   ansible.builtin.command:

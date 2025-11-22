@@ -7,9 +7,9 @@ spec:
   secretName: homelab-longhorn-tls
   duration: 8760h
   renewBefore: 2160h
-  commonName: longhorn.foxhound.com.tr
+  commonName: longhorn.homelab.local
   dnsNames:
-  - longhorn.foxhound.com.tr
+  - longhorn.homelab.local
   issuerRef:
     name: selfsigned-issuer
-    kind: Issuer
+    kind: ClusterIssuer
