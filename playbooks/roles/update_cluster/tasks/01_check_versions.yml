@@ -1,6 +1,34 @@
 ---
 # Check current K3s versions on all nodes
 
+- name: Find home directory for UID 1000 (for kubectl commands)
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: inventory_hostname == groups['master'][0]
+  run_once: true
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ (hostvars[groups['master'][0]]['getent_passwd_output'].stdout if (hostvars[groups['master'][0]]['getent_passwd_output'] is defined and hostvars[groups['master'][0]]['getent_passwd_output'].stdout is defined) else (getent_passwd_output.stdout if (getent_passwd_output is defined and getent_passwd_output.stdout is defined) else '')).split(':')[5] }}"
+  when: 
+    - (hostvars[groups['master'][0]]['getent_passwd_output'] is defined and hostvars[groups['master'][0]]['getent_passwd_output'].stdout is defined) or (getent_passwd_output is defined and getent_passwd_output.stdout is defined)
+  run_once: true
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+  when: inventory_hostname == groups['master'][0]
+  run_once: true
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ (hostvars[groups['master'][0]]['getent_passwd_result'].stdout if (hostvars[groups['master'][0]]['getent_passwd_result'] is defined and hostvars[groups['master'][0]]['getent_passwd_result'].stdout is defined) else (getent_passwd_result.stdout if (getent_passwd_result is defined and getent_passwd_result.stdout is defined) else '')).split(':')[0] }}"
+  when: 
+    - (hostvars[groups['master'][0]]['getent_passwd_result'] is defined and hostvars[groups['master'][0]]['getent_passwd_result'].stdout is defined) or (getent_passwd_result is defined and getent_passwd_result.stdout is defined)
+  run_once: true
+
 - name: Get current K3s version on master nodes
   shell: k3s --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
   register: current_k3s_version_master
@@ -9,20 +37,17 @@
   when: "'master' in group_names"
   become: true
 
-- name: Get current K3s version on worker nodes
-  shell: |
-    if command -v k3s-agent &> /dev/null; then
-      k3s-agent --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
-    elif [ -f /usr/local/bin/k3s-agent ]; then
-      /usr/local/bin/k3s-agent --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
-    else
-      echo "not_installed"
-    fi
+- name: Get current K3s version on worker nodes from kubectl
+  shell: kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null || echo "not_installed"
   register: current_k3s_version_worker
   changed_when: false
   failed_when: false
   when: "'worker' in group_names"
   become: true
+  become_user: "{{ uid_1000_user | default('root') }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
+  delegate_to: "{{ groups['master'][0] }}"
 
 - name: Display current K3s versions
   debug:

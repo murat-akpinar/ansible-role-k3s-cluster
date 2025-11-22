@@ -30,7 +30,7 @@
 
 - name: Display current pod distribution across worker nodes
   ansible.builtin.shell:
-    cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn
+    cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -42,10 +42,10 @@
 
 - name: Show current pod distribution
   ansible.builtin.debug:
-    msg: |
-      Current Pod Distribution (before rebalancing):
-      {{ current_pod_distribution.stdout_lines | default(['No pods found']) | join('\n') }}
-  when: inventory_hostname == groups['master'][0]
+    msg: "Current Pod Distribution (before rebalancing): {{ current_pod_distribution.stdout_lines | default([]) | join(' | ') }}"
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - current_pod_distribution.stdout_lines is defined
 
 - name: Get all worker nodes
   ansible.builtin.shell:
@@ -143,7 +143,7 @@
 
 - name: Display final pod distribution across worker nodes
   ansible.builtin.shell:
-    cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn
+    cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -155,8 +155,8 @@
 
 - name: Show final pod distribution
   ansible.builtin.debug:
-    msg: |
-      Final Pod Distribution (after rebalancing):
-      {{ final_pod_distribution.stdout_lines | default(['No pods found']) | join('\n') }}
-  when: inventory_hostname == groups['master'][0]
+    msg: "Final Pod Distribution (after rebalancing): {{ final_pod_distribution.stdout_lines | default([]) | join(' | ') }}"
+  when: 
+    - inventory_hostname == groups['master'][0]
+    - final_pod_distribution.stdout_lines is defined
 

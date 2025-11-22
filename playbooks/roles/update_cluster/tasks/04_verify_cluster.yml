@@ -43,7 +43,7 @@
     - node_versions_after.stdout is defined
 
 - name: Check all nodes are Ready
-  ansible.builtin.command:
+  ansible.builtin.shell:
     cmd: kubectl get nodes --no-headers | grep -v " Ready " | wc -l
   become: true
   become_user: "{{ uid_1000_user }}"
@@ -52,6 +52,7 @@
   when: inventory_hostname == groups['master'][0]
   register: not_ready_nodes
   changed_when: false
+  failed_when: false
 
 - name: Display cluster status
   debug:
@@ -61,7 +62,7 @@
     - not_ready_nodes.stdout is defined
 
 - name: Verify all pods are running
-  ansible.builtin.command:
+  ansible.builtin.shell:
     cmd: kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers | wc -l
   become: true
   become_user: "{{ uid_1000_user }}"
@@ -70,7 +71,7 @@
   when: inventory_hostname == groups['master'][0]
   register: not_running_pods
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 - name: Display pod status
   debug:
