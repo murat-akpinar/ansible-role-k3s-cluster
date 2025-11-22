@@ -24,10 +24,20 @@
 - name: "Install and Configure K3s in HA mode if there are at least 3 masters"
   block:
 
+    - name: Check if K3s is already installed on first master
+      command: systemctl is-active k3s
+      register: k3s_first_master_status
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname == groups['master'][0]
+      become: true
+
     - name: Install K3s on the first master node
       shell: |
         curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
-      when: inventory_hostname == groups['master'][0]
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - k3s_first_master_status.rc != 0
       register: k3s_install_first_master
       become: true
 
@@ -51,14 +61,24 @@
     - name: Retrieve K3s token from the first master node
       shell: cat /var/lib/rancher/k3s/server/node-token
       when: inventory_hostname == groups['master'][0]
-      register: k3s_token
+      register: k3s_token_raw
       become: true
       run_once: true
+      failed_when: false
 
     - name: Set K3s token fact
       set_fact:
-        k3s_token: "{{ k3s_token.stdout }}"
+        k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
+      when: k3s_token_raw.stdout is defined
       run_once: true
+
+    - name: Check if K3s is already installed on additional masters
+      command: systemctl is-active k3s
+      register: k3s_additional_master_status
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname != groups['master'][0] and 'master' in group_names and (master_count | int) >= 3
+      become: true
 
     - name: Install K3s on additional master nodes
       shell: |
@@ -66,7 +86,11 @@
         export K3S_URL="https://{{ keepalived_vip }}:6443"
         export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
         curl -sfL {{ k3s_install_url }} | sh -
-      when: inventory_hostname != groups['master'][0] and 'master' in group_names and (master_count | int) >= 3
+      when: 
+        - inventory_hostname != groups['master'][0] 
+        - 'master' in group_names 
+        - (master_count | int) >= 3
+        - k3s_additional_master_status.rc != 0
       register: join_additional_master
       become: true
       ignore_errors: true
@@ -79,12 +103,22 @@
       when: inventory_hostname != groups['master'][0] and 'master' in group_names and (master_count | int) >= 3
       become: true
 
+    - name: Check if K3s agent is already installed on worker nodes
+      command: systemctl is-active k3s-agent
+      register: k3s_worker_agent_status
+      failed_when: false
+      changed_when: false
+      when: "'worker' in group_names"
+      become: true
+
     - name: Install K3s agent on worker nodes
       shell: |
         export K3S_URL="https://{{ keepalived_vip }}:6443"
         export K3S_TOKEN="{{ single_k3s_token | default(k3s_token) }}"
         curl -sfL {{ k3s_install_url }} | sh -s - agent
-      when: "'worker' in group_names"
+      when: 
+        - "'worker' in group_names"
+        - k3s_worker_agent_status.rc != 0
       register: join_worker
       become: true
 
@@ -93,10 +127,20 @@
 - name: "Single Master Setup (No HA) if less than 3 masters"
   block:
 
+    - name: Check if K3s is already installed on single master
+      command: systemctl is-active k3s
+      register: k3s_single_master_status
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname == groups['master'][0]
+      become: true
+
     - name: Install K3s on the single master node
       shell: |
         curl -sfL {{ k3s_install_url }} | sh -
-      when: inventory_hostname == groups['master'][0]
+      when: 
+        - inventory_hostname == groups['master'][0]
+        - k3s_single_master_status.rc != 0
       register: k3s_install_single_master
       become: true
 
@@ -133,10 +177,20 @@
       debug:
         msg: "Single Master K3s token is {{ single_k3s_token }}"
 
+    - name: Check if K3s agent is already installed on worker nodes (single master)
+      command: systemctl is-active k3s-agent
+      register: k3s_worker_agent_status_single
+      failed_when: false
+      changed_when: false
+      when: "'worker' in group_names"
+      become: true
+
     - name: Install K3s agent on worker nodes
       shell: |
         curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ single_k3s_token }} sh -
-      when: "'worker' in group_names"
+      when: 
+        - "'worker' in group_names"
+        - k3s_worker_agent_status_single.rc != 0
       register: join_worker
       become: true
 

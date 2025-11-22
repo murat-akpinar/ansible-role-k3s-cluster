@@ -76,19 +76,23 @@
     - inventory_hostname == 'master-1'
     - rancher_namespace_exists.rc != 0
 
-- name: Get Rancher pod name
-  shell: kubectl get pods -n cattle-system -l app=rancher -o jsonpath='{.items[1].metadata.name}'
-  register: rancher_pod_name
+- name: Wait for bootstrap-secret to be created
+  command: kubectl get secret -n cattle-system bootstrap-secret
+  register: bootstrap_secret_check
+  until: bootstrap_secret_check.rc == 0
+  retries: 20
+  delay: 10
+  failed_when: false
   when: inventory_hostname == 'master-1'
 
-- name: Get Rancher bootstrap password from pod logs
-  shell: kubectl logs -n cattle-system {{ rancher_pod_name.stdout }} | grep "Bootstrap Password"
+- name: Get Rancher bootstrap password from secret
+  shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{"\n"}}'
   register: rancher_bootstrap_password_raw
   when: inventory_hostname == 'master-1'
 
 - name: Extract Rancher bootstrap password
   set_fact:
-    rancher_bootstrap_password: "{{ rancher_bootstrap_password_raw.stdout.split('Bootstrap Password: ')[1] }}"
+    rancher_bootstrap_password: "{{ rancher_bootstrap_password_raw.stdout | trim }}"
   when: inventory_hostname == 'master-1'
 
 - name: Show Rancher bootstrap password
