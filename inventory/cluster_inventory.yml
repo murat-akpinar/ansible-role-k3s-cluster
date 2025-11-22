@@ -15,4 +15,4 @@ all:
         worker-2:
           ansible_host: 192.168.1.246
         worker-3:
-          ansible_host: 192.168.2.247
+          ansible_host: 192.168.1.247

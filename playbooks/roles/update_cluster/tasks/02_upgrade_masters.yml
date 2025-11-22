@@ -29,21 +29,23 @@
     master_count: "{{ groups['master'] | length | int }}"
   when: "'master' in group_names"
 
-- name: Get K3s token from first master
+- name: Get K3s token from first master (for additional masters to join)
   shell: cat /var/lib/rancher/k3s/server/node-token
   register: k3s_token_raw
   when: 
-    - inventory_hostname == groups['master'][0]
     - upgrade_needed | default(true)
+    - (master_count | int) >= 3
   become: true
   changed_when: false
+  delegate_to: "{{ groups['master'][0] }}"
   run_once: true
 
-- name: Set K3s token fact
+- name: Set K3s token fact (for all masters)
   set_fact:
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
-  when: k3s_token_raw.stdout is defined
-  run_once: true
+  when: 
+    - k3s_token_raw.stdout is defined
+    - (master_count | int) >= 3
 
 - name: Get keepalived VIP from vars
   set_fact:
