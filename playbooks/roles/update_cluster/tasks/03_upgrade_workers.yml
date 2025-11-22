@@ -194,17 +194,38 @@
       become: true
       register: upgrade_worker_ha
 
-    - name: Wait for K3s agent to be ready (HA mode)
-      ansible.builtin.wait_for:
-        path: /var/lib/rancher/k3s/agent/node-token
-        state: present
+    - name: Wait for K3s agent service to be running (HA mode)
+      ansible.builtin.command:
+        cmd: systemctl is-active k3s-agent
+      register: k3s_agent_status
+      until: k3s_agent_status.rc == 0
+      retries: 12
+      delay: 5
       when: 
         - "'worker' in group_names"
         - upgrade_needed | default(true)
         - (master_count | int) >= 3
       become: true
-      retries: 10
-      delay: 10
+      changed_when: false
+
+    - name: Wait for worker node to be Ready in cluster (HA mode)
+      ansible.builtin.shell:
+        cmd: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q True
+      register: worker_ready_check
+      until: worker_ready_check.rc == 0
+      retries: 12
+      delay: 5
+      when: 
+        - "'worker' in group_names"
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      delegate_to: "{{ groups['master'][0] }}"
+      changed_when: false
+      failed_when: false
 
     - name: Wait for Longhorn pods to recover after upgrade
       ansible.builtin.shell:
@@ -235,11 +256,76 @@
       changed_when: false
       failed_when: false
 
+    - name: Wait for Longhorn volumes to rebuild after upgrade
+      ansible.builtin.shell:
+        cmd: |
+          # Wait for Longhorn volumes to rebuild (max 5 minutes)
+          # Check if any volumes are in "rebuilding" or "degraded" state
+          for i in {1..30}; do
+            # Get volumes that are rebuilding or degraded
+            rebuilding_volumes=$(kubectl get volumes -n longhorn-system -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.state}{" "}{.status.robustness}{"\n"}{end}' | grep -E "(rebuilding|degraded)" | wc -l || echo "0")
+            if [ "$rebuilding_volumes" -eq "0" ]; then
+              echo "All Longhorn volumes are healthy"
+              exit 0
+            fi
+            echo "Waiting for $rebuilding_volumes volume(s) to rebuild... (attempt $i/30)"
+            sleep 10
+          done
+          echo "Warning: Some Longhorn volumes may still be rebuilding"
+          exit 0
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - "'worker' in group_names"
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+      delegate_to: "{{ groups['master'][0] }}"
+      register: longhorn_volume_recovery
+      changed_when: false
+      failed_when: false
+
+    - name: Wait for critical pods to be ready after upgrade
+      ansible.builtin.shell:
+        cmd: |
+          # Wait for critical pods (Grafana, Prometheus, Alertmanager) to be ready (max 3 minutes)
+          critical_namespaces=("monitoring")
+          for namespace in "${critical_namespaces[@]}"; do
+            for i in {1..18}; do
+              # Check if all pods in monitoring namespace are ready
+              not_ready=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.phase}{" "}{range .status.conditions[*]}{.type}{"="}{.status}{" "}{end}{"\n"}{end}' | grep -v "Running=True" | grep -v "Succeeded=True" | wc -l || echo "0")
+              if [ "$not_ready" -eq "0" ]; then
+                echo "All pods in namespace $namespace are ready"
+                break
+              fi
+              if [ "$i" -eq 18 ]; then
+                echo "Warning: Some pods in namespace $namespace may still be starting"
+              fi
+              sleep 10
+            done
+          done
+          exit 0
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - "'worker' in group_names"
+        - upgrade_needed | default(true)
+        - (master_count | int) >= 3
+      delegate_to: "{{ groups['master'][0] }}"
+      register: critical_pods_recovery
+      changed_when: false
+      failed_when: false
+
     - name: Display Longhorn recovery status
       ansible.builtin.debug:
         msg: |
           Longhorn recovery status for {{ inventory_hostname }}:
-          {{ longhorn_recovery.stdout | default('No Longhorn pods found before drain') }}
+          - Pods: {{ longhorn_recovery.stdout | default('No Longhorn pods found before drain') }}
+          - Volumes: {{ longhorn_volume_recovery.stdout | default('Checking volumes...') }}
+          - Critical Pods: {{ critical_pods_recovery.stdout | default('Checking critical pods...') }}
       when: 
         - "'worker' in group_names"
         - upgrade_needed | default(true)
@@ -420,17 +506,38 @@
       become: true
       register: upgrade_worker_single
 
-    - name: Wait for K3s agent to be ready (Single Master mode)
-      ansible.builtin.wait_for:
-        path: /var/lib/rancher/k3s/agent/node-token
-        state: present
+    - name: Wait for K3s agent service to be running (Single Master mode)
+      ansible.builtin.command:
+        cmd: systemctl is-active k3s-agent
+      register: k3s_agent_status_single
+      until: k3s_agent_status_single.rc == 0
+      retries: 12
+      delay: 5
       when: 
         - "'worker' in group_names"
         - upgrade_needed | default(true)
         - (master_count | int) < 3
       become: true
-      retries: 10
-      delay: 10
+      changed_when: false
+
+    - name: Wait for worker node to be Ready in cluster (Single Master mode)
+      ansible.builtin.shell:
+        cmd: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q True
+      register: worker_ready_check_single
+      until: worker_ready_check_single.rc == 0
+      retries: 12
+      delay: 5
+      when: 
+        - "'worker' in group_names"
+        - upgrade_needed | default(true)
+        - (master_count | int) < 3
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      delegate_to: "{{ groups['master'][0] }}"
+      changed_when: false
+      failed_when: false
 
     - name: Wait for Longhorn pods to recover after upgrade (Single Master)
       ansible.builtin.shell:
@@ -461,11 +568,76 @@
       changed_when: false
       failed_when: false
 
+    - name: Wait for Longhorn volumes to rebuild after upgrade (Single Master)
+      ansible.builtin.shell:
+        cmd: |
+          # Wait for Longhorn volumes to rebuild (max 5 minutes)
+          # Check if any volumes are in "rebuilding" or "degraded" state
+          for i in {1..30}; do
+            # Get volumes that are rebuilding or degraded
+            rebuilding_volumes=$(kubectl get volumes -n longhorn-system -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.state}{" "}{.status.robustness}{"\n"}{end}' | grep -E "(rebuilding|degraded)" | wc -l || echo "0")
+            if [ "$rebuilding_volumes" -eq "0" ]; then
+              echo "All Longhorn volumes are healthy"
+              exit 0
+            fi
+            echo "Waiting for $rebuilding_volumes volume(s) to rebuild... (attempt $i/30)"
+            sleep 10
+          done
+          echo "Warning: Some Longhorn volumes may still be rebuilding"
+          exit 0
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - "'worker' in group_names"
+        - upgrade_needed | default(true)
+        - (master_count | int) < 3
+      delegate_to: "{{ groups['master'][0] }}"
+      register: longhorn_volume_recovery_single
+      changed_when: false
+      failed_when: false
+
+    - name: Wait for critical pods to be ready after upgrade (Single Master)
+      ansible.builtin.shell:
+        cmd: |
+          # Wait for critical pods (Grafana, Prometheus, Alertmanager) to be ready (max 3 minutes)
+          critical_namespaces=("monitoring")
+          for namespace in "${critical_namespaces[@]}"; do
+            for i in {1..18}; do
+              # Check if all pods in monitoring namespace are ready
+              not_ready=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.phase}{" "}{range .status.conditions[*]}{.type}{"="}{.status}{" "}{end}{"\n"}{end}' | grep -v "Running=True" | grep -v "Succeeded=True" | wc -l || echo "0")
+              if [ "$not_ready" -eq "0" ]; then
+                echo "All pods in namespace $namespace are ready"
+                break
+              fi
+              if [ "$i" -eq 18 ]; then
+                echo "Warning: Some pods in namespace $namespace may still be starting"
+              fi
+              sleep 10
+            done
+          done
+          exit 0
+      become: true
+      become_user: "{{ uid_1000_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      when: 
+        - "'worker' in group_names"
+        - upgrade_needed | default(true)
+        - (master_count | int) < 3
+      delegate_to: "{{ groups['master'][0] }}"
+      register: critical_pods_recovery_single
+      changed_when: false
+      failed_when: false
+
     - name: Display Longhorn recovery status (Single Master)
       ansible.builtin.debug:
         msg: |
           Longhorn recovery status for {{ inventory_hostname }}:
-          {{ longhorn_recovery_single.stdout | default('No Longhorn pods found before drain') }}
+          - Pods: {{ longhorn_recovery_single.stdout | default('No Longhorn pods found before drain') }}
+          - Volumes: {{ longhorn_volume_recovery_single.stdout | default('Checking volumes...') }}
+          - Critical Pods: {{ critical_pods_recovery_single.stdout | default('Checking critical pods...') }}
       when: 
         - "'worker' in group_names"
         - upgrade_needed | default(true)

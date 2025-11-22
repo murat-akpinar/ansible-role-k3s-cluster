@@ -24,6 +24,46 @@
     existing_master_count: "{{ groups['master'] | length | int }}"
   run_once: true
 
+- name: Check if first master was started with --cluster-init
+  ansible.builtin.shell:
+    cmd: |
+      # Check if K3s was started with --cluster-init by checking etcd data directory
+      if [ -d /var/lib/rancher/k3s/server/db/etcd ]; then
+        echo "cluster-init"
+      else
+        echo "no-cluster-init"
+      fi
+  register: cluster_init_check
+  changed_when: false
+  failed_when: false
+  when: 
+    - "'master' in group_names"
+    - (existing_master_count | int) == 1
+  become: true
+  delegate_to: "{{ groups['master'][0] }}"
+  run_once: true
+
+- name: Fail if first master was not started with --cluster-init
+  ansible.builtin.fail:
+    msg: |
+      ERROR: Cannot add additional master nodes!
+      
+      The first master node was not started with --cluster-init flag.
+      This means the cluster cannot be converted to HA mode.
+      
+      To fix this, you have two options:
+      1. Reinstall the first master with --cluster-init flag (data loss will occur)
+      2. Start fresh with a new cluster using 3+ master nodes from the beginning
+      
+      For new installations, the playbook will automatically use --cluster-init
+      even for single master setups to allow future HA conversion.
+  when:
+    - "'master' in group_names"
+    - (existing_master_count | int) == 1
+    - cluster_init_check.stdout is defined
+    - cluster_init_check.stdout == "no-cluster-init"
+  run_once: true
+
 - name: Set K3s version environment variable
   set_fact:
     k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"

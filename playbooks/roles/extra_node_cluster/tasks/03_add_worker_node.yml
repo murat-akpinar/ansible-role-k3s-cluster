@@ -94,17 +94,6 @@
     - not node_already_joined | default(false)
   become: true
 
-- name: Wait for K3s agent node-token file to be created
-  ansible.builtin.wait_for:
-    path: /var/lib/rancher/k3s/agent/node-token
-    state: present
-  when: 
-    - "'worker' in group_names"
-    - not node_already_joined | default(false)
-  become: true
-  retries: 6
-  delay: 5
-
 - name: Find home directory for UID 1000 (on master node for kubectl commands)
   command: getent passwd 1000
   register: getent_passwd_output

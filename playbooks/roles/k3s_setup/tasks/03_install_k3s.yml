@@ -159,7 +159,7 @@
         {% if k3s_version_env | default('') != '' %}
         export {{ k3s_version_env }}
         {% endif %}
-        curl -sfL {{ k3s_install_url }} | sh -
+        curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
       when: 
         - inventory_hostname == groups['master'][0]
         - k3s_single_master_status.rc != 0
