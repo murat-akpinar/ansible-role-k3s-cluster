@@ -90,6 +90,8 @@
       To force upgrade (not recommended), set upgrade_force: true in vars/main.yml
   when: 
     - "'master' in group_names or 'worker' in group_names"
+    - version_check_result is defined
+    - version_check_result.rc is defined
     - version_check_result.rc == 1
     - not upgrade_force | default(false)
   run_once: true
