@@ -29,10 +29,16 @@
     msg: "Node {{ inventory_hostname }}: Current version = {{ current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout) }}, Target version = {{ k3s_target_version }}"
   when: "'master' in group_names or 'worker' in group_names"
 
-- name: Set fact for current version
+- name: Set fact for current version (trimmed)
   set_fact:
-    current_k3s_version: "{{ current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout) }}"
+    current_k3s_version: "{{ (current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout)) | trim }}"
   when: "'master' in group_names or 'worker' in group_names"
+
+- name: Set fact for target version (trimmed)
+  set_fact:
+    k3s_target_version_trimmed: "{{ k3s_target_version | trim }}"
+  when: "'master' in group_names or 'worker' in group_names"
+  run_once: true
 
 - name: Check if downgrade attempt (prevent downgrade)
   shell: |
@@ -53,8 +59,8 @@
         patch = int(parts[2]) if len(parts) > 2 else 0
         return (major, minor, patch)
     
-    current = "{{ current_k3s_version }}"
-    target = "{{ k3s_target_version }}"
+    current = "{{ current_k3s_version }}".strip()
+    target = "{{ k3s_target_version_trimmed }}".strip()
     
     if current == "not_installed":
         # If not installed, allow any version
@@ -103,14 +109,24 @@
     - not upgrade_force | default(false)
   run_once: true
 
-- name: Check if upgrade is needed
+- name: Check if upgrade is needed (normalized version comparison)
   set_fact:
-    upgrade_needed: "{{ (current_k3s_version != k3s_target_version) or (upgrade_force | default(false)) }}"
+    upgrade_needed: "{{ (current_k3s_version | trim != k3s_target_version_trimmed | trim) or (upgrade_force | default(false)) }}"
+  when: "'master' in group_names or 'worker' in group_names"
+
+- name: Display upgrade decision
+  debug:
+    msg: |
+      Node {{ inventory_hostname }} upgrade check:
+      - Current version: "{{ current_k3s_version }}"
+      - Target version: "{{ k3s_target_version_trimmed }}"
+      - Versions match: {{ current_k3s_version | trim == k3s_target_version_trimmed | trim }}
+      - Upgrade needed: {{ upgrade_needed }}
   when: "'master' in group_names or 'worker' in group_names"
 
 - name: Skip upgrade if version matches
   debug:
-    msg: "Node {{ inventory_hostname }}: Already running {{ k3s_target_version }}, skipping upgrade"
+    msg: "Node {{ inventory_hostname }}: Already running {{ k3s_target_version_trimmed }}, skipping upgrade"
   when: 
     - "'master' in group_names or 'worker' in group_names"
     - not upgrade_needed | default(true)
