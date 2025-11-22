@@ -10,13 +10,24 @@
   delegate_to: "{{ groups['master'][0] }}"
   when: "'worker' in group_names"
 
-- name: Set K3s token fact (for all workers)
+- name: Set K3s token fact (for all workers) - from run_once task (first worker)
   set_fact:
-    k3s_token: "{{ hostvars[groups['master'][0]]['k3s_token_raw'].stdout | default('') }}"
+    k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: 
     - "'worker' in group_names"
-    - hostvars[groups['master'][0]]['k3s_token_raw'] is defined
-    - hostvars[groups['master'][0]]['k3s_token_raw'].stdout is defined
+    - k3s_token_raw is defined
+    - k3s_token_raw.stdout is defined
+
+- name: Set K3s token fact (for all workers) - from hostvars (other workers)
+  set_fact:
+    k3s_token: "{{ hostvars[groups['worker'][0]]['k3s_token_raw'].stdout | default('') }}"
+  when: 
+    - "'worker' in group_names"
+    - (k3s_token is not defined or k3s_token | default('') == '')
+    - groups['worker'] is defined
+    - groups['worker'] | length > 0
+    - hostvars[groups['worker'][0]]['k3s_token_raw'] is defined
+    - hostvars[groups['worker'][0]]['k3s_token_raw'].stdout is defined
 
 - name: Fail if K3s token is not available
   ansible.builtin.fail:
