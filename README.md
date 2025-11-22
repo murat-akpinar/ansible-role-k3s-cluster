@@ -337,6 +337,36 @@ Upgrade sırasında sorun yaşarsanız:
 - [x] Master/Worker pod dağılımı (master preferred, worker fallback)
 - [x] HA ve Single Master desteği (otomatik values dosyası seçimi)
 
+###  Örnek Çıktı
+````bash
+TASKS RECAP **********************************************************************************************************************
+Cumartesi 22 Kasım 2025  19:46:13 +0300 (0:00:07.231)       0:16:14.163 *******
+===============================================================================
+Gathering Facts ----------------------------------------------------------------------------------------------------------- 4.24s
+k3s_setup : Check minimum CPU requirements -------------------------------------------------------------------------------- 0.89s
+k3s_setup : Verify CPU count ---------------------------------------------------------------------------------------------- 0.07s
+k3s_setup : Check minimum RAM requirements -------------------------------------------------------------------------------- 0.88s
+k3s_setup : Gather OS distribution facts ---------------------------------------------------------------------------------- 2.34s
+k3s_setup : Set OS family variable ---------------------------------------------------------------------------------------- 0.06s
+k3s_setup : Check if Chrony is installed (Debian-based) ------------------------------------------------------------------- 0.67s
+k3s_setup : Debug - Show if Chrony is installed (Debian-based) ------------------------------------------------------------ 0.08s
+k3s_setup : Install NTP package (Debian-based) --------------------------------------------------------------------------- 18.41s
+k3s_setup : Check if Chrony service is enabled (Debian-based) ------------------------------------------------------------- 0.70s
+k3s_setup : Start and enable NTP service (Debian-based) ------------------------------------------------------------------- 0.06s
+k3s_setup : Check if Chrony is installed (RHEL-based) --------------------------------------------------------------------- 0.06s
+k3s_setup : Debug - Show if Chrony is installed (RHEL-based) -------------------------------------------------------------- 0.06s
+k3s_setup : Install NTP package (RHEL-based) ------------------------------------------------------------------------------ 0.06s
+k3s_setup : Check if Chrony service is enabled (RHEL-based) --------------------------------------------------------------- 0.05s
+k3s_setup : Start and enable NTP service (RHEL-based) --------------------------------------------------------------------- 0.05s
+k3s_setup : Check if NTP server is already configured (Debian-based) ------------------------------------------------------ 0.63s
+k3s_setup : Configure NTP server (Debian-based) --------------------------------------------------------------------------- 0.84s
+k3s_setup : Check if NTP server is already configured (RHEL-based) -------------------------------------------------------- 0.07s
+k3s_setup : Deploy Chrony configuration (Debian-based) -------------------------------------------------------------------- 1.62s
+
+PLAYBOOK RECAP *******************************************************************************************************************
+Playbook run took 0 days, 0 hours, 16 minutes, 14 seconds
+```
+
 
 ````bash
 >>=======================================================================<<

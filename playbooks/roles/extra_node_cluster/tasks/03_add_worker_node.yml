@@ -8,11 +8,12 @@
   changed_when: false
   run_once: true
   delegate_to: "{{ groups['master'][0] }}"
+  when: "'worker' in group_names"
 
 - name: Set K3s token fact (for all workers)
   set_fact:
-    k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
-  when: k3s_token_raw is defined
+    k3s_token: "{{ hostvars[groups['master'][0]]['k3s_token_raw'].stdout | default('') }}"
+  when: "'worker' in group_names"
   run_once: true
 
 - name: Get keepalived VIP from vars
