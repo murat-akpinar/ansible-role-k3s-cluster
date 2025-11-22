@@ -74,7 +74,7 @@
     k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"
   run_once: true
 
-- name: Install K3s master node (HA mode - 3+ masters)
+- name: Install K3s master node (HA mode - 3+ masters, Keepalived already configured)
   shell: |
     export K3S_TOKEN="{{ k3s_token }}"
     export K3S_URL="https://{{ keepalived_vip }}:6443"
@@ -86,11 +86,11 @@
   when: 
     - "'master' in group_names"
     - not node_already_joined | default(false)
-    - (existing_master_count | int) >= 2
+    - (existing_master_count | int) >= 3
   become: true
   register: join_master_ha
 
-- name: Install K3s master node (Single master - convert to HA)
+- name: Install K3s master node (Single master or 2 masters - convert to HA, use first master IP)
   shell: |
     export K3S_TOKEN="{{ k3s_token }}"
     export K3S_URL="https://{{ first_master_ip }}:6443"
@@ -102,7 +102,7 @@
   when: 
     - "'master' in group_names"
     - not node_already_joined | default(false)
-    - (existing_master_count | int) == 1
+    - (existing_master_count | int) < 3
   become: true
   register: join_master_single
 

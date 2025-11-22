@@ -25,7 +25,8 @@
     msg: "Master Count is {{ master_count }}."
   run_once: true
 
-- name: "Install Keepalived package (future investment for HA)"
+- name: "Install Keepalived package (future investment for HA) - Only on master nodes"
+  when: "'master' in group_names"
   block:
     - name: Update apt cache before installing Keepalived
       apt:
@@ -82,6 +83,9 @@
   run_once: true
 
 - name: "Configure and Start Keepalived if there are at least 3 masters"
+  when: 
+    - master_count | int >= 3
+    - "'master' in group_names"
   block:
 
 # ============================
@@ -99,7 +103,9 @@
       template:
         src: keepalived-backup.j2
         dest: /etc/keepalived/keepalived.conf
-      when: inventory_hostname != groups['master'][0]
+      when: 
+        - inventory_hostname != groups['master'][0]
+        - "'master' in group_names"
       register: keepalived_config_backup
 
     - name: Debug Keepalived configuration for first master
@@ -138,5 +144,3 @@
     - name: Debug Keepalived service active status
       debug:
         msg: "Keepalived service status: {{ keepalived_active_status }}"
-
-  when: master_count | int >= 3
