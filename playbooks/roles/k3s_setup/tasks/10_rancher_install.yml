@@ -86,7 +86,7 @@
   when: inventory_hostname == 'master-1'
 
 - name: Get Rancher bootstrap password from secret
-  shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{"\n"}}'
+  shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{% raw %}{{.data.bootstrapPassword|base64decode}}{{"\n"}}{% endraw %}'
   register: rancher_bootstrap_password_raw
   when: inventory_hostname == 'master-1'
 

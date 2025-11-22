@@ -1,6 +1,5 @@
 ---
 # Main tasks for K3s cluster upgrade
----
 
 - name: "Check Current K3s Versions"
   ansible.builtin.import_tasks: 01_check_versions.yml

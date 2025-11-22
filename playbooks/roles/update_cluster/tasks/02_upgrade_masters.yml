@@ -1,6 +1,5 @@
 ---
 # Upgrade Master Nodes with Rolling Update Strategy
----
 
 - name: Find home directory for UID 1000
   command: getent passwd 1000

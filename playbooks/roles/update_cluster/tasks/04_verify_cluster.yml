@@ -1,6 +1,5 @@
 ---
 # Verify cluster status after upgrade
----
 
 - name: Find home directory for UID 1000
   command: getent passwd 1000

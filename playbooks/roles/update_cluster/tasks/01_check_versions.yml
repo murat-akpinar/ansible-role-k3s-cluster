@@ -1,6 +1,5 @@
 ---
 # Check current K3s versions on all nodes
----
 
 - name: Get current K3s version on master nodes
   shell: k3s --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
