@@ -25,8 +25,8 @@
   when: getent_passwd_result.stdout != ''
 
 - name: Get all node versions after upgrade
-  ansible.builtin.command:
-    cmd: kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{\"\t\"}{.status.nodeInfo.kubeletVersion}{\"\n\"}{end}'
+  ansible.builtin.shell:
+    cmd: kubectl get nodes -o custom-columns=NAME:.metadata.name,VERSION:.status.nodeInfo.kubeletVersion --no-headers
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
