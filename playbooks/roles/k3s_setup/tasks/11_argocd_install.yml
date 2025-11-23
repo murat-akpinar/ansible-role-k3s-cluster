@@ -1,0 +1,232 @@
+---
+# ============================
+# Install ArgoCD
+# ============================
+
+- name: Find home directory for UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: "'master' in group_names"
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when: 
+    - "'master' in group_names" 
+    - getent_passwd_output.stdout != ""
+
+- name: Define the user name with UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_result
+  changed_when: false
+
+- name: Set user name variable from getent passwd output
+  set_fact:
+    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+  when: getent_passwd_result.stdout != ''
+
+- name: Check if argocd namespace exists
+  command: kubectl get namespace argocd
+  register: argocd_namespace_exists
+  failed_when: false
+  changed_when: false
+  when: "'master' in group_names"
+
+- name: Check if argocd Helm release exists
+  ansible.builtin.command:
+    cmd: helm list -n argocd -q
+  register: argocd_helm_release
+  failed_when: false
+  changed_when: false
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
+    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
+
+- name: Check if Argo Helm repository is already added
+  ansible.builtin.command:
+    cmd: helm repo list
+  register: helm_repo_list
+  failed_when: false
+  changed_when: false
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  when: "'master' in group_names"
+
+- name: Fail if helm repo list failed for reasons other than no repositories
+  ansible.builtin.fail:
+    msg: "Failed to list Helm repositories: {{ helm_repo_list.stderr }}"
+  when: 
+    - "'master' in group_names"
+    - helm_repo_list.rc != 0
+    - "'no repositories' not in helm_repo_list.stderr | default('')"
+
+- name: Extract Helm repository names
+  ansible.builtin.shell: |
+    echo "{{ helm_repo_list.stdout }}" | awk 'NR > 1 {print $1}'
+  register: helm_repo_names
+  when: "'master' in group_names"
+
+- name: Check if Argo Helm repository is already present
+  ansible.builtin.set_fact:
+    argo_repo_present: "{{ 'argo' in helm_repo_names.stdout }}"
+  when: "'master' in group_names"
+
+- name: Debug if Argo Helm repository is present
+  ansible.builtin.debug:
+    msg: "Argo Helm repository is present: {{ argo_repo_present }}"
+  when: "'master' in group_names"
+
+- name: Add Argo Helm repository
+  ansible.builtin.command:
+    cmd: helm repo add argo {{ helm_repo_argo }}
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  when: 
+    - "'master' in group_names"
+    - not argo_repo_present
+
+- name: Debug message if Argo Helm repository is already present
+  ansible.builtin.debug:
+    msg: "Argo Helm repository is already added."
+  when:
+    - "'master' in group_names"
+    - argo_repo_present
+
+- name: Update Helm repository list
+  ansible.builtin.command:
+    cmd: helm repo update
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  when: 
+    - "'master' in group_names"
+
+- name: Count the number of master nodes
+  set_fact:
+    master_count: "{{ groups['master'] | length | int }}"
+  when: "'master' in group_names"
+  run_once: true
+
+- name: Set argocd values file for HA (3+ masters)
+  set_fact:
+    argocd_values_file: "{{ user_home_directory }}/my-charts/argocd/values-ha.yml"
+  when:
+    - "'master' in group_names"
+    - (master_count | default(0) | int) >= 3
+  run_once: true
+
+- name: Set argocd values file for single master
+  set_fact:
+    argocd_values_file: "{{ user_home_directory }}/my-charts/argocd/values-single-master.yml"
+  when:
+    - "'master' in group_names"
+    - (master_count | default(0) | int) < 3
+  run_once: true
+
+- name: Install ArgoCD Helm chart (HA mode - 3+ masters)
+  ansible.builtin.command:
+    cmd: helm install argocd argo/argo-cd --namespace argocd --create-namespace -f {{ argocd_values_file }}
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_namespace_exists.rc != 0
+    - (argocd_helm_release.stdout | default('') | trim) == ''
+    - (master_count | default(0) | int) >= 3
+
+- name: Install ArgoCD Helm chart (Single Master)
+  ansible.builtin.command:
+    cmd: helm install argocd argo/argo-cd --namespace argocd --create-namespace -f {{ argocd_values_file }}
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_namespace_exists.rc != 0
+    - (argocd_helm_release.stdout | default('') | trim) == ''
+    - (master_count | default(0) | int) < 3
+
+- name: Wait for ArgoCD server pods to be in Running state
+  command: kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server -o jsonpath='{.items[*].status.phase}'
+  register: argocd_server_pod_status
+  until: argocd_server_pod_status.stdout.find('Running') != -1
+  retries: 15
+  delay: 30
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_namespace_exists.rc != 0
+    - (argocd_helm_release.stdout | default('') | trim) == ''
+
+- name: Wait for ArgoCD application-controller pods to be in Running state
+  command: kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-application-controller -o jsonpath='{.items[*].status.phase}'
+  register: argocd_controller_pod_status
+  until: argocd_controller_pod_status.stdout.find('Running') != -1
+  retries: 15
+  delay: 30
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_namespace_exists.rc != 0
+    - (argocd_helm_release.stdout | default('') | trim) == ''
+
+- name: Wait for ArgoCD repo-server pods to be in Running state
+  command: kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-repo-server -o jsonpath='{.items[*].status.phase}'
+  register: argocd_repo_server_pod_status
+  until: argocd_repo_server_pod_status.stdout.find('Running') != -1
+  retries: 15
+  delay: 30
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_namespace_exists.rc != 0
+    - (argocd_helm_release.stdout | default('') | trim) == ''
+
+- name: Apply ArgoCD ingress config
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/argocd/cert/argocd.homelab.yml
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_namespace_exists.rc != 0
+    - ingress_install | default(false)
+    - cert_manager_install | default(false)
+
+- name: Apply argocd.homelab.local certificate
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/argocd/cert/argocd-homelab-certificate.yml
+  become: true
+  become_user: "{{ uid_1000_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_namespace_exists.rc != 0
+    - cert_manager_install | default(false)
+
+- name: Retrieve ArgoCD admin password
+  ansible.builtin.shell: >
+    kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+  register: argocd_admin_password
+  failed_when: false
+  changed_when: false
+  when: inventory_hostname == 'master-1'
+
+- name: Display ArgoCD admin password
+  debug:
+    msg: "ArgoCD admin password: {{ argocd_admin_password.stdout }}"
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_admin_password.rc == 0
+
+- name: Display ArgoCD admin username
+  debug:
+    msg: "ArgoCD admin username: admin"
+  when: inventory_hostname == 'master-1'

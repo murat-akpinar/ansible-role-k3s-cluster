@@ -1,0 +1,109 @@
+# ArgoCD values for Single Master setup
+# Master preferred, worker fallback strategy
+
+# Server configuration
+server:
+  replicaCount: 1
+  
+  # Master preferred, worker fallback
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+
+# Application Controller configuration
+controller:
+  replicaCount: 1
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+
+# Repo Server configuration
+repoServer:
+  replicaCount: 1
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+
+# ApplicationSet Controller configuration
+applicationSet:
+  replicaCount: 1
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+
+# Configs - ArgoCD configuration parameters
+configs:
+  params:
+    # Insecure mode for ingress (HTTP backend)
+    # This allows ArgoCD to work behind ingress with SSL termination
+    "server.insecure": "true"
+
+# Redis configuration
+redis:
+  replicaCount: 1
+  
+  # Note: ArgoCD Helm chart does not support Redis persistence
+  # Redis runs as Deployment (not StatefulSet), so persistence is not available
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+

@@ -1,0 +1,149 @@
+---
+# ============================
+# Display Installation Results
+# ============================
+
+- name: Find home directory for UID 1000
+  command: getent passwd 1000
+  register: getent_passwd_output
+  changed_when: false
+  when: "'master' in group_names"
+
+- name: Set home directory variable
+  set_fact:
+    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+  when: 
+    - "'master' in group_names" 
+    - getent_passwd_output.stdout != ""
+
+- name: Get Ingress Controller LoadBalancer IP
+  command: kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: ingress_lb_ip
+  failed_when: false
+  changed_when: false
+  when: 
+    - inventory_hostname == 'master-1'
+    - ingress_install | default(false)
+
+- name: Retrieve Longhorn URL
+  set_fact:
+    longhorn_url: "https://longhorn.homelab.local"
+  when: 
+    - inventory_hostname == 'master-1'
+    - longhorn_install | default(false)
+
+- name: Retrieve Rancher bootstrap password
+  shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{"\n"}}' 2>/dev/null || echo ""
+  register: rancher_bootstrap_password
+  failed_when: false
+  changed_when: false
+  when: 
+    - inventory_hostname == 'master-1'
+    - rancher_install | default(false)
+
+- name: Retrieve Rancher URL
+  set_fact:
+    rancher_url: "https://rancher.homelab.local"
+  when: 
+    - inventory_hostname == 'master-1'
+    - rancher_install | default(false)
+
+- name: Retrieve Grafana admin password
+  shell: kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" 2>/dev/null | base64 --decode || echo ""
+  register: grafana_admin_password
+  failed_when: false
+  changed_when: false
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_install | default(false)
+
+- name: Retrieve Grafana admin user
+  shell: kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-user}" 2>/dev/null | base64 --decode || echo ""
+  register: grafana_admin_user
+  failed_when: false
+  changed_when: false
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_install | default(false)
+
+- name: Retrieve Grafana URL
+  set_fact:
+    grafana_url: "https://grafana.homelab.local"
+  when: 
+    - inventory_hostname == 'master-1'
+    - grafana_install | default(false)
+
+- name: Retrieve ArgoCD admin password
+  shell: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d || echo ""
+  register: argocd_admin_password
+  failed_when: false
+  changed_when: false
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_install | default(false)
+
+- name: Retrieve ArgoCD URL
+  set_fact:
+    argocd_url: "https://argocd.homelab.local"
+  when: 
+    - inventory_hostname == 'master-1'
+    - argocd_install | default(false)
+
+- name: Display Installation Results
+  debug:
+    msg: |
+      
+      ╔══════════════════════════════════════════════════════════════════════════╗
+      ║                    K3S CLUSTER INSTALLATION RESULTS                      ║
+      ╚══════════════════════════════════════════════════════════════════════════╝
+      
+      📍 Ingress LoadBalancer IP: {{ ingress_lb_ip.stdout | default('N/A') }}
+      
+      ═══════════════════════════════════════════════════════════════════════════
+      
+      {% if longhorn_install | default(false) %}
+      🐳 LONGHORN
+      ──────────────────────────────────────────────────────────────────────────
+      URL: {{ longhorn_url | default('N/A') }}
+      Username: (No authentication required)
+      Password: (No password required)
+      Note: Add to /etc/hosts: {{ ingress_lb_ip.stdout | default('N/A') }} longhorn.homelab.local
+      {% endif %}
+      
+      {% if rancher_install | default(false) %}
+      🐄 RANCHER
+      ──────────────────────────────────────────────────────────────────────────
+      URL: {{ rancher_url | default('N/A') }}
+      Username: admin
+      Password: {{ rancher_bootstrap_password.stdout | default('N/A (Secret not found)') }}
+      Note: Add to /etc/hosts: {{ ingress_lb_ip.stdout | default('N/A') }} rancher.homelab.local
+      {% endif %}
+      
+      {% if grafana_install | default(false) %}
+      📊 GRAFANA
+      ──────────────────────────────────────────────────────────────────────────
+      URL: {{ grafana_url | default('N/A') }}
+      Username: {{ grafana_admin_user.stdout | default('admin') }}
+      Password: {{ grafana_admin_password.stdout | default('N/A (Secret not found)') }}
+      Note: Add to /etc/hosts: {{ ingress_lb_ip.stdout | default('N/A') }} grafana.homelab.local
+      {% endif %}
+      
+      {% if argocd_install | default(false) %}
+      🚀 ARGOCD
+      ──────────────────────────────────────────────────────────────────────────
+      URL: {{ argocd_url | default('N/A') }}
+      Username: admin
+      Password: {{ argocd_admin_password.stdout | default('N/A (Secret not found)') }}
+      Note: Add to /etc/hosts: {{ ingress_lb_ip.stdout | default('N/A') }} argocd.homelab.local
+      {% endif %}
+      
+      ═══════════════════════════════════════════════════════════════════════════
+      
+      💡 TIP: To access services, add the following to your /etc/hosts file:
+      {% if ingress_lb_ip.stdout is defined and ingress_lb_ip.stdout != '' %}
+      {{ ingress_lb_ip.stdout }}    {% if longhorn_install | default(false) %}longhorn.homelab.local{% endif %}{% if rancher_install | default(false) %} rancher.homelab.local{% endif %}{% if grafana_install | default(false) %} grafana.homelab.local{% endif %}{% if argocd_install | default(false) %} argocd.homelab.local{% endif %}
+      {% endif %}
+      
+      ═══════════════════════════════════════════════════════════════════════════
+  when: inventory_hostname == 'master-1'
+

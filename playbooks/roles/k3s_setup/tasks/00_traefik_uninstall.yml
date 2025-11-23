@@ -53,35 +53,58 @@
     mode: '0755'
   when: "'master' in group_names"
 
-- name: Create or update k3s config.yaml to disable Traefik
-  block:
-    - name: Create config.yaml if it does not exist
-      copy:
-        dest: /etc/rancher/k3s/config.yaml
-        content: |
-          disable:
-            - traefik
-      when: 
-      - not lookup('file', '/etc/rancher/k3s/config.yaml', errors='ignore')
-      - "'master' in group_names"
+- name: Check if config.yaml exists
+  stat:
+    path: /etc/rancher/k3s/config.yaml
+  register: config_yaml_exists
+  when: "'master' in group_names"
 
-    - name: Ensure Traefik is disabled in config.yaml
-      lineinfile:
-        path: /etc/rancher/k3s/config.yaml
-        state: present
-        regexp: '^disable:'
-        line: |
-          disable:
-            - servicelb
-      when: "'master' in group_names"
+- name: Check if traefik is already disabled in config.yaml
+  command: grep -q "traefik" /etc/rancher/k3s/config.yaml 2>/dev/null && echo "yes" || echo "no"
+  register: traefik_already_disabled
+  changed_when: false
+  failed_when: false
+  when: 
+    - "'master' in group_names"
+    - config_yaml_exists.stat.exists | default(false)
+    - traefik_uninstall | bool
 
-- name: Restart k3s service
+- name: Create config.yaml if it does not exist
+  copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      disable:
+        - traefik
+  register: config_created
+  when: 
+    - "'master' in group_names"
+    - not config_yaml_exists.stat.exists | default(false)
+    - traefik_uninstall | bool
+
+- name: Ensure Traefik is disabled in config.yaml (if file exists and traefik not disabled)
+  lineinfile:
+    path: /etc/rancher/k3s/config.yaml
+    state: present
+    regexp: '^\s*-\s*traefik'
+    line: "          - traefik"
+    insertafter: '^disable:'
+  register: config_updated
+  when: 
+    - "'master' in group_names"
+    - config_yaml_exists.stat.exists | default(false)
+    - traefik_already_disabled.stdout.find('no') != -1
+    - traefik_uninstall | bool
+
+- name: Restart k3s service (only if config changed)
   systemd:
     name: k3s
     state: restarted
   register: k3s_restart
   ignore_errors: true
-  when: "'master' in group_names"
+  when: 
+    - "'master' in group_names"
+    - (config_created.changed | default(false)) or (config_updated.changed | default(false))
+    - traefik_uninstall | bool
 
 - name: Wait for K3s service to be in Running state
   shell: systemctl status k3s

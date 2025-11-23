@@ -1,0 +1,154 @@
+# ArgoCD values for HA setup (3+ masters)
+# Master preferred, worker fallback strategy
+
+# Server configuration
+server:
+  replicaCount: 2
+  
+  # Master preferred, worker fallback
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - argocd-server
+          topologyKey: "kubernetes.io/hostname"
+
+# Application Controller configuration
+controller:
+  replicaCount: 2
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - argocd-application-controller
+          topologyKey: "kubernetes.io/hostname"
+
+# Repo Server configuration
+repoServer:
+  replicaCount: 2
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - argocd-repo-server
+          topologyKey: "kubernetes.io/hostname"
+
+# ApplicationSet Controller configuration
+applicationSet:
+  replicaCount: 2
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - argocd-applicationset-controller
+          topologyKey: "kubernetes.io/hostname"
+
+# Configs - ArgoCD configuration parameters
+configs:
+  params:
+    # Insecure mode for ingress (HTTP backend)
+    # This allows ArgoCD to work behind ingress with SSL termination
+    "server.insecure": "true"
+
+# Redis configuration
+redis:
+  replicaCount: 2
+  
+  # Note: ArgoCD Helm chart does not support Redis persistence
+  # Redis runs as Deployment (not StatefulSet), so persistence is not available
+  
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - argocd-redis
+          topologyKey: "kubernetes.io/hostname"
+
