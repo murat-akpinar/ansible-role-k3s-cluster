@@ -33,7 +33,7 @@
     - longhorn_install | default(false)
 
 - name: Retrieve Rancher bootstrap password
-  shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{"\n"}}' 2>/dev/null || echo ""
+  shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{% raw %}{{.data.bootstrapPassword|base64decode}}{{"\n"}}{% endraw %}' 2>/dev/null || echo ""
   register: rancher_bootstrap_password
   failed_when: false
   changed_when: false
@@ -90,60 +90,67 @@
     - argocd_install | default(false)
 
 - name: Display Installation Results
-  debug:
-    msg: |
-      
-      ╔══════════════════════════════════════════════════════════════════════════╗
-      ║                    K3S CLUSTER INSTALLATION RESULTS                      ║
-      ╚══════════════════════════════════════════════════════════════════════════╝
-      
-      📍 Ingress LoadBalancer IP: {{ ingress_lb_ip.stdout | default('N/A') }}
-      
-      ═══════════════════════════════════════════════════════════════════════════
-      
+  ansible.builtin.command:
+    cmd: |
+      echo "================================================================================"
+      echo "K3S CLUSTER INSTALLATION RESULTS"
+      echo "================================================================================"
+      echo ""
+      {% if ingress_install | default(false) %}
+      echo "Ingress LoadBalancer IP: {{ ingress_lb_ip.stdout | default('N/A') }}"
+      echo ""
+      {% endif %}
       {% if longhorn_install | default(false) %}
-      🐳 LONGHORN
-      ──────────────────────────────────────────────────────────────────────────
-      URL: {{ longhorn_url | default('N/A') }}
-      Username: (No authentication required)
-      Password: (No password required)
-      Note: Add to /etc/hosts: {{ ingress_lb_ip.stdout | default('N/A') }} longhorn.homelab.local
+      echo "LONGHORN"
+      echo "URL:        {{ longhorn_url | default('N/A') }}"
+      echo "Username:   (No authentication required)"
+      echo "Password:   (No password required)"
+      echo ""
       {% endif %}
-      
       {% if rancher_install | default(false) %}
-      🐄 RANCHER
-      ──────────────────────────────────────────────────────────────────────────
-      URL: {{ rancher_url | default('N/A') }}
-      Username: admin
-      Password: {{ rancher_bootstrap_password.stdout | default('N/A (Secret not found)') }}
-      Note: Add to /etc/hosts: {{ ingress_lb_ip.stdout | default('N/A') }} rancher.homelab.local
+      echo "RANCHER"
+      echo "URL:        {{ rancher_url | default('N/A') }}"
+      echo "Username:   admin"
+      echo "Password:   {{ rancher_bootstrap_password.stdout | default('N/A (Secret not found)') }}"
+      echo ""
       {% endif %}
-      
       {% if grafana_install | default(false) %}
-      📊 GRAFANA
-      ──────────────────────────────────────────────────────────────────────────
-      URL: {{ grafana_url | default('N/A') }}
-      Username: {{ grafana_admin_user.stdout | default('admin') }}
-      Password: {{ grafana_admin_password.stdout | default('N/A (Secret not found)') }}
-      Note: Add to /etc/hosts: {{ ingress_lb_ip.stdout | default('N/A') }} grafana.homelab.local
+      echo "GRAFANA"
+      echo "URL:        {{ grafana_url | default('N/A') }}"
+      echo "Username:   {{ grafana_admin_user.stdout | default('admin') }}"
+      echo "Password:   {{ grafana_admin_password.stdout | default('N/A (Secret not found)') }}"
+      echo ""
       {% endif %}
-      
       {% if argocd_install | default(false) %}
-      🚀 ARGOCD
-      ──────────────────────────────────────────────────────────────────────────
-      URL: {{ argocd_url | default('N/A') }}
-      Username: admin
-      Password: {{ argocd_admin_password.stdout | default('N/A (Secret not found)') }}
-      Note: Add to /etc/hosts: {{ ingress_lb_ip.stdout | default('N/A') }} argocd.homelab.local
+      echo "ARGOCD"
+      echo "URL:        {{ argocd_url | default('N/A') }}"
+      echo "Username:   admin"
+      echo "Password:   {{ argocd_admin_password.stdout | default('N/A (Secret not found)') }}"
+      echo ""
       {% endif %}
-      
-      ═══════════════════════════════════════════════════════════════════════════
-      
-      💡 TIP: To access services, add the following to your /etc/hosts file:
+      echo "--------------------------------------------------------------------------------"
+      echo "/etc/hosts CONFIGURATION - Add the following lines:"
       {% if ingress_lb_ip.stdout is defined and ingress_lb_ip.stdout != '' %}
-      {{ ingress_lb_ip.stdout }}    {% if longhorn_install | default(false) %}longhorn.homelab.local{% endif %}{% if rancher_install | default(false) %} rancher.homelab.local{% endif %}{% if grafana_install | default(false) %} grafana.homelab.local{% endif %}{% if argocd_install | default(false) %} argocd.homelab.local{% endif %}
+      {% if longhorn_install | default(false) %}
+      echo "{{ ingress_lb_ip.stdout }}    longhorn.homelab.local"
       {% endif %}
-      
-      ═══════════════════════════════════════════════════════════════════════════
+      {% if rancher_install | default(false) %}
+      echo "{{ ingress_lb_ip.stdout }}    rancher.homelab.local"
+      {% endif %}
+      {% if grafana_install | default(false) %}
+      echo "{{ ingress_lb_ip.stdout }}    grafana.homelab.local"
+      {% endif %}
+      {% if argocd_install | default(false) %}
+      echo "{{ ingress_lb_ip.stdout }}    argocd.homelab.local"
+      {% endif %}
+      {% endif %}
+      echo "================================================================================"
+  register: installation_results
+  changed_when: false
+  when: inventory_hostname == 'master-1'
+
+- name: Show Installation Results
+  debug:
+    msg: "{{ installation_results.stdout }}"
   when: inventory_hostname == 'master-1'
 
