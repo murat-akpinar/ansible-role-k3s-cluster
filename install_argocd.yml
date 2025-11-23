@@ -1,9 +1,0 @@
----
-- hosts: all
-  become: true
-  vars_files:
-    - playbooks/roles/k3s_setup/vars/main.yml
-  tasks:
-    - name: "Install ArgoCD"
-      ansible.builtin.import_tasks: playbooks/roles/k3s_setup/tasks/11_argocd_install.yml
-
