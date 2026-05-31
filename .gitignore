@@ -3,3 +3,5 @@ collections/*
 *.retry
 .vscode/
 minio/
+.rules
+todo.md
