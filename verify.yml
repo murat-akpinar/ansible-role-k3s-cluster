@@ -28,6 +28,8 @@
   hosts: all
   become: true
   gather_facts: false
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
   tasks:
     - name: Determine expected k3s service name
       set_fact:
@@ -45,6 +47,31 @@
           {{ '[OK]  ' if k3s_service_status.stdout == 'active' else '[FAIL]' }}
           {{ inventory_hostname }} — {{ k3s_service_name }}:
           {{ k3s_service_status.stdout | default('unknown') }}
+
+    - name: Determine the Keepalived/primary network interface
+      shell: |
+        if [ -n "{{ keepalived_interface | default('') }}" ]; then
+          echo "{{ keepalived_interface }}"
+        else
+          ip route show default | awk '{print $5}' | head -n1
+        fi
+      register: vrrp_iface
+      changed_when: false
+
+    - name: Check that the interface exists and is UP
+      command: "ip -o link show {{ vrrp_iface.stdout | trim }}"
+      register: vrrp_iface_link
+      changed_when: false
+      failed_when: false
+
+    - name: Report network interface status
+      debug:
+        msg: >-
+          {{ '[OK]  ' if (vrrp_iface_link.rc == 0 and ',UP' in vrrp_iface_link.stdout) else '[FAIL]' }}
+          {{ inventory_hostname }} — interface {{ vrrp_iface.stdout | trim }}:
+          {{ 'present, UP' if (vrrp_iface_link.rc == 0 and ',UP' in vrrp_iface_link.stdout)
+             else ('present, NOT up' if vrrp_iface_link.rc == 0 else 'MISSING') }}
+          {{ '(auto-detected)' if not (keepalived_interface | default('')) else '(from keepalived_interface)' }}
 
 # ----------------------------------------------------------------------------
 # 2) Cluster level: kubectl checks on the first master only (run as root)
