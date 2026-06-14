@@ -3,8 +3,8 @@
 # Install ArgoCD
 # ============================
 
-- name: Find home directory for UID 1000
-  command: getent passwd 1000
+- name: Find home directory for ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_output
   changed_when: false
   when: "'master' in group_names"
@@ -16,14 +16,14 @@
     - "'master' in group_names" 
     - getent_passwd_output.stdout != ""
 
-- name: Define the user name with UID 1000
-  command: getent passwd 1000
+- name: Define the user name with ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_result
   changed_when: false
 
 - name: Set user name variable from getent passwd output
   set_fact:
-    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
 - name: Check if argocd namespace exists
@@ -40,7 +40,7 @@
   failed_when: false
   changed_when: false
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
@@ -54,7 +54,7 @@
   failed_when: false
   changed_when: false
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   when: "'master' in group_names"
 
 - name: Fail if helm repo list failed for reasons other than no repositories
@@ -85,7 +85,7 @@
   ansible.builtin.command:
     cmd: helm repo add argo {{ helm_repo_argo }}
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   when: 
     - "'master' in group_names"
     - not argo_repo_present
@@ -101,7 +101,7 @@
   ansible.builtin.command:
     cmd: helm repo update
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   when: 
     - "'master' in group_names"
 
@@ -141,7 +141,7 @@
   ansible.builtin.command:
     cmd: helm install argocd argo/argo-cd --namespace argocd --create-namespace {{ ('--version ' ~ argocd_chart_version) if argocd_chart_version else '' }} -f {{ argocd_values_file }}
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -154,7 +154,7 @@
   ansible.builtin.command:
     cmd: helm install argocd argo/argo-cd --namespace argocd --create-namespace {{ ('--version ' ~ argocd_chart_version) if argocd_chart_version else '' }} -f {{ argocd_values_file }}
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -200,7 +200,7 @@
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/argocd/cert/argocd.homelab.yml
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
@@ -212,7 +212,7 @@
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/argocd/cert/argocd-homelab-certificate.yml
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 

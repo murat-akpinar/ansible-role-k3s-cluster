@@ -267,44 +267,44 @@
     msg: "{{ k3s_agent_service_status.stdout }}"
   when: "'worker' in group_names"
 
-- name: Define the user name with UID 1000
-  command: getent passwd 1000
+- name: Define the user name with ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_result
   changed_when: false
 
 - name: Set user name variable from getent passwd output
   set_fact:
-    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
-- name: Create .kube directory for user with UID 1000
+- name: Create .kube directory for user with ansible_user
   ansible.builtin.file:
-    path: "/home/{{ uid_1000_user }}/.kube"
+    path: "/home/{{ uid_user }}/.kube"
     state: directory
     mode: '0755'
-    owner: "{{ uid_1000_user }}"
-    group: "{{ uid_1000_user }}"
-  when: "'master' in group_names and uid_1000_user is defined"
+    owner: "{{ uid_user }}"
+    group: "{{ uid_user }}"
+  when: "'master' in group_names and uid_user is defined"
 
 - name: Remove existing kube config if it exists
   ansible.builtin.file:
-    path: "/home/{{ uid_1000_user }}/.kube/config"
+    path: "/home/{{ uid_user }}/.kube/config"
     state: absent
-  when: "'master' in group_names and uid_1000_user is defined"
+  when: "'master' in group_names and uid_user is defined"
 
 - name: Create symbolic link to k3s.yaml for user's kube config
   ansible.builtin.file:
     src: /etc/rancher/k3s/k3s.yaml
-    dest: "/home/{{ uid_1000_user }}/.kube/config"
+    dest: "/home/{{ uid_user }}/.kube/config"
     state: link
-    owner: "{{ uid_1000_user }}"
-    group: "{{ uid_1000_user }}"
-  when: "'master' in group_names and uid_1000_user is defined"
+    owner: "{{ uid_user }}"
+    group: "{{ uid_user }}"
+  when: "'master' in group_names and uid_user is defined"
 
 - name: Ensure .bashrc contains KUBECONFIG
   lineinfile:
-    path: "/home/{{ uid_1000_user }}/.bashrc"
-    line: 'export KUBECONFIG="/home/{{ uid_1000_user }}/.kube/config"'
+    path: "/home/{{ uid_user }}/.bashrc"
+    line: 'export KUBECONFIG="/home/{{ uid_user }}/.kube/config"'
     state: present
-  when: "'master' in group_names and uid_1000_user is defined"
+  when: "'master' in group_names and uid_user is defined"
 

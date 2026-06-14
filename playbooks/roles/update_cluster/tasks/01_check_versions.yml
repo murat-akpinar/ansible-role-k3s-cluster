@@ -1,8 +1,8 @@
 ---
 # Check current K3s versions on all nodes
 
-- name: Find home directory for UID 1000 (for kubectl commands)
-  command: getent passwd 1000
+- name: Find home directory for ansible_user (for kubectl commands)
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_output
   changed_when: false
   when: inventory_hostname == groups['master'][0]
@@ -15,8 +15,8 @@
     - (hostvars[groups['master'][0]]['getent_passwd_output'] is defined and hostvars[groups['master'][0]]['getent_passwd_output'].stdout is defined) or (getent_passwd_output is defined and getent_passwd_output.stdout is defined)
   run_once: true
 
-- name: Define the user name with UID 1000
-  command: getent passwd 1000
+- name: Define the user name with ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_result
   changed_when: false
   when: inventory_hostname == groups['master'][0]
@@ -24,7 +24,7 @@
 
 - name: Set user name variable from getent passwd output
   set_fact:
-    uid_1000_user: "{{ (hostvars[groups['master'][0]]['getent_passwd_result'].stdout if (hostvars[groups['master'][0]]['getent_passwd_result'] is defined and hostvars[groups['master'][0]]['getent_passwd_result'].stdout is defined) else (getent_passwd_result.stdout if (getent_passwd_result is defined and getent_passwd_result.stdout is defined) else '')).split(':')[0] }}"
+    uid_user: "{{ (hostvars[groups['master'][0]]['getent_passwd_result'].stdout if (hostvars[groups['master'][0]]['getent_passwd_result'] is defined and hostvars[groups['master'][0]]['getent_passwd_result'].stdout is defined) else (getent_passwd_result.stdout if (getent_passwd_result is defined and getent_passwd_result.stdout is defined) else '')).split(':')[0] }}"
   when: 
     - (hostvars[groups['master'][0]]['getent_passwd_result'] is defined and hostvars[groups['master'][0]]['getent_passwd_result'].stdout is defined) or (getent_passwd_result is defined and getent_passwd_result.stdout is defined)
   run_once: true
@@ -44,7 +44,7 @@
   failed_when: false
   when: "'worker' in group_names"
   become: true
-  become_user: "{{ uid_1000_user | default('root') }}"
+  become_user: "{{ uid_user | default('root') }}"
   environment:
     KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
   delegate_to: "{{ groups['master'][0] }}"

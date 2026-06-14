@@ -9,7 +9,9 @@ Bu Ansible rolü, **K3S** tabanlı Kubernetes cluster kurulumunu otomatikleştir
 ## 📋 İçindekiler
 
 - [Özellikler](#-özellikler)
+- [Mimari](#-mimari)
 - [Önkoşullar](#-önkoşullar)
+- [Playbook'lar](#-playboklar)
 - [Hızlı Başlangıç](#-hızlı-başlangıç)
 - [Detaylı Kurulum](#-detaylı-kurulum)
 - [Yapılandırma](#-yapılandırma)
@@ -39,6 +41,43 @@ Bu Ansible rolü, **K3S** tabanlı Kubernetes cluster kurulumunu otomatikleştir
 - ✅ **Ingress**: k3s gömülü Traefik Ingress Controller
 - ✅ **Management**: Rancher ile cluster yönetimi
 - ✅ **GitOps**: ArgoCD ile sürekli dağıtım (CD)
+
+## 🏗️ Mimari
+
+Tipik bir HA topoloji: 3 master (gömülü etcd + control plane) ve 4 worker. Keepalived,
+master node'lar arasında bir **VIP** (Virtual IP) yönetir; tüm `kubectl`/agent trafiği bu VIP
+üzerinden API sunucusuna ulaşır. LoadBalancer servisleri için IP'leri MetalLB dağıtır.
+
+```text
+                         ┌─────────────────────────────┐
+                         │   İstemci / kubectl / agent  │
+                         └──────────────┬──────────────┘
+                                        │
+                         Keepalived VIP │ 192.168.1.244:6443
+                         (VRRP failover)│
+                ┌───────────────────────┼───────────────────────┐
+                │                       │                        │
+        ┌───────┴───────┐       ┌───────┴───────┐        ┌───────┴───────┐
+        │   master-1    │       │   master-2    │        │   master-3    │
+        │ etcd + API +  │◄─────►│ etcd + API +  │◄──────►│ etcd + API +  │
+        │ scheduler/cm  │ etcd  │ scheduler/cm  │  etcd  │ scheduler/cm  │
+        └───────────────┘ quorum└───────────────┘ quorum └───────────────┘
+                │                       │                        │
+                └───────────────────────┼────────────────────────┘
+                                        │ (cluster ağı / flannel)
+        ┌──────────────┬────────────────┼────────────────┬──────────────┐
+   ┌────┴─────┐   ┌────┴─────┐     ┌─────┴────┐      ┌─────┴────┐
+   │ worker-1 │   │ worker-2 │     │ worker-3 │      │ worker-4 │
+   │ app pods │   │ app pods │     │ app pods │      │ app pods │
+   └──────────┘   └──────────┘     └──────────┘      └──────────┘
+
+   MetalLB IP havuzu: 192.168.1.242 (Traefik Ingress → *.homelab.local)
+```
+
+- **VIP (Keepalived)**: Aktif master çökerse VRRP ile VIP başka bir master'a taşınır; API erişimi kesilmez.
+- **etcd quorum**: 3 master ile bir node kaybında cluster çalışmaya devam eder (çoğunluk korunur).
+- **Pod dağılımı**: Sistem/altyapı pod'ları master'larda, uygulama pod'ları worker'larda tercih edilir (bkz. [Pod Dağılımı](#-pod-dağılımı-ve-replica-stratejisi)).
+- **Single Master**: Tek master ile de kurulabilir; 3. master eklendiğinde Keepalived otomatik devreye girer.
 
 ## 🔧 Önkoşullar
 
@@ -77,12 +116,47 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 - **Disk**: Minimum 20GB boş alan
 - **İşletim Sistemi**: Ubuntu 22.04 test edilmiştir (diğer Linux dağıtımları da çalışabilir)
 
+#### Bileşen Başına Yaklaşık Kaynak Maliyeti
+
+Aşağıdaki değerler **boştaki (idle)** yaklaşık tüketimdir; gerçek kullanım iş yüküne göre artar.
+İsteğe bağlı bileşenleri `vars/main.yml`'de kapatarak kaynak tasarrufu yapabilirsiniz.
+
+| Bileşen | CPU (idle) | RAM (idle) | Not |
+|---------|-----------|------------|-----|
+| **K3s control plane (master)** | ~0.5 vCPU | ~512 MB–1 GB | etcd dahil; master başına |
+| **K3s agent (worker)** | ~0.2 vCPU | ~256 MB | worker başına temel |
+| **Traefik (gömülü)** | ~0.1 vCPU | ~64 MB | k3s ile gelir |
+| **MetalLB** | ~0.1 vCPU | ~128 MB | controller + speaker (DaemonSet) |
+| **cert-manager** | ~0.1 vCPU | ~128 MB | controller + webhook + cainjector |
+| **Longhorn** ⚠️ | ~0.5 vCPU | ~500 MB–1 GB | her node'da manager + CSI; **ağır** |
+| **kube-prometheus-stack (Grafana/Prometheus)** ⚠️ | ~0.5 vCPU | ~1–2 GB | Prometheus TSDB belleği veriyle büyür; **ağır** |
+| **Rancher** ⚠️ | ~0.5 vCPU | ~1 GB | 2 replica; **ağır** |
+| **ArgoCD** | ~0.3 vCPU | ~512 MB | repo-server + application-controller |
+
+> ⚠️ ile işaretli bileşenler en çok kaynak tüketenlerdir. **Tüm bileşenler açıkken** master node başına
+> en az **4 GB RAM** (HA'da 3 master) ve toplamda rahat çalışması için cluster genelinde **16 GB+ RAM**
+> önerilir. Longhorn için worker node'larda ek boş disk gerekir.
+
 ### 4. ETCD ve HA Notu
 
 ETCD cluster'ı çoğunluk (quorum) prensibi ile çalışır:
 - **2 Master**: Bir master çökerse cluster yönetilemez hale gelir
 - **3+ Master**: Bir master çökse bile cluster çalışmaya devam eder
 - **Önerilen**: Production ortamlar için en az 3 master node kullanın
+
+## 📚 Playbook'lar
+
+Repodaki giriş playbook'ları (hepsi `-i inventory/cluster_inventory.yml` ile çalıştırılır):
+
+| Playbook | Amaç | Örnek |
+|----------|------|-------|
+| `k3s_setup.yml` | Cluster'ı sıfırdan kurar (sistem hazırlığı, k3s, helm, tüm bileşenler) | `ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml` |
+| `upgrade.yml` | Mevcut cluster'ı **kesintisiz (rolling)** günceller — master'lar sonra worker'lar tek tek | `ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml` |
+| `add_node.yml` | Mevcut cluster'a yeni master/worker node ekler (idempotent) | `ansible-playbook -i inventory/cluster_inventory.yml add_node.yml` |
+| `verify.yml` | Kurulum sonrası sağlık kontrolü / doğrulama checklist'i çalıştırır | `ansible-playbook -i inventory/cluster_inventory.yml verify.yml` |
+
+> `upgrade.yml` detayları için [K3s Cluster Upgrade](#-k3s-cluster-upgrade), `add_node.yml` için
+> [Extra Node Ekleme](#-extra-node-ekleme) bölümüne bakın.
 
 ## 🚀 Hızlı Başlangıç
 
@@ -206,6 +280,7 @@ Yapılandırmaya göre şu servisler kurulur:
 - **Longhorn**: Distributed block storage
 - **kube-prometheus-stack**: Prometheus + Grafana + Alertmanager
 - **Rancher**: Kubernetes management platform
+- **ArgoCD**: GitOps sürekli dağıtım (CD) — `argocd.homelab.local` üzerinden erişilir (bkz. [ArgoCD'ye Erişim](#argocdye-erişim))
 
 ## ⚙️ Yapılandırma
 
@@ -214,8 +289,10 @@ Yapılandırmaya göre şu servisler kurulur:
 `playbooks/roles/k3s_setup/vars/main.yml` dosyasında tüm yapılandırma değişkenleri bulunur:
 
 ```yaml
-# Kullanıcı (SSH key vars/main.yml'de SABİT TANIMLANMAZ — bkz. Güvenlik bölümü)
-ansible_user: root
+# Bağlantı/işlem kullanıcısı (vars/main.yml'deki varsayılan: murat).
+# kubeconfig ve .kube/config bu kullanıcının UID'i ve home dizini üzerinden kurulur
+# (UID'in 1000 olması gerekmez). SSH private key burada SABİT TANIMLANMAZ — bkz. Güvenlik.
+ansible_user: murat
 
 # Keepalived
 keepalived_vip: 192.168.1.244
@@ -299,7 +376,7 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 
 ### kubeconfig Erişimi
 
-K3s, kubeconfig dosyasını (`/etc/rancher/k3s/k3s.yaml`) `--write-kubeconfig-mode 644` ile oluşturur; böylece master node'daki UID 1000 kullanıcısı `~/.kube/config` symlink'i üzerinden `kubectl` çalıştırabilir.
+K3s, kubeconfig dosyasını (`/etc/rancher/k3s/k3s.yaml`) `--write-kubeconfig-mode 644` ile oluşturur; böylece master node'daki `ansible_user` kullanıcısı `~/.kube/config` symlink'i üzerinden `kubectl` çalıştırabilir. Kullanıcının UID'i ve home dizini `getent passwd {{ ansible_user }}` ile çözülür (sabit UID 1000 varsayımı yoktur).
 
 ## 💻 Kullanım Örnekleri
 

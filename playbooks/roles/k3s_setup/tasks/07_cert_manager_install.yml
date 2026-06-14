@@ -3,8 +3,8 @@
 # Install Cert-Manager
 # ============================
 
-- name: Find home directory for UID 1000
-  command: getent passwd 1000
+- name: Find home directory for ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_output
   changed_when: false
   when: "'master' in group_names"
@@ -16,14 +16,14 @@
   - "'master' in group_names" 
   - getent_passwd_output.stdout != ""
 
-- name: Define the user name with UID 1000
-  command: getent passwd 1000
+- name: Define the user name with ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_result
   changed_when: false
 
 - name: Set user name variable from getent passwd output
   set_fact:
-    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
 - name: Check if cert-manager namespace exists
@@ -40,7 +40,7 @@
   failed_when: false
   changed_when: false
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
@@ -54,7 +54,7 @@
   failed_when: false
   changed_when: false
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   when: "'master' in group_names"
 
 - name: Fail if helm repo list failed for reasons other than no repositories
@@ -85,7 +85,7 @@
   ansible.builtin.command:
     cmd: helm repo add jetstack {{ helm_repo_cert_manager }}
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   when: 
     - "'master' in group_names"
     - not jetstack_repo_present
@@ -101,7 +101,7 @@
   ansible.builtin.command:
     cmd: helm repo update
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   when: 
     - "'master' in group_names"
 
@@ -131,7 +131,7 @@
   ansible.builtin.command:
     cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -144,7 +144,7 @@
   ansible.builtin.command:
     cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -168,7 +168,7 @@
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/cert-manager/selfsigned-issuer.yml
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"  
   when: 

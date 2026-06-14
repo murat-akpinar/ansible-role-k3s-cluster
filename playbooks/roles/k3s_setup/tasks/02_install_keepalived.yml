@@ -30,34 +30,20 @@
 - name: "Install Keepalived package (future investment for HA) - Only on master nodes"
   when: "'master' in group_names"
   block:
-    - name: Update apt cache before installing Keepalived
-      apt:
+    - name: Update apt cache before installing Keepalived (Debian-based)
+      ansible.builtin.apt:
         update_cache: yes
       when: ansible_os_family == "Debian"
 
-    - name: Install Keepalived on Debian-based systems
-      apt:
+    - name: Install Keepalived package (apt/yum/dnf otomatik secilir)
+      ansible.builtin.package:
         name: keepalived
         state: present
-      when: ansible_os_family == "Debian"
-      register: keepalived_debian
+      register: keepalived_install
 
-    - name: Debug Keepalived installation on Debian
+    - name: Debug Keepalived installation
       debug:
-        msg: "Keepalived installed on Debian-based system with result: {{ keepalived_debian }}"
-      when: ansible_os_family == "Debian"
-
-    - name: Install Keepalived on RedHat-based systems
-      yum:
-        name: keepalived
-        state: present
-      when: ansible_os_family == "RedHat"
-      register: keepalived_redhat
-
-    - name: Debug Keepalived installation on RedHat
-      debug:
-        msg: "Keepalived installed on RedHat-based system with result: {{ keepalived_redhat }}"
-      when: ansible_os_family == "RedHat"
+        msg: "Keepalived installed (os_family={{ ansible_os_family }}) result: {{ keepalived_install }}"
 
     - name: Ensure keepalived_script user is present
       user:

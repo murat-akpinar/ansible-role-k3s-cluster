@@ -1,8 +1,8 @@
 ---
 # Upgrade Worker Nodes with Rolling Update Strategy
 
-- name: Find home directory for UID 1000 (on master node for kubectl commands)
-  command: getent passwd 1000
+- name: Find home directory for ansible_user (on master node for kubectl commands)
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_output
   changed_when: false
   delegate_to: "{{ groups['master'][0] }}"
@@ -13,14 +13,14 @@
     user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
   when: getent_passwd_output.stdout != ""
 
-- name: Define the user name with UID 1000
-  command: getent passwd 1000
+- name: Define the user name with ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_result
   changed_when: false
 
 - name: Set user name variable from getent passwd output
   set_fact:
-    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
 - name: Get K3s token from first master (for workers to join)
@@ -52,7 +52,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} -o wide --no-headers | wc -l
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -67,7 +67,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.metadata.namespace}{\"/\"}{.metadata.name}{\" \"}{range .spec.volumes[*]}{.persistentVolumeClaim.claimName}{\" \"}{end}{\"\\n\"}{end}' | grep -v '^$' || echo "No PVC pods"
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -83,7 +83,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods -n longhorn-system --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.metadata.name}{\"\\n\"}{end}' || echo ""
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -110,7 +110,7 @@
       ansible.builtin.command:
         cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --grace-period={{ upgrade_drain_grace_period | default(60) }} --force
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -138,7 +138,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} --no-headers 2>/dev/null | awk '{print $1"/"$2}' || echo "No pods remaining"
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -220,7 +220,7 @@
         - upgrade_needed | default(true)
         - (master_count | int) >= 3
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
@@ -242,7 +242,7 @@
           echo "Warning: Some Longhorn pods may still be recovering"
           exit 0
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -274,7 +274,7 @@
           echo "Warning: Some Longhorn volumes may still be rebuilding"
           exit 0
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -307,7 +307,7 @@
           done
           exit 0
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -336,7 +336,7 @@
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -364,7 +364,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} -o wide --no-headers | wc -l
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -379,7 +379,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.metadata.namespace}{\"/\"}{.metadata.name}{\" \"}{range .spec.volumes[*]}{.persistentVolumeClaim.claimName}{\" \"}{end}{\"\\n\"}{end}' | grep -v '^$' || echo "No PVC pods"
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -395,7 +395,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods -n longhorn-system --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.metadata.name}{\"\\n\"}{end}' || echo ""
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -422,7 +422,7 @@
       ansible.builtin.command:
         cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --grace-period={{ upgrade_drain_grace_period | default(60) }} --force
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -450,7 +450,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} --no-headers 2>/dev/null | awk '{print $1"/"$2}' || echo "No pods remaining"
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -532,7 +532,7 @@
         - upgrade_needed | default(true)
         - (master_count | int) < 3
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
@@ -554,7 +554,7 @@
           echo "Warning: Some Longhorn pods may still be recovering"
           exit 0
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -586,7 +586,7 @@
           echo "Warning: Some Longhorn volumes may still be rebuilding"
           exit 0
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -619,7 +619,7 @@
           done
           exit 0
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -648,7 +648,7 @@
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 

@@ -17,8 +17,8 @@
     - not any_upgrade_occurred
   run_once: true
 
-- name: Find home directory for UID 1000
-  command: getent passwd 1000
+- name: Find home directory for ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_output
   changed_when: false
   when: inventory_hostname == groups['master'][0]
@@ -30,15 +30,15 @@
     - inventory_hostname == groups['master'][0]
     - getent_passwd_output.stdout != ""
 
-- name: Define the user name with UID 1000
-  command: getent passwd 1000
+- name: Define the user name with ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_result
   changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Set user name variable from getent passwd output
   set_fact:
-    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when:
     - inventory_hostname == groups['master'][0]
     - getent_passwd_result.stdout != ''
@@ -52,7 +52,7 @@
       ansible.builtin.shell:
         cmd: kubectl get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | sort
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
@@ -72,7 +72,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
@@ -90,7 +90,7 @@
       ansible.builtin.command:
         cmd: kubectl drain {{ item }} --ignore-daemonsets --delete-emptydir-data --timeout=300s --grace-period=60s --force
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
@@ -124,7 +124,7 @@
       ansible.builtin.command:
         cmd: kubectl uncordon {{ item }}
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
@@ -158,7 +158,7 @@
       ansible.builtin.shell:
         cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"

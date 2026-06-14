@@ -3,8 +3,8 @@
 # Display Installation Results
 # ============================
 
-- name: Find home directory for UID 1000
-  command: getent passwd 1000
+- name: Find home directory for ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_output
   changed_when: false
   when: "'master' in group_names"

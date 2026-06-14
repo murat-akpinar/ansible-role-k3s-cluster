@@ -136,7 +136,7 @@
     - "'master' in group_names"
     - not node_already_joined | default(false)
   become: true
-  become_user: "{{ uid_1000_user | default('root') }}"
+  become_user: "{{ uid_user | default('root') }}"
   environment:
     KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
   delegate_to: "{{ groups['master'][0] }}"

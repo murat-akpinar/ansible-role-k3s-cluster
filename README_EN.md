@@ -9,7 +9,9 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 ## 📋 Table of Contents
 
 - [Features](#-features)
+- [Architecture](#-architecture)
 - [Prerequisites](#-prerequisites)
+- [Playbooks](#-playbooks)
 - [Quick Start](#-quick-start)
 - [Detailed Installation](#-detailed-installation)
 - [Configuration](#-configuration)
@@ -39,6 +41,43 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 - ✅ **Ingress**: k3s built-in Traefik Ingress Controller
 - ✅ **Management**: Cluster management with Rancher
 - ✅ **GitOps**: Continuous delivery (CD) with ArgoCD
+
+## 🏗️ Architecture
+
+A typical HA topology: 3 masters (embedded etcd + control plane) and 4 workers. Keepalived manages a
+**VIP** (Virtual IP) across the master nodes; all `kubectl`/agent traffic reaches the API server
+through this VIP. MetalLB hands out IPs for LoadBalancer services.
+
+```text
+                         ┌─────────────────────────────┐
+                         │   Client / kubectl / agent   │
+                         └──────────────┬──────────────┘
+                                        │
+                         Keepalived VIP │ 192.168.1.244:6443
+                         (VRRP failover)│
+                ┌───────────────────────┼───────────────────────┐
+                │                       │                        │
+        ┌───────┴───────┐       ┌───────┴───────┐        ┌───────┴───────┐
+        │   master-1    │       │   master-2    │        │   master-3    │
+        │ etcd + API +  │◄─────►│ etcd + API +  │◄──────►│ etcd + API +  │
+        │ scheduler/cm  │ etcd  │ scheduler/cm  │  etcd  │ scheduler/cm  │
+        └───────────────┘ quorum└───────────────┘ quorum └───────────────┘
+                │                       │                        │
+                └───────────────────────┼────────────────────────┘
+                                        │ (cluster network / flannel)
+        ┌──────────────┬────────────────┼────────────────┬──────────────┐
+   ┌────┴─────┐   ┌────┴─────┐     ┌─────┴────┐      ┌─────┴────┐
+   │ worker-1 │   │ worker-2 │     │ worker-3 │      │ worker-4 │
+   │ app pods │   │ app pods │     │ app pods │      │ app pods │
+   └──────────┘   └──────────┘     └──────────┘      └──────────┘
+
+   MetalLB IP pool: 192.168.1.242 (Traefik Ingress → *.homelab.local)
+```
+
+- **VIP (Keepalived)**: If the active master fails, VRRP moves the VIP to another master; API access is not interrupted.
+- **etcd quorum**: With 3 masters the cluster keeps running after losing one node (majority preserved).
+- **Pod distribution**: System/infra pods prefer masters, application pods prefer workers (see [Pod Distribution](#-pod-distribution-and-replica-strategy)).
+- **Single Master**: Can also be installed with a single master; Keepalived kicks in automatically once a 3rd master is added.
 
 ## 🔧 Prerequisites
 
@@ -77,12 +116,47 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 - **Disk**: Minimum 20GB free space
 - **Operating System**: Tested on Ubuntu 22.04 (other Linux distributions may work)
 
+#### Approximate Per-Component Resource Cost
+
+The values below are approximate **idle** consumption; real usage grows with workload.
+You can disable optional components in `vars/main.yml` to save resources.
+
+| Component | CPU (idle) | RAM (idle) | Note |
+|-----------|-----------|------------|------|
+| **K3s control plane (master)** | ~0.5 vCPU | ~512 MB–1 GB | includes etcd; per master |
+| **K3s agent (worker)** | ~0.2 vCPU | ~256 MB | per-worker baseline |
+| **Traefik (bundled)** | ~0.1 vCPU | ~64 MB | ships with k3s |
+| **MetalLB** | ~0.1 vCPU | ~128 MB | controller + speaker (DaemonSet) |
+| **cert-manager** | ~0.1 vCPU | ~128 MB | controller + webhook + cainjector |
+| **Longhorn** ⚠️ | ~0.5 vCPU | ~500 MB–1 GB | manager + CSI on every node; **heavy** |
+| **kube-prometheus-stack (Grafana/Prometheus)** ⚠️ | ~0.5 vCPU | ~1–2 GB | Prometheus TSDB memory grows with data; **heavy** |
+| **Rancher** ⚠️ | ~0.5 vCPU | ~1 GB | 2 replicas; **heavy** |
+| **ArgoCD** | ~0.3 vCPU | ~512 MB | repo-server + application-controller |
+
+> Components marked ⚠️ are the biggest resource consumers. **With all components enabled**, at least
+> **4 GB RAM** per master (3 masters in HA) and **16 GB+ RAM** cluster-wide are recommended for
+> comfortable operation. Longhorn requires additional free disk on worker nodes.
+
 ### 4. ETCD and HA Note
 
 ETCD cluster operates on a quorum principle:
 - **2 Masters**: If one master fails, the cluster becomes unmanageable
 - **3+ Masters**: Cluster continues to operate even if one master fails
 - **Recommended**: Use at least 3 master nodes for production environments
+
+## 📚 Playbooks
+
+Entry-point playbooks in the repo (all run with `-i inventory/cluster_inventory.yml`):
+
+| Playbook | Purpose | Example |
+|----------|---------|---------|
+| `k3s_setup.yml` | Installs the cluster from scratch (system prep, k3s, helm, all components) | `ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml` |
+| `upgrade.yml` | Upgrades an existing cluster with a **rolling, zero-downtime** strategy — masters then workers, one by one | `ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml` |
+| `add_node.yml` | Adds new master/worker nodes to an existing cluster (idempotent) | `ansible-playbook -i inventory/cluster_inventory.yml add_node.yml` |
+| `verify.yml` | Runs a post-install health-check / verification checklist | `ansible-playbook -i inventory/cluster_inventory.yml verify.yml` |
+
+> For `upgrade.yml` details see [K3s Cluster Upgrade](#-k3s-cluster-upgrade), and for `add_node.yml`
+> see [Adding Extra Nodes](#-adding-extra-nodes).
 
 ## 🚀 Quick Start
 
@@ -207,6 +281,7 @@ The following services are installed based on configuration:
 - **Longhorn**: Distributed block storage
 - **kube-prometheus-stack**: Prometheus + Grafana + Alertmanager
 - **Rancher**: Kubernetes management platform
+- **ArgoCD**: GitOps continuous delivery (CD) — accessed at `argocd.homelab.local` (see [Access ArgoCD](#access-argocd))
 
 ## ⚙️ Configuration
 
@@ -215,8 +290,10 @@ The following services are installed based on configuration:
 All configuration variables are found in `playbooks/roles/k3s_setup/vars/main.yml`:
 
 ```yaml
-# User (SSH key is NOT hardcoded in vars/main.yml — see the Security section)
-ansible_user: root
+# Connection/operation user (default in vars/main.yml: murat).
+# kubeconfig and .kube/config are set up using this user's UID and home directory
+# (the UID does not have to be 1000). The SSH private key is NOT hardcoded here — see Security.
+ansible_user: murat
 
 # Keepalived
 keepalived_vip: 192.168.1.244
@@ -300,7 +377,7 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 
 ### kubeconfig Access
 
-K3s creates the kubeconfig file (`/etc/rancher/k3s/k3s.yaml`) with `--write-kubeconfig-mode 644`, so the UID 1000 user on the master node can run `kubectl` via the `~/.kube/config` symlink.
+K3s creates the kubeconfig file (`/etc/rancher/k3s/k3s.yaml`) with `--write-kubeconfig-mode 644`, so the `ansible_user` on the master node can run `kubectl` via the `~/.kube/config` symlink. The user's UID and home directory are resolved with `getent passwd {{ ansible_user }}` (there is no hardcoded UID 1000 assumption).
 
 ## 💻 Usage Examples
 

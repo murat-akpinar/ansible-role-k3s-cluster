@@ -1,8 +1,8 @@
 ---
 # Upgrade Master Nodes with Rolling Update Strategy
 
-- name: Find home directory for UID 1000
-  command: getent passwd 1000
+- name: Find home directory for ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_output
   changed_when: false
   when: "'master' in group_names"
@@ -14,14 +14,14 @@
   - "'master' in group_names" 
   - getent_passwd_output.stdout != ""
 
-- name: Define the user name with UID 1000
-  command: getent passwd 1000
+- name: Define the user name with ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_result
   changed_when: false
 
 - name: Set user name variable from getent passwd output
   set_fact:
-    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
 - name: Count master nodes
@@ -58,7 +58,7 @@
       ansible.builtin.command:
         cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --force
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -92,7 +92,7 @@
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -119,7 +119,7 @@
       ansible.builtin.command:
         cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --force
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -157,7 +157,7 @@
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -184,7 +184,7 @@
       ansible.builtin.command:
         cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --force
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
@@ -218,7 +218,7 @@
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
       become: true
-      become_user: "{{ uid_1000_user }}"
+      become_user: "{{ uid_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 

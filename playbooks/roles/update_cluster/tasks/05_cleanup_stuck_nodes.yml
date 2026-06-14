@@ -2,8 +2,8 @@
 # Cleanup stuck nodes (uncordon nodes that are SchedulingDisabled)
 # This task runs after upgrade to ensure no nodes are left in SchedulingDisabled state
 
-- name: Find home directory for UID 1000
-  command: getent passwd 1000
+- name: Find home directory for ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_output
   changed_when: false
   when: inventory_hostname == groups['master'][0]
@@ -15,15 +15,15 @@
     - inventory_hostname == groups['master'][0]
     - getent_passwd_output.stdout != ""
 
-- name: Define the user name with UID 1000
-  command: getent passwd 1000
+- name: Define the user name with ansible_user
+  command: getent passwd {{ ansible_user }}
   register: getent_passwd_result
   changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Set user name variable from getent passwd output
   set_fact:
-    uid_1000_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
+    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: 
     - inventory_hostname == groups['master'][0]
     - getent_passwd_result.stdout != ''
@@ -32,7 +32,7 @@
   ansible.builtin.command:
     cmd: kubectl get nodes -o jsonpath='{range .items[?(@.spec.unschedulable==true)]}{.metadata.name}{"\n"}{end}'
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: inventory_hostname == groups['master'][0]
@@ -55,7 +55,7 @@
   ansible.builtin.command:
     cmd: kubectl uncordon {{ item }}
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: 
@@ -82,7 +82,7 @@
   ansible.builtin.command:
     cmd: kubectl get nodes -o jsonpath='{range .items[?(@.spec.unschedulable==true)]}{.metadata.name}{"\n"}{end}' | wc -l
   become: true
-  become_user: "{{ uid_1000_user }}"
+  become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when: inventory_hostname == groups['master'][0]
