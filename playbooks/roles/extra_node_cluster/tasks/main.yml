@@ -1,6 +1,31 @@
 ---
 # Main tasks for adding extra nodes to existing K3s cluster
 
+- name: "Ensure prerequisite packages are installed (acl + Longhorn storage deps)"
+  ansible.builtin.package:
+    # Paket isimleri OS ailesine gore degisir; ansible.builtin.package paket
+    # yoneticisini (apt/dnf/yum) otomatik secer. Bilinmeyen aile Debian'a duser.
+    name: "{{ _prereq_packages[ansible_os_family] | default(_prereq_packages['Debian']) }}"
+    state: present
+  become: true
+  vars:
+    _prereq_packages:
+      Debian:                      # Ubuntu / Debian
+        - acl                      # become (unprivileged user) icin; yoksa setfacl hatasi
+        - open-iscsi               # Longhorn zorunlu: iSCSI ile volume attach
+        - nfs-common               # Longhorn RWX (ReadWriteMany) volume'lari icin
+      RedHat:                      # RHEL / Rocky / AlmaLinux
+        - acl
+        - iscsi-initiator-utils    # open-iscsi'nin RHEL karsiligi
+        - nfs-utils                # nfs-common'in RHEL karsiligi
+
+- name: "Ensure iscsid service is enabled and running (Longhorn icin)"
+  ansible.builtin.systemd:
+    name: iscsid
+    enabled: true
+    state: started
+  become: true
+
 - name: "Configure System Requirements (Hostname and NTP)"
   ansible.builtin.import_tasks: 00_system_requirements.yml
 
