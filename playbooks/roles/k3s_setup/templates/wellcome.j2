@@ -1,20 +1,36 @@
->>=======================================================================<<
-||                                                                       ||
-||   _  __ _____ ____     ____  _     _   _  ____  _____  _____  ____    ||
-||  | |/ /|___ // ___|   / ___|| |   | | | |/ ___||_   _|| ____||  _ \   ||
-||  | ' /   |_ \\___ \  | |    | |   | | | |\___ \  | |  |  _|  | |_) |  ||
-||  | . \  ___) |___) | | |___ | |___| |_| | ___) | | |  | |___ |  _ <   ||
-||  |_|\_\|____/|____/   \____||_____|\___/ |____/  |_|  |_____||_| \_\  ||
-||                                                                       ||
->>=======================================================================<<
+{# Bu MOTD Ansible tarafindan uretilir; /etc/motd olarak her node'a yazilir.
+   Icerik dinamiktir: node rolu, cluster modu ve kurulu bilesenler degiskenlerden gelir. #}
+═══════════════════════════════════════════════════════════════════════════════
 
-k3s Cluster / Ver: "1.0"  / Developped by: Murat Akpınar
+   _  __ _____ ____     ____  _     _   _  ____  _____  _____  ____
+  | |/ /|___ // ___|   / ___|| |   | | | |/ ___||_   _|| ____||  _ \
+  | ' /   |_ \\___ \  | |    | |   | | | |\___ \  | |  |  _|  | |_) |
+  | . \  ___) |___) | | |___ | |___| |_| | ___) | | |  | |___ |  _ <
+  |_|\_\|____/|____/   \____||_____|\___/ |____/  |_|  |_____||_| \_\
 
-Versions:
-  - k3s v1.29.5+k3s1
-  - Cert-Manager v1.13.1
-  - Traefik (k3s gömülü ingress)
-  - Longhorn v1.6.1
-  - MetalLB v0.14.5
-  - Rancher v2.8.2
-  - kube-prometheus-stack (Prometheus & Grafana entegre)
+   k3s Cluster   ·   v1.0   ·   by Murat Akpınar
+═══════════════════════════════════════════════════════════════════════════════
+
+  » NODE
+      Hostname   {{ inventory_hostname }}  ·  {{ 'MASTER' if 'master' in group_names else 'WORKER' }}
+      Address    {{ ansible_default_ipv4.address | default('-') }}
+
+  » CLUSTER
+      Topology   {% if (groups['master'] | default([]) | length) >= 3 %}HA — High Availability ({{ groups['master'] | length }} masters){% else %}Single master{% endif %}
+
+      Nodes      {{ groups['master'] | default([]) | length }} master / {{ groups['worker'] | default([]) | length }} worker
+      VIP        {{ keepalived_vip | default('-') }}
+
+  » COMPONENTS
+      [{{ 'x' if helm_install        | default(false) else ' ' }}] Helm           [x] Traefik (ingress)
+      [{{ 'x' if metallb_install     | default(false) else ' ' }}] MetalLB        [{{ 'x' if cert_manager_install | default(false) else ' ' }}] cert-manager
+      [{{ 'x' if longhorn_install    | default(false) else ' ' }}] Longhorn       [{{ 'x' if grafana_install      | default(false) else ' ' }}] Monitoring (Prometheus/Grafana)
+      [{{ 'x' if rancher_install     | default(false) else ' ' }}] Rancher        [{{ 'x' if argocd_install       | default(false) else ' ' }}] ArgoCD
+
+  » VERSIONS
+      k3s {{ k3s_version if (k3s_version | default('')) else 'latest' }}   ·   cert-manager {{ cert_manager_chart_version if (cert_manager_chart_version | default('')) else 'latest' }}   ·   MetalLB {{ metallb_chart_version if (metallb_chart_version | default('')) else 'latest' }}
+      Longhorn {{ longhorn_chart_version if (longhorn_chart_version | default('')) else 'latest' }}   ·   Rancher v2.8.2   ·   ArgoCD {{ argocd_chart_version if (argocd_chart_version | default('')) else 'latest' }}
+
+───────────────────────────────────────────────────────────────────────────────
+  kubectl get nodes -o wide   ·   helm list -A   ·   docs: README.md
+═══════════════════════════════════════════════════════════════════════════════

@@ -113,6 +113,17 @@
   when: "'master' in group_names"
   run_once: true
 
+- name: Render kube-prometheus-stack values from variables (storageClass)
+  ansible.builtin.template:
+    src: kube-prometheus-stack-values.yml.j2
+    dest: "{{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  when:
+    - "'master' in group_names"
+    - user_home_directory is defined
+
 - name: Install kube-prometheus-stack Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
     cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml

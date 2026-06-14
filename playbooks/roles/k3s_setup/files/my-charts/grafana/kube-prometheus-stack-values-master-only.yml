@@ -5,40 +5,26 @@
 # Prometheus Configuration
 prometheus:
   prometheusSpec:
-    # Master preferred, worker fallback
-    tolerations:
-      - key: "node-role.kubernetes.io/master"
-        operator: "Equal"
-        value: "system"
-        effect: "NoSchedule"
-    
+    # Worker preferred (etcd masterlarini bosaltir)
     affinity:
       nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
                 - key: node-role.kubernetes.io/master
-                  operator: Exists
+                  operator: DoesNotExist
 
 # Alertmanager Configuration
 alertmanager:
   alertmanagerSpec:
-    # Master preferred, worker fallback
-    tolerations:
-      - key: "node-role.kubernetes.io/master"
-        operator: "Equal"
-        value: "system"
-        effect: "NoSchedule"
-    
+    # Worker preferred (etcd masterlarini bosaltir)
     affinity:
       nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
                 - key: node-role.kubernetes.io/master
-                  operator: Exists
+                  operator: DoesNotExist
 
 # Grafana Configuration
 # Note: Grafana is an application, so it should run on worker nodes
@@ -51,21 +37,14 @@ grafana:
 
 # Kube State Metrics
 kubeStateMetrics:
-  # Master preferred, worker fallback
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
+  # Worker preferred (etcd masterlarini bosaltir)
   affinity:
     nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
               - key: node-role.kubernetes.io/master
-                operator: Exists
+                operator: DoesNotExist
 
 # Node Exporter runs on all nodes (DaemonSet)
 nodeExporter:

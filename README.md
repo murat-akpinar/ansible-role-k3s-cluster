@@ -755,11 +755,13 @@ Longhorn, Kubernetes için dağıtılmış blok depolama sağlar. Kurulum sıras
 
 ### Mevcut PVC Yapılandırması
 
-Kurulumda kullanılan StorageClass'lar:
+Monitoring (Prometheus/Alertmanager/Grafana) PVC'lerinin StorageClass'ı `monitoring_storage_class` değişkeninden gelir; **Longhorn'a zorunlu bağımlı değildir**:
 
-- **Prometheus**: `longhorn-retain-2` (HA için 2 replica)
-- **Alertmanager**: `longhorn-retain-2` (HA için 2 replica)
-- **Grafana**: `longhorn-retain-2` (HA için 2 replica)
+- **Longhorn kuruluysa** (`longhorn_install: true`) → varsayılan `longhorn-retain-2` (HA için 2 replica)
+- **Longhorn kapalıysa** (`longhorn_install: false`) → otomatik `local-path` (k3s gömülü, replikasyonsuz, node-yerel)
+- İstersen `vars/main.yml`'de elle sabitleyebilirsin (or: `longhorn-retain-1`, ya da başka bir StorageClass)
+
+> Yani `longhorn_install: false` + `grafana_install: true` ile **Longhorn olmadan da monitoring** kurulabilir.
 
 ### Veri Kalıcılığı ve Güvenlik
 

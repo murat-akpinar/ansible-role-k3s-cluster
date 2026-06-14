@@ -1,5 +1,9 @@
+# Bu dosya Ansible tarafindan uretilir; storageClassName degeri vars/main.yml'deki
+# monitoring_storage_class degiskeninden gelir (Longhorn kuruluysa longhorn-retain-2,
+# degilse k3s gomulu local-path). Elle duzenlemeyin.
+#
 # kube-prometheus-stack values for HA setup (3+ masters)
-# Master preferred, worker fallback strategy
+# Worker preferred (etcd masterlarini bosaltir) strategy
 # Includes: Prometheus, Grafana, Alertmanager, Node Exporter, Kube State Metrics
 
 # Prometheus Configuration
@@ -13,39 +17,31 @@ prometheus:
       requests:
         cpu: 500m
         memory: 1Gi
-    
+
     # Storage Configuration
-    # Using longhorn-retain-2 for HA: 2 replicas for data redundancy
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: longhorn-retain-2
+          storageClassName: {{ monitoring_storage_class }}
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
               storage: 10Gi
-    
+
     # Retention
     retention: 30d
-    
+
     # Replicas for HA
     replicas: 2
-    
-    # Master preferred, worker fallback
-    tolerations:
-      - key: "node-role.kubernetes.io/master"
-        operator: "Equal"
-        value: "system"
-        effect: "NoSchedule"
-    
+
+    # Worker preferred (etcd masterlarini bosaltir)
     affinity:
       nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
                 - key: node-role.kubernetes.io/master
-                  operator: Exists
+                  operator: DoesNotExist
       podAntiAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
@@ -67,36 +63,28 @@ alertmanager:
       requests:
         cpu: 250m
         memory: 500Mi
-    
+
     # Storage Configuration
-    # Using longhorn-retain-2 for HA: 2 replicas for data redundancy
     storage:
       volumeClaimTemplate:
         spec:
-          storageClassName: longhorn-retain-2
+          storageClassName: {{ monitoring_storage_class }}
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
               storage: 2Gi
-    
+
     # Replicas for HA
     replicas: 2
-    
-    # Master preferred, worker fallback
-    tolerations:
-      - key: "node-role.kubernetes.io/master"
-        operator: "Equal"
-        value: "system"
-        effect: "NoSchedule"
-    
+
+    # Worker preferred (etcd masterlarini bosaltir)
     affinity:
       nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
                 - key: node-role.kubernetes.io/master
-                  operator: Exists
+                  operator: DoesNotExist
       podAntiAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
@@ -117,20 +105,28 @@ grafana:
     requests:
       cpu: 250m
       memory: 500Mi
-  
+
+  # Worker preferred (etcd masterlarini bosaltir)
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: DoesNotExist
+
   # Persistence
-  # Using longhorn-retain-2 for HA: 2 replicas for data redundancy
   persistence:
     enabled: true
-    storageClassName: longhorn-retain-2
+    storageClassName: {{ monitoring_storage_class }}
     accessModes:
       - ReadWriteOnce
     size: 10Gi
-  
+
   # Admin credentials (will be auto-generated if not set)
   adminUser: admin
   adminPassword: admin  # Change this or use secret
-  
+
   # Operator configuration
   operator:
     dashboardsConfigMapRefEnabled: false
@@ -142,19 +138,11 @@ nodeExporter:
 # Kube State Metrics (enabled by default)
 kubeStateMetrics:
   enabled: true
-  # Master preferred, worker fallback
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
+  # Worker preferred (etcd masterlarini bosaltir)
   affinity:
     nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
               - key: node-role.kubernetes.io/master
-                operator: Exists
-
+                operator: DoesNotExist

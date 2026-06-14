@@ -757,11 +757,13 @@ Longhorn provides distributed block storage for Kubernetes. During installation,
 
 ### Current PVC Configuration
 
-StorageClasses used in installation:
+The StorageClass for monitoring (Prometheus/Alertmanager/Grafana) PVCs comes from the `monitoring_storage_class` variable; it is **not hard-coupled to Longhorn**:
 
-- **Prometheus**: `longhorn-retain-2` (2 replicas for HA)
-- **Alertmanager**: `longhorn-retain-2` (2 replicas for HA)
-- **Grafana**: `longhorn-retain-2` (2 replicas for HA)
+- **If Longhorn is installed** (`longhorn_install: true`) → defaults to `longhorn-retain-2` (2 replicas for HA)
+- **If Longhorn is disabled** (`longhorn_install: false`) → automatically `local-path` (k3s built-in, no replication, node-local)
+- You can pin it manually in `vars/main.yml` (e.g. `longhorn-retain-1`, or any other StorageClass)
+
+> So with `longhorn_install: false` + `grafana_install: true` you can install **monitoring without Longhorn**.
 
 ### Data Persistence and Security
 

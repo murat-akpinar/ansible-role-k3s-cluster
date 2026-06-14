@@ -1,5 +1,5 @@
 # kube-prometheus-stack values for Single Master setup
-# Master preferred, worker fallback strategy
+# Worker preferred (etcd masterlarini bosaltir) strategy
 # Overrides for single master configuration
 
 # Prometheus Configuration
@@ -8,21 +8,14 @@ prometheus:
     # Single Master: 1 replica
     replicas: 1
     
-    # Master preferred, worker fallback
-    tolerations:
-      - key: "node-role.kubernetes.io/master"
-        operator: "Equal"
-        value: "system"
-        effect: "NoSchedule"
-    
+    # Worker preferred (etcd masterlarini bosaltir)
     affinity:
       nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
                 - key: node-role.kubernetes.io/master
-                  operator: Exists
+                  operator: DoesNotExist
       # Preferred pod anti-affinity for single master
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -42,21 +35,14 @@ alertmanager:
     # Single Master: 1 replica
     replicas: 1
     
-    # Master preferred, worker fallback
-    tolerations:
-      - key: "node-role.kubernetes.io/master"
-        operator: "Equal"
-        value: "system"
-        effect: "NoSchedule"
-    
+    # Worker preferred (etcd masterlarini bosaltir)
     affinity:
       nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
                 - key: node-role.kubernetes.io/master
-                  operator: Exists
+                  operator: DoesNotExist
       # Preferred pod anti-affinity for single master
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -72,19 +58,12 @@ alertmanager:
 
 # Kube State Metrics
 kubeStateMetrics:
-  # Master preferred, worker fallback
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
+  # Worker preferred (etcd masterlarini bosaltir)
   affinity:
     nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
               - key: node-role.kubernetes.io/master
-                operator: Exists
+                operator: DoesNotExist
 
