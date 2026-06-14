@@ -116,6 +116,15 @@
       when: inventory_hostname != groups['master'][0] and 'master' in group_names and (master_count | int) >= 3
       become: true
 
+    - name: Wait for k3s.yaml to be created on additional master nodes
+      ansible.builtin.wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        state: present
+      when: inventory_hostname != groups['master'][0] and 'master' in group_names and (master_count | int) >= 3
+      become: true
+      retries: 10
+      delay: 10
+
     - name: Check if K3s agent is already installed on worker nodes
       command: systemctl is-active k3s-agent
       register: k3s_worker_agent_status
