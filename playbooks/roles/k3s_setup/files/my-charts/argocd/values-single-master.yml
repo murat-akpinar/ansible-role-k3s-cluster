@@ -1,82 +1,22 @@
 # ArgoCD values for Single Master setup
-# Master preferred, worker fallback strategy
+# Master'a SABITLENMEZ: master taint'i tolere edilmedigi icin pod'lar worker'lara yerlesir.
+# Tek replika oldugu icin podAntiAffinity'ye gerek yok.
 
 # Server configuration
 server:
   replicaCount: 1
-  
-  # Master preferred, worker fallback
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
 
 # Application Controller configuration
 controller:
   replicaCount: 1
-  
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
 
 # Repo Server configuration
 repoServer:
   replicaCount: 1
-  
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
 
 # ApplicationSet Controller configuration
 applicationSet:
   replicaCount: 1
-  
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
 
 # Configs - ArgoCD configuration parameters
 configs:
@@ -88,22 +28,6 @@ configs:
 # Redis configuration
 redis:
   replicaCount: 1
-  
+
   # Note: ArgoCD Helm chart does not support Redis persistence
   # Redis runs as Deployment (not StatefulSet), so persistence is not available
-  
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
-

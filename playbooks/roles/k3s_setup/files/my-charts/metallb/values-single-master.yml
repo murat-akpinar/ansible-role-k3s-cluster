@@ -1,38 +1,14 @@
 # MetalLB values for single master (non-HA) setup
-# Master preferred, worker fallback strategy
+# controller: siradan Deployment -> worker'a yerlesir (master taint'ini tolere etmez).
+# speaker:    DaemonSet -> HER node'da calismali (master dahil), bu yuzden taint'i TOLERE EDER;
+#             yoksa master node'larindaki LoadBalancer servislerinin IP anonsu yapilamaz.
 
-controller:
-  # Master preferred, worker fallback
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
+controller: {}
 
 speaker:
-  # Master preferred, worker fallback
+  # DaemonSet: master dahil tum node'larda calismasi icin taint'i tolere eder.
   tolerations:
     - key: "node-role.kubernetes.io/master"
       operator: "Equal"
       value: "system"
       effect: "NoSchedule"
-  
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
-
-

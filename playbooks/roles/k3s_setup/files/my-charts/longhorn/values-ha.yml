@@ -1,16 +1,11 @@
 # Longhorn values for HA setup (3+ masters)
-# Master preferred, worker fallback strategy
+# Master'a SABITLENMEZ: master taint'i tolere edilmedigi icin Longhorn bilesenleri
+# (manager DaemonSet'i dahil) yalnizca worker'larda calisir -> storage replikalari
+# worker'lardan saglanir, etcd master'lari disk yukunden korunur.
 
 global:
-  # Master preferred, worker fallback
-  # Toleration allows scheduling on tainted masters
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
-  # Preferred nodeSelector prefers masters but allows workers in emergency
+  # Master toleration'i YOK -> Longhorn master'larda calismaz (worker-only storage).
+  tolerations: []
   nodeSelector: {}
 
 # Persistence settings
@@ -25,48 +20,29 @@ csi:
   resizerReplicaCount: 3
   snapshotterReplicaCount: 3
 
-# Longhorn Manager (DaemonSet - runs on all nodes, but prefers masters)
+# Longhorn Manager (DaemonSet - sadece worker'larda calisir)
 longhornManager:
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
+  tolerations: []
   nodeSelector: {}
 
 # Longhorn Driver Deployer
 longhornDriver:
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
+  tolerations: []
   nodeSelector: {}
 
 # Longhorn UI
 longhornUI:
   replicas: 2
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
   affinity:
-    nodeAffinity:
+    podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
         - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchExpressions:
-              - key: app
-                operator: In
-                values:
-                  - longhorn-ui
-          topologyKey: "kubernetes.io/hostname"
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - longhorn-ui
+            topologyKey: "kubernetes.io/hostname"
   nodeSelector: {}
-

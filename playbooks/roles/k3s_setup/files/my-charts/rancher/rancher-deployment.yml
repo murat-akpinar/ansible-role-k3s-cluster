@@ -41,6 +41,20 @@ spec:
         app: rancher
     spec:
       serviceAccountName: rancher
+      # Master toleration YOK -> master taint'i sayesinde pod'lar worker'lara yerlesir.
+      # podAntiAffinity (preferred): 2 replika mumkunse farkli worker'lara dagilir.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - rancher
+                topologyKey: "kubernetes.io/hostname"
       containers:
         - name: rancher
           image: rancher/rancher:v2.8.2

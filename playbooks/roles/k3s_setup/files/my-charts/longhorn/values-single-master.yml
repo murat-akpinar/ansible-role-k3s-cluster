@@ -1,16 +1,12 @@
 # Longhorn values for Single Master setup
-# Master preferred, worker fallback strategy
+# Master'a SABITLENMEZ: master taint'i tolere edilmedigi icin Longhorn bilesenleri
+# (manager DaemonSet'i dahil) yalnizca worker'larda calisir -> storage worker'lardan saglanir.
+# NOT: Tek master + worker yoksa Longhorn'u calistiracak node kalmaz; bu durumda
+# global.tolerations'a master toleration'ini geri eklemen gerekir.
 
 global:
-  # Master preferred, worker fallback
-  # Toleration allows scheduling on tainted masters
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  
-  # Preferred nodeSelector prefers masters but allows workers in emergency
+  # Master toleration'i YOK -> Longhorn master'larda calismaz (worker-only storage).
+  tolerations: []
   nodeSelector: {}
 
 # Persistence settings
@@ -25,39 +21,17 @@ csi:
   resizerReplicaCount: 1
   snapshotterReplicaCount: 1
 
-# Longhorn Manager (DaemonSet - runs on all nodes, but prefers masters)
+# Longhorn Manager (DaemonSet - sadece worker'larda calisir)
 longhornManager:
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
+  tolerations: []
   nodeSelector: {}
 
 # Longhorn Driver Deployer
 longhornDriver:
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
+  tolerations: []
   nodeSelector: {}
 
 # Longhorn UI
 longhornUI:
   replicas: 1
-  tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
   nodeSelector: {}
-
