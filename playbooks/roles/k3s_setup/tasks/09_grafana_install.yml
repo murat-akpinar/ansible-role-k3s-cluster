@@ -126,27 +126,33 @@
 
 - name: Install kube-prometheus-stack Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
+    cmd: helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
   become: true
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: kube_prometheus_stack_helm_result
+  until: kube_prometheus_stack_helm_result.rc == 0
+  retries: 5
+  delay: 30
   when:
     - inventory_hostname == 'master-1'
-    - monitoring_namespace_exists.rc != 0
     - (kube_prometheus_stack_helm_release.stdout | default('') | trim) == ''
     - (master_count | default(0) | int) >= 3
 
 - name: Install kube-prometheus-stack Helm chart (Single Master)
   ansible.builtin.command:
-    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-single-master.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
+    cmd: helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-single-master.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
   become: true
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: kube_prometheus_stack_helm_result
+  until: kube_prometheus_stack_helm_result.rc == 0
+  retries: 5
+  delay: 30
   when:
     - inventory_hostname == 'master-1'
-    - monitoring_namespace_exists.rc != 0
     - (kube_prometheus_stack_helm_release.stdout | default('') | trim) == ''
     - (master_count | default(0) | int) < 3
 

@@ -27,20 +27,23 @@ k3s_disable_servicelb: true
 # ============================================================================
 # Master node-taint (opsiyonel — VARSAYILAN KAPALI)
 # ============================================================================
-# Bos birakilirsa master'lara taint EKLENMEZ. Deger verilirse k3s server kurulurken
-# --node-taint olarak uygulanir; etcd master'larini agir is yuklerinden korur.
-# Onerilen deger (worker'lariniz VARSA): "node-role.kubernetes.io/master=system:NoSchedule"
+# k3s_master_taint: true/false ile ac/kapat. true ise k3s server kurulurken
+# --node-taint {{ k3s_master_taint_value }} olarak uygulanir; etcd master'larini
+# agir is yuklerinden korur. Taint string'ini degistirmek istersen sadece
+# k3s_master_taint_value'i duzenle.
 # DIKKAT:
-#  - Yalnizca worker node varken kullanin; worker yoksa tolere etmeyen pod'lar Pending kalir.
+#  - Yalnizca worker node varken acin (true); worker yoksa tolere etmeyen pod'lar Pending kalir.
 #  - Yalnizca YENI kurulan/kaydolan node'larda etkilidir; mevcut node'lari elle taint'leyin:
 #      kubectl taint nodes <master> node-role.kubernetes.io/master=system:NoSchedule
 #  - Monitoring zaten 'required' anti-master affinity ile master'a gitmez; bu taint cluster-geneli
 #    ek korumadir. Master'da kalmasi gereken bilesenler bu taint'i tolere etmelidir
 #    (rancher/argocd/cert-manager/metallb values'larinda 'system' tolerasyonu zaten var).
-k3s_master_taint: ""
-helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+k3s_master_taint: true
+k3s_master_taint_value: "node-role.kubernetes.io/master=system:NoSchedule"
+
 
 # Helm Repository URLs
+helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 helm_repo_metallb: https://metallb.github.io/metallb
 helm_repo_cert_manager: https://charts.jetstack.io
 helm_repo_longhorn: https://charts.longhorn.io

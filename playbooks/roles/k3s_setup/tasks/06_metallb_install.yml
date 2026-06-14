@@ -129,27 +129,33 @@
 
 - name: Install MetalLB using Helm (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace {{ ('--version ' ~ metallb_chart_version) if metallb_chart_version else '' }} -f {{ metallb_values_file }}
+    cmd: helm upgrade --install metallb metallb/metallb --namespace metallb-system --create-namespace {{ ('--version ' ~ metallb_chart_version) if metallb_chart_version else '' }} -f {{ metallb_values_file }}
   become: true
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  register: metallb_helm_result
+  until: metallb_helm_result.rc == 0
+  retries: 5
+  delay: 30
+  when:
     - inventory_hostname == 'master-1'
-    - metallb_namespace_exists.rc != 0
     - (metallb_helm_release.stdout | default('') | trim) == ''
     - (master_count | default(0) | int) >= 3
 
 - name: Install MetalLB using Helm (Single Master)
   ansible.builtin.command:
-    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace {{ ('--version ' ~ metallb_chart_version) if metallb_chart_version else '' }} -f {{ metallb_values_file }}
+    cmd: helm upgrade --install metallb metallb/metallb --namespace metallb-system --create-namespace {{ ('--version ' ~ metallb_chart_version) if metallb_chart_version else '' }} -f {{ metallb_values_file }}
   become: true
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  register: metallb_helm_result
+  until: metallb_helm_result.rc == 0
+  retries: 5
+  delay: 30
+  when:
     - inventory_hostname == 'master-1'
-    - metallb_namespace_exists.rc != 0
     - (metallb_helm_release.stdout | default('') | trim) == ''
     - (master_count | default(0) | int) < 3
 

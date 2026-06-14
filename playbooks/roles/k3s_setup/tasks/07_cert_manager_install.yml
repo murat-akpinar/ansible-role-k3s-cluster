@@ -129,27 +129,33 @@
 
 - name: Install Cert-Manager Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
+    cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  register: cert_manager_helm_result
+  until: cert_manager_helm_result.rc == 0
+  retries: 5
+  delay: 30
+  when:
     - inventory_hostname == 'master-1'
-    - cert_manager_namespace_exists.rc != 0
     - (cert_manager_helm_release.stdout | default('') | trim) == ''
     - (master_count | default(0) | int) >= 3
 
 - name: Install Cert-Manager Helm chart (Single Master)
   ansible.builtin.command:
-    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
+    cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  register: cert_manager_helm_result
+  until: cert_manager_helm_result.rc == 0
+  retries: 5
+  delay: 30
+  when:
     - inventory_hostname == 'master-1'
-    - cert_manager_namespace_exists.rc != 0
     - (cert_manager_helm_release.stdout | default('') | trim) == ''
     - (master_count | default(0) | int) < 3
 

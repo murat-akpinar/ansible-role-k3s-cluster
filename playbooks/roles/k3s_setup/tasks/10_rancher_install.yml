@@ -40,7 +40,11 @@
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  register: rancher_apply_result
+  until: rancher_apply_result.rc == 0
+  retries: 5
+  delay: 30
+  when:
     - inventory_hostname == 'master-1'
     - rancher_namespace_exists.rc != 0
 

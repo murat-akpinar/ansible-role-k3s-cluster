@@ -78,7 +78,7 @@
   shell: |
     export K3S_TOKEN="{{ k3s_token }}"
     export K3S_URL="https://{{ keepalived_vip }}:6443"
-    export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}{{ ' --node-taint ' ~ k3s_master_taint if (k3s_master_taint | default('')) else '' }}"
+    export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}{{ ' --node-taint ' ~ (k3s_master_taint_value | default('node-role.kubernetes.io/master=system:NoSchedule')) if (k3s_master_taint | default(false) | bool) else '' }}"
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
     {% endif %}
@@ -94,7 +94,7 @@
   shell: |
     export K3S_TOKEN="{{ k3s_token }}"
     export K3S_URL="https://{{ first_master_ip }}:6443"
-    export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}{{ ' --node-taint ' ~ k3s_master_taint if (k3s_master_taint | default('')) else '' }}"
+    export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}{{ ' --node-taint ' ~ (k3s_master_taint_value | default('node-role.kubernetes.io/master=system:NoSchedule')) if (k3s_master_taint | default(false) | bool) else '' }}"
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
     {% endif %}
