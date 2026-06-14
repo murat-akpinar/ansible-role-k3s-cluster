@@ -1,0 +1,15 @@
+# Bu dosya Ansible tarafindan vars/main.yml'deki longhorn_storage_classes listesinden uretilir.
+# Elle duzenlemeyin; StorageClass'lari / replica sayilarini degiskenden yonetin.
+{% for sc in longhorn_storage_classes %}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ sc.name }}
+provisioner: driver.longhorn.io
+reclaimPolicy: {{ sc.reclaim }}
+parameters:
+  numberOfReplicas: "{{ sc.replicas }}"
+{% if not loop.last %}
+---
+{% endif %}
+{% endfor %}

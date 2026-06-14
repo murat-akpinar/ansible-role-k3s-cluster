@@ -129,7 +129,7 @@
 
 - name: Install MetalLB using Helm (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace -f {{ metallb_values_file }}
+    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace {{ ('--version ' ~ metallb_chart_version) if metallb_chart_version else '' }} -f {{ metallb_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -142,7 +142,7 @@
 
 - name: Install MetalLB using Helm (Single Master)
   ansible.builtin.command:
-    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace -f {{ metallb_values_file }}
+    cmd: helm install metallb metallb/metallb --namespace metallb-system --create-namespace {{ ('--version ' ~ metallb_chart_version) if metallb_chart_version else '' }} -f {{ metallb_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -164,6 +164,15 @@
     - inventory_hostname == 'master-1'
     - metallb_namespace_exists.rc != 0
     - (metallb_helm_release.stdout | default('') | trim) == ''
+
+- name: Render MetalLB IPAddressPool config from variables
+  ansible.builtin.template:
+    src: metallb-config.yml.j2
+    dest: "{{ user_home_directory }}/my-charts/metallb/metallb-config.yml"
+    owner: 1000
+    group: 1000
+    mode: '0644'
+  when: inventory_hostname == 'master-1'
 
 - name: Apply MetalLB ConfigMap
   ansible.builtin.command:

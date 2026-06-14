@@ -12,13 +12,15 @@
   set_fact:
     master_count: "{{ master_count | default(0) }}"
 
-- name: "Detect the primary network interface"
+- name: "Set Keepalived VRRP interface (override edilmemisse otomatik algila)"
   set_fact:
-    keepalived_network: "{{ ansible_default_ipv4.interface }}"
+    keepalived_network: "{{ keepalived_interface if (keepalived_interface | default('') | length > 0) else ansible_default_ipv4.interface }}"
 
-- name: "Debug detected network interface"
+- name: "Debug Keepalived network interface"
   debug:
-    msg: "Detected primary network interface: {{ keepalived_network }}"
+    msg: >-
+      Keepalived VRRP interface: {{ keepalived_network }}
+      ({{ 'manuel override' if (keepalived_interface | default('') | length > 0) else 'otomatik algilandi' }})
 
 - name: "Keepalived Debug Master Count"
   debug:

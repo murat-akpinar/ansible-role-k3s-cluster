@@ -7,8 +7,9 @@ metadata:
   namespace: monitoring
   annotations:
     cert-manager.io/issuer: "selfsigned-issuer"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
   - hosts:
     - grafana.homelab.local

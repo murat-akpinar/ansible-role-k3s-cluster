@@ -1,2 +1,4 @@
 collections:
   - name: community.general
+  # ansible.cfg'de callbacks_enabled (profile_tasks, timer) için gereklidir
+  - name: ansible.posix

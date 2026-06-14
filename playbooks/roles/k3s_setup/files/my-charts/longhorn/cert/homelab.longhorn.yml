@@ -5,8 +5,9 @@ metadata:
   namespace: longhorn-system
   annotations:
     cert-manager.io/issuer: "selfsigned-issuer"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
   - hosts:
     - longhorn.homelab.local

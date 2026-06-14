@@ -13,6 +13,7 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 - [Quick Start](#-quick-start)
 - [Detailed Installation](#-detailed-installation)
 - [Configuration](#-configuration)
+- [Security](#-security)
 - [Usage Examples](#-usage-examples)
 - [K3s Cluster Upgrade](#-k3s-cluster-upgrade)
 - [Adding Extra Nodes](#-adding-extra-nodes)
@@ -37,6 +38,7 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 - ✅ **Load Balancer**: Bare metal load balancing with MetalLB
 - ✅ **Ingress**: NGINX Ingress Controller
 - ✅ **Management**: Cluster management with Rancher
+- ✅ **GitOps**: Continuous delivery (CD) with ArgoCD
 
 ## 🔧 Prerequisites
 
@@ -46,8 +48,8 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 # Ansible must be installed (2.9+)
 ansible --version
 
-# Install required collection
-ansible-galaxy collection install community.general
+# Install required collections (community.general + ansible.posix)
+ansible-galaxy collection install -r collections/requirements.yml
 ```
 
 ### 2. SSH Access and Sudo Privileges
@@ -122,14 +124,14 @@ k3s_version: "v1.32.8+k3s1"  # For initial installation
 k3s_upgrade_version: "v1.32.9+k3s1"  # For upgrade (optional)
 
 # Specify which services to install
-helm_install: false
-traefik_uninstall: false
-ingress_install: true
+helm_install: true
+# Ingress: k3s bundled Traefik is used (no separate flag)
 metallb_install: true
 cert_manager_install: true
 longhorn_install: true
 grafana_install: true
 rancher_install: true
+argocd_install: true
 ```
 
 ### 3. Install Cluster
@@ -214,27 +216,27 @@ The following services are installed based on configuration:
 All configuration variables are found in `playbooks/roles/k3s_setup/vars/main.yml`:
 
 ```yaml
-# User and SSH
+# User (SSH key is NOT hardcoded in vars/main.yml — see the Security section)
 ansible_user: root
-ansible_ssh_private_key_file: /home/user/.ssh/homelab
 
 # Keepalived
 keepalived_vip: 192.168.1.244
-keepalived_auth_pass: P@ssw0rd123!
+# Password is read from Vault; falls back to the default if undefined (see Security section)
+keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
 
 # K3s Versions
 k3s_version: "v1.32.8+k3s1"
 k3s_upgrade_version: "v1.32.9+k3s1"  # Optional
 
 # Service Installations
-helm_install: false
-traefik_uninstall: false
-ingress_install: true
+helm_install: true
+# Ingress: k3s bundled Traefik (no separate flag)
 metallb_install: true
 cert_manager_install: true
 longhorn_install: true
 grafana_install: true
 rancher_install: true
+argocd_install: true
 ```
 
 ### Master/Worker Pod Distribution
@@ -247,6 +249,59 @@ Installation **automatically selects** values files based on master count:
 - **System Pods** (Prometheus, Alertmanager, Cert-Manager, Ingress, MetalLB Controller): Run on master nodes
 - **Application Pods** (Grafana): Run on worker nodes
 - **Storage Pods** (Longhorn): Run with master preferred, worker fallback strategy
+
+## 🔐 Security
+
+### SSH Private Key
+
+The SSH private key path is **not hardcoded in `vars/main.yml`** (personal/environment-specific paths should not be committed). Use one of three methods:
+
+```bash
+# 1) Command line (recommended)
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --key-file ~/.ssh/homelab
+```
+
+```yaml
+# 2) Group-level in inventory/cluster_inventory.yml
+all:
+  vars:
+    ansible_ssh_private_key_file: ~/.ssh/homelab
+```
+
+```sshconfig
+# 3) Per-host in ~/.ssh/config
+Host 192.168.1.*
+  IdentityFile ~/.ssh/homelab
+```
+
+### Secret Management with Ansible Vault
+
+Sensitive values (e.g. `keepalived_auth_pass`) should not be committed in plaintext. This role can read values via Ansible Vault:
+
+```bash
+# 1) Copy the example template
+cp inventory/group_vars/all/vault.yml.example inventory/group_vars/all/vault.yml
+
+# 2) Fill in the values (vault_keepalived_auth_pass, etc.) and encrypt
+ansible-vault encrypt inventory/group_vars/all/vault.yml
+
+# 3) Run the playbook with the vault password
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --ask-vault-pass
+#   or with a password file:
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --vault-password-file ~/.vault_pass
+```
+
+The definition in `vars/main.yml` prefers the Vault variable and falls back to the default if undefined:
+
+```yaml
+keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
+```
+
+> **Note**: The encrypted `inventory/group_vars/all/vault.yml` and `.vault_pass` files are excluded from commits via `.gitignore`. Only the `vault.yml.example` template is kept in the repo. For production, it is recommended to remove the default password and source it exclusively from Vault.
+
+### kubeconfig Access
+
+K3s creates the kubeconfig file (`/etc/rancher/k3s/k3s.yaml`) with `--write-kubeconfig-mode 644`, so the UID 1000 user on the master node can run `kubectl` via the `~/.kube/config` symlink.
 
 ## 💻 Usage Examples
 
@@ -292,6 +347,35 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 ```
 
 Access Grafana: `https://grafana.homelab.local` (with admin username)
+
+### Access ArgoCD
+
+To get the ArgoCD admin password:
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+Access ArgoCD: `https://argocd.homelab.local` (with admin username). The password is also shown in the `99_result.yml` summary output after installation.
+
+### Installing / Re-running a Single Component (Tags)
+
+If the cluster is already set up, you can run only a specific component with `--tags` (without running the whole playbook):
+
+```bash
+# Install/update Longhorn only
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags longhorn
+
+# Monitoring (Grafana/Prometheus) only
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitoring
+
+# Multiple components
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags "ingress,metallb"
+```
+
+Available tags: `traefik`, `helm`, `ingress`, `metallb`, `cert-manager`, `longhorn`, `grafana`/`monitoring`, `rancher`, `argocd`.
+
+> **Note**: Tagged runs assume the cluster is **already installed** (k3s, helm, etc. must be ready). For the initial installation, run the full playbook without tags.
 
 ## 🔄 K3s Cluster Upgrade
 
@@ -523,7 +607,7 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 
 | Component | Namespace | HA Replicas | Single Replicas | Node Preference |
 |-----------|-----------|-------------|-----------------|-----------------|
-| **Ingress-Nginx Controller** | ingress-nginx | 2 | 1 | Master |
+| **Traefik (k3s bundled)** | kube-system | 1 | 1 | k3s default |
 | **MetalLB Controller** | metallb-system | 1 | 1 | Master |
 | **MetalLB Speaker** | metallb-system | DaemonSet | DaemonSet | All Nodes |
 | **Cert-Manager Controller** | cert-manager | 2 | 1 | Master |
@@ -574,10 +658,10 @@ Add the following lines to your `/etc/hosts` file for local access:
 192.168.1.242    longhorn.homelab.local
 ```
 
-**Note**: The IP address (`192.168.1.242`) is the MetalLB LoadBalancer IP. To check the Ingress Controller service IP:
+**Note**: The IP address (`192.168.1.242`) is the MetalLB LoadBalancer IP. To check the Traefik Ingress service IP:
 
 ```bash
-kubectl get svc -n ingress-nginx ingress-nginx-controller
+kubectl get svc -n kube-system traefik
 ```
 
 ## 💾 Longhorn StorageClass
@@ -752,13 +836,11 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │           ├── meta
 │           ├── tasks
 │           │   ├── 00_system_requirements.yml
-│           │   ├── 00_traefik_uninstall.yml
 │           │   ├── 00_wellcome.yml
 │           │   ├── 01_configure_hostname.yml
 │           │   ├── 02_install_keepalived.yml
 │           │   ├── 03_install_k3s.yml
 │           │   ├── 04_install_helm.yml
-│           │   ├── 05_ingress_install.yml
 │           │   ├── 06_metallb_install.yml
 │           │   ├── 07_cert_manager_install.yml
 │           │   ├── 08_longhorn_install.yml

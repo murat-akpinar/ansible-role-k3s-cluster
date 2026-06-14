@@ -129,7 +129,7 @@
 
 - name: Install Cert-Manager Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ cert_manager_values_file }}
+    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -142,7 +142,7 @@
 
 - name: Install Cert-Manager Helm chart (Single Master)
   ansible.builtin.command:
-    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.13.1 --set installCRDs=true -f {{ cert_manager_values_file }}
+    cmd: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:

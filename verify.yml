@@ -1,0 +1,177 @@
+---
+# ============================================================================
+# verify.yml — K3s kurulum sonrası SAGLIK KONTROL checklist'i
+# ============================================================================
+# Salt-okunur kontroller calistirir (hicbir degisiklik yapmaz, changed_when:false).
+# Kurulumdan sonra cluster'in saglikli oldugunu dogrulamak icin kullanin.
+#
+# Calistirma:
+#   ansible-playbook -i inventory/cluster_inventory.yml verify.yml
+#
+# Kontrol edilenler:
+#   - Tum node'larda k3s / k3s-agent servisi aktif mi
+#   - Tum node'lar Ready durumda mi
+#   - Tum pod'lar Running/Succeeded durumda mi
+#   - Keepalived VIP erisilebilir mi
+#   - Etkin (vars/main.yml'de true) bilesenlerin namespace pod'lari saglikli mi
+#   - Ingress LoadBalancer IP atanmis mi
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# 1) Node seviyesi: k3s/k3s-agent systemd servisi aktif mi?
+# ----------------------------------------------------------------------------
+- name: Node seviyesi servis kontrolleri
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Beklenen k3s servis adini belirle
+      set_fact:
+        k3s_service_name: "{{ 'k3s' if 'master' in group_names else 'k3s-agent' }}"
+
+    - name: k3s servisinin durumunu kontrol et
+      command: "systemctl is-active {{ k3s_service_name }}"
+      register: k3s_service_status
+      changed_when: false
+      failed_when: false
+
+    - name: Servis durumunu raporla
+      debug:
+        msg: >-
+          {{ '[OK]  ' if k3s_service_status.stdout == 'active' else '[FAIL]' }}
+          {{ inventory_hostname }} — {{ k3s_service_name }}:
+          {{ k3s_service_status.stdout | default('unknown') }}
+
+# ----------------------------------------------------------------------------
+# 2) Cluster seviyesi: yalnizca ilk master uzerinde kubectl ile kontroller
+# ----------------------------------------------------------------------------
+- name: Cluster seviyesi saglik kontrolleri
+  hosts: master
+  become: true
+  gather_facts: false
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
+  tasks:
+    - name: Kontrolleri yalnizca ilk master uzerinde calistir
+      when: inventory_hostname == groups['master'][0]
+      block:
+        - name: UID 1000 passwd kaydini coz
+          command: getent passwd 1000
+          register: getent_passwd_output
+          changed_when: false
+
+        - name: kube kullanici ve home dizinini ayarla
+          set_fact:
+            kube_user: "{{ getent_passwd_output.stdout.split(':')[0] }}"
+            kube_home: "{{ getent_passwd_output.stdout.split(':')[5] }}"
+
+        - name: Keepalived VIP erisilebilirligini kontrol et
+          command: "ping -c 2 -W 2 {{ keepalived_vip }}"
+          register: vip_ping
+          changed_when: false
+          failed_when: false
+
+        # --- kubectl tabanli kontroller (uid 1000 + KUBECONFIG ile) ---
+        - name: kubectl tabanli cluster kontrolleri
+          become: true
+          become_user: "{{ kube_user }}"
+          environment:
+            KUBECONFIG: "{{ kube_home }}/.kube/config"
+          vars:
+            components:
+              - { name: "Ingress (Traefik)",        ns: "kube-system",    selector: "app.kubernetes.io/name=traefik", enabled: true }
+              - { name: "MetalLB",                  ns: "metallb-system", enabled: "{{ metallb_install | default(false) }}" }
+              - { name: "cert-manager",             ns: "cert-manager",   enabled: "{{ cert_manager_install | default(false) }}" }
+              - { name: "Longhorn",                 ns: "longhorn-system", enabled: "{{ longhorn_install | default(false) }}" }
+              - { name: "Monitoring / Grafana",     ns: "monitoring",     enabled: "{{ grafana_install | default(false) }}" }
+              - { name: "Rancher",                  ns: "cattle-system",  enabled: "{{ rancher_install | default(false) }}" }
+              - { name: "ArgoCD",                   ns: "argocd",         enabled: "{{ argocd_install | default(false) }}" }
+          block:
+            - name: Ready olmayan node sayisini al
+              shell: 'kubectl get nodes --no-headers | grep -v " Ready " | wc -l'
+              register: not_ready_nodes
+              changed_when: false
+              failed_when: false
+
+            - name: Toplam node sayisini al
+              shell: "kubectl get nodes --no-headers | wc -l"
+              register: total_nodes
+              changed_when: false
+              failed_when: false
+
+            - name: Running olmayan pod sayisini al (tum namespace'ler)
+              shell: >
+                kubectl get pods -A
+                --field-selector=status.phase!=Running,status.phase!=Succeeded
+                --no-headers 2>/dev/null | wc -l
+              register: not_running_pods
+              changed_when: false
+              failed_when: false
+
+            - name: Traefik Ingress LoadBalancer IP'sini al
+              command: >
+                kubectl get svc -n kube-system traefik
+                -o jsonpath={.status.loadBalancer.ingress[0].ip}
+              register: ingress_lb_ip
+              changed_when: false
+              failed_when: false
+
+            - name: Etkin her bilesenin namespace pod sagligini kontrol et
+              shell: >
+                kubectl get pods -n {{ item.ns }}
+                {{ ('-l ' ~ item.selector) if (item.selector | default('')) else '' }}
+                --field-selector=status.phase!=Running,status.phase!=Succeeded
+                --no-headers 2>/dev/null | wc -l
+              loop: "{{ components | selectattr('enabled') | list }}"
+              loop_control:
+                label: "{{ item.name }}"
+              register: component_health
+              changed_when: false
+              failed_when: false
+
+        # --- Sonuclari checklist olarak topla ---
+        - name: Bilesen checklist satirlarini olustur
+          set_fact:
+            component_lines: >-
+              {{ component_lines | default([]) + [
+                   ('[OK]   ' if (item.stdout | int == 0) else '[FAIL] ')
+                   ~ item.item.name ~ ' (ns: ' ~ item.item.ns ~ ') — not-running pod: ' ~ item.stdout
+                 ] }}
+          loop: "{{ component_health.results | default([]) }}"
+          loop_control:
+            label: "{{ item.item.name }}"
+
+        - name: Checklist baslik ve cluster satirlarini olustur
+          set_fact:
+            report_lines:
+              - "======================================================================"
+              - "                K3s CLUSTER SAGLIK KONTROL (verify.yml)"
+              - "======================================================================"
+              - "{{ ('[OK]  ' if (not_ready_nodes.stdout | int == 0) else '[FAIL]') ~ ' Node Ready        — not-ready: ' ~ (not_ready_nodes.stdout | trim) ~ ' / toplam: ' ~ (total_nodes.stdout | trim) }}"
+              - "{{ ('[OK]  ' if (not_running_pods.stdout | int == 0) else '[FAIL]') ~ ' Pod Running       — not-running: ' ~ (not_running_pods.stdout | trim) }}"
+              - "{{ ('[OK]  ' if (vip_ping.rc == 0) else '[FAIL]') ~ ' Keepalived VIP    — ' ~ keepalived_vip }}"
+
+        - name: Bilesen satirlarini ekle
+          set_fact:
+            report_lines: "{{ report_lines + (component_lines | default([])) }}"
+
+        - name: Traefik LoadBalancer IP bilgisini ekle
+          set_fact:
+            report_lines: "{{ report_lines + ['Traefik LB IP     — ' ~ ((ingress_lb_ip.stdout | default('') | trim) | default('N/A (atanmamis)', true))] }}"
+
+        - name: Checklist alt bilgisini ekle
+          set_fact:
+            report_lines: "{{ report_lines + [
+                '======================================================================',
+                ('SONUC: TUM KONTROLLER BASARILI' if overall_ok else 'SONUC: BAZI KONTROLLER BASARISIZ — yukaridaki [FAIL] satirlarini inceleyin'),
+                '======================================================================'
+              ] }}"
+          vars:
+            overall_ok: "{{ (not_ready_nodes.stdout | int == 0)
+                            and (not_running_pods.stdout | int == 0)
+                            and (vip_ping.rc == 0)
+                            and ((component_health.results | default([]) | map(attribute='stdout') | map('int') | sum) == 0) }}"
+
+        - name: Saglik kontrol checklist'ini yazdir
+          debug:
+            msg: "{{ report_lines }}"

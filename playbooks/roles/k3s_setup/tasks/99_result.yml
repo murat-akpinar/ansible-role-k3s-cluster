@@ -16,14 +16,13 @@
     - "'master' in group_names" 
     - getent_passwd_output.stdout != ""
 
-- name: Get Ingress Controller LoadBalancer IP
-  command: kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+- name: Get Traefik Ingress LoadBalancer IP
+  command: kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
   register: ingress_lb_ip
   failed_when: false
   changed_when: false
-  when: 
+  when:
     - inventory_hostname == 'master-1'
-    - ingress_install | default(false)
 
 - name: Retrieve Longhorn URL
   set_fact:
@@ -90,39 +89,23 @@
     - argocd_install | default(false)
 
 
-- name: Display Ingress LoadBalancer IP
+- name: Display Installation Summary
   debug:
-    msg: "Ingress LoadBalancer IP: {{ ingress_lb_ip.stdout | default('N/A') }}"
-  when: 
+    msg: "{{ summary_lines | select() | list }}"
+  vars:
+    bar: "======================================================================"
+    summary_lines:
+      - "{{ bar }}"
+      - "                    K3s CLUSTER KURULUM OZETI"
+      - "{{ bar }}"
+      - "{{ 'Traefik  | LoadBalancer IP : ' ~ (ingress_lb_ip.stdout | default('N/A')) }}"
+      - "{{ ('Longhorn | ' ~ (longhorn_url | default('N/A'))) if (longhorn_install | default(false)) else '' }}"
+      - "{{ ('Rancher  | ' ~ (rancher_url | default('N/A')) ~ '  ->  admin / ' ~ (rancher_bootstrap_password.stdout | default('N/A'))) if (rancher_install | default(false)) else '' }}"
+      - "{{ ('Grafana  | ' ~ (grafana_url | default('N/A')) ~ '  ->  ' ~ (grafana_admin_user.stdout | default('admin')) ~ ' / ' ~ (grafana_admin_password.stdout | default('N/A'))) if (grafana_install | default(false)) else '' }}"
+      - "{{ ('ArgoCD   | ' ~ (argocd_url | default('N/A')) ~ '  ->  admin / ' ~ (argocd_admin_password.stdout | default('N/A'))) if (argocd_install | default(false)) else '' }}"
+      - "{{ bar }}"
+      - "Not: URL'lere erisim icin /etc/hosts dosyaniza MetalLB LoadBalancer IP'sini ekleyin."
+      - "{{ bar }}"
+  when:
     - inventory_hostname == 'master-1'
-    - ingress_install | default(false)
-
-- name: Display Longhorn Information
-  debug:
-    msg: "LONGHORN - URL: {{ longhorn_url | default('N/A') }}"
-  when: 
-    - inventory_hostname == 'master-1'
-    - longhorn_install | default(false)
-
-- name: Display Rancher Information
-  debug:
-    msg: "RANCHER - URL: {{ rancher_url | default('N/A') }} | Username: admin | Password: {{ rancher_bootstrap_password.stdout | default('N/A') }}"
-  when: 
-    - inventory_hostname == 'master-1'
-    - rancher_install | default(false)
-
-- name: Display Grafana Information
-  debug:
-    msg: "GRAFANA - URL: {{ grafana_url | default('N/A') }} | Username: {{ grafana_admin_user.stdout | default('admin') }} | Password: {{ grafana_admin_password.stdout | default('N/A') }}"
-  when: 
-    - inventory_hostname == 'master-1'
-    - grafana_install | default(false)
-
-- name: Display ArgoCD Information
-  debug:
-    msg: "ARGOCD - URL: {{ argocd_url | default('N/A') }} | Username: admin | Password: {{ argocd_admin_password.stdout | default('N/A') }}"
-  when: 
-    - inventory_hostname == 'master-1'
-    - argocd_install | default(false)
-
 

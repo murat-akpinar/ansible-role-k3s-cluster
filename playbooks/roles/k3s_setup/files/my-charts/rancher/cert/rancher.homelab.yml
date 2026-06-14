@@ -5,9 +5,11 @@ metadata:
   namespace: cattle-system
   annotations:
     cert-manager.io/issuer: "selfsigned-issuer"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    # Traefik: backend HTTPS konusur (rancher 443) + websecure entrypoint
+    traefik.ingress.kubernetes.io/service.serversscheme: "https"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
   - hosts:
     - rancher.homelab.local

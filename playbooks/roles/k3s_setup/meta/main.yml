@@ -1,0 +1,33 @@
+---
+galaxy_info:
+  role_name: k3s_setup
+  namespace: murat_akpinar
+  author: Murat AKPINAR
+  description: >-
+    HA ve Single Master modlarını destekleyen, Keepalived VIP yönetimli
+    K3s tabanlı Kubernetes cluster kurulum rolü. Ingress-nginx, MetalLB,
+    cert-manager, Longhorn, kube-prometheus-stack, Rancher ve ArgoCD
+    bileşenlerini opsiyonel olarak kurar.
+  license: MIT
+  min_ansible_version: "2.9"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+    - name: EL
+      versions:
+        - "9"
+  galaxy_tags:
+    - k3s
+    - kubernetes
+    - k8s
+    - cluster
+    - keepalived
+    - ha
+    - homelab
+
+dependencies: []

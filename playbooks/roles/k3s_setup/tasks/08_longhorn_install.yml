@@ -129,7 +129,7 @@
 
 - name: Install Longhorn Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ longhorn_values_file }}
+    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace {{ ('--version ' ~ longhorn_chart_version) if longhorn_chart_version else '' }} -f {{ longhorn_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -142,7 +142,7 @@
 
 - name: Install Longhorn Helm chart (Single Master)
   ansible.builtin.command:
-    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace -f {{ longhorn_values_file }}
+    cmd: helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace {{ ('--version ' ~ longhorn_chart_version) if longhorn_chart_version else '' }} -f {{ longhorn_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -164,6 +164,17 @@
     - longhorn_namespace_exists.rc != 0
     - (longhorn_helm_release.stdout | default('') | trim) == ''
 
+- name: Render Longhorn StorageClasses from variables
+  ansible.builtin.template:
+    src: longhorn-storageclass.yml.j2
+    dest: "{{ user_home_directory }}/my-charts/longhorn/storageclass.yml"
+    owner: 1000
+    group: 1000
+    mode: '0644'
+  when:
+    - inventory_hostname == 'master-1'
+    - longhorn_namespace_exists.rc != 0
+
 - name: Apply Longhorn StorageClass
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/storageclass.yml
@@ -171,7 +182,7 @@
   become_user: "{{ uid_1000_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  when:
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
 

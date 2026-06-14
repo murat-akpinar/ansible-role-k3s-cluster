@@ -13,6 +13,7 @@ Bu Ansible rolü, **K3S** tabanlı Kubernetes cluster kurulumunu otomatikleştir
 - [Hızlı Başlangıç](#-hızlı-başlangıç)
 - [Detaylı Kurulum](#-detaylı-kurulum)
 - [Yapılandırma](#-yapılandırma)
+- [Güvenlik](#-güvenlik)
 - [Kullanım Örnekleri](#-kullanım-örnekleri)
 - [K3s Cluster Upgrade](#-k3s-cluster-upgrade)
 - [Extra Node Ekleme](#-extra-node-ekleme)
@@ -37,6 +38,7 @@ Bu Ansible rolü, **K3S** tabanlı Kubernetes cluster kurulumunu otomatikleştir
 - ✅ **Load Balancer**: MetalLB ile bare metal load balancing
 - ✅ **Ingress**: NGINX Ingress Controller
 - ✅ **Management**: Rancher ile cluster yönetimi
+- ✅ **GitOps**: ArgoCD ile sürekli dağıtım (CD)
 
 ## 🔧 Önkoşullar
 
@@ -46,8 +48,8 @@ Bu Ansible rolü, **K3S** tabanlı Kubernetes cluster kurulumunu otomatikleştir
 # Ansible yüklü olmalı (2.9+)
 ansible --version
 
-# Gerekli collection'ı yükleyin
-ansible-galaxy collection install community.general
+# Gerekli collection'ları yükleyin (community.general + ansible.posix)
+ansible-galaxy collection install -r collections/requirements.yml
 ```
 
 ### 2. SSH Erişimi ve Sudo Yetkisi
@@ -122,14 +124,14 @@ k3s_version: "v1.32.8+k3s1"  # İlk kurulum için
 k3s_upgrade_version: "v1.32.9+k3s1"  # Upgrade için (opsiyonel)
 
 # Hangi servisleri kurmak istediğinizi belirtin
-helm_install: false
-traefik_uninstall: false
-ingress_install: true
+helm_install: true
+# Ingress: k3s ile gelen gömülü Traefik kullanılır (ayrı flag yok)
 metallb_install: true
 cert_manager_install: true
 longhorn_install: true
 grafana_install: true
 rancher_install: true
+argocd_install: true
 ```
 
 ### 3. Cluster'ı Kurun
@@ -213,27 +215,27 @@ Yapılandırmaya göre şu servisler kurulur:
 `playbooks/roles/k3s_setup/vars/main.yml` dosyasında tüm yapılandırma değişkenleri bulunur:
 
 ```yaml
-# Kullanıcı ve SSH
+# Kullanıcı (SSH key vars/main.yml'de SABİT TANIMLANMAZ — bkz. Güvenlik bölümü)
 ansible_user: root
-ansible_ssh_private_key_file: /home/user/.ssh/homelab
 
 # Keepalived
 keepalived_vip: 192.168.1.244
-keepalived_auth_pass: P@ssw0rd123!
+# Parola Vault'tan gelir; tanımlı değilse varsayılana düşer (bkz. Güvenlik bölümü)
+keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
 
 # K3s Versiyonları
 k3s_version: "v1.32.8+k3s1"
 k3s_upgrade_version: "v1.32.9+k3s1"  # Opsiyonel
 
 # Servis Kurulumları
-helm_install: false
-traefik_uninstall: false
-ingress_install: true
+helm_install: true
+# Ingress: k3s gömülü Traefik (ayrı flag yok)
 metallb_install: true
 cert_manager_install: true
 longhorn_install: true
 grafana_install: true
 rancher_install: true
+argocd_install: true
 ```
 
 ### Master/Worker Pod Dağılımı
@@ -247,6 +249,59 @@ Kurulum, **master sayısına göre otomatik olarak** values dosyalarını seçer
 - **Application Pod'lar** (Grafana): Worker node'larda çalışır
 - **Storage Pod'lar** (Longhorn): Master preferred, worker fallback stratejisi ile çalışır
 
+## 🔐 Güvenlik
+
+### SSH Private Key
+
+SSH private key yolu **`vars/main.yml` içinde sabit tanımlanmaz** (kişisel/ortam-bağımlı yol repoya commit edilmemelidir). Üç yöntemden birini kullanın:
+
+```bash
+# 1) Komut satırı (önerilen)
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --key-file ~/.ssh/homelab
+```
+
+```yaml
+# 2) inventory/cluster_inventory.yml içinde grup düzeyinde
+all:
+  vars:
+    ansible_ssh_private_key_file: ~/.ssh/homelab
+```
+
+```sshconfig
+# 3) ~/.ssh/config içinde host bazlı
+Host 192.168.1.*
+  IdentityFile ~/.ssh/homelab
+```
+
+### Ansible Vault ile Secret Yönetimi
+
+Hassas değerler (örn. `keepalived_auth_pass`) düz metin olarak commit edilmemelidir. Bu role, değerleri Ansible Vault üzerinden okuyabilir:
+
+```bash
+# 1) Örnek şablonu kopyalayın
+cp inventory/group_vars/all/vault.yml.example inventory/group_vars/all/vault.yml
+
+# 2) Değerleri doldurun (vault_keepalived_auth_pass vb.) ve şifreleyin
+ansible-vault encrypt inventory/group_vars/all/vault.yml
+
+# 3) Playbook'u vault parolasıyla çalıştırın
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --ask-vault-pass
+#   veya parola dosyasıyla:
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --vault-password-file ~/.vault_pass
+```
+
+`vars/main.yml` içindeki tanım Vault değişkenini önceler, tanımlı değilse varsayılana düşer:
+
+```yaml
+keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
+```
+
+> **Not**: Şifrelenmiş `inventory/group_vars/all/vault.yml` ve `.vault_pass` dosyaları `.gitignore` ile commit'ten hariç tutulmuştur. Repoda yalnızca `vault.yml.example` şablonu tutulur. Production ortamlarında varsayılan parolayı kaldırıp yalnızca Vault'tan beslemeniz önerilir.
+
+### kubeconfig Erişimi
+
+K3s, kubeconfig dosyasını (`/etc/rancher/k3s/k3s.yaml`) `--write-kubeconfig-mode 644` ile oluşturur; böylece master node'daki UID 1000 kullanıcısı `~/.kube/config` symlink'i üzerinden `kubectl` çalıştırabilir.
+
 ## 💻 Kullanım Örnekleri
 
 ### Cluster Kurulumu
@@ -255,6 +310,25 @@ Kurulum, **master sayısına göre otomatik olarak** values dosyalarını seçer
 # Tüm node'larda kurulum
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml
 ```
+
+### Tek Bir Bileşeni Kurma / Yeniden Çalıştırma (Tags)
+
+Cluster zaten kuruluysa, yalnızca belirli bir bileşeni `--tags` ile çalıştırabilirsiniz (tüm playbook'u koşmadan):
+
+```bash
+# Sadece Longhorn'u kur/güncelle
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags longhorn
+
+# Sadece monitoring (Grafana/Prometheus) bileşenini
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitoring
+
+# Birden fazla bileşen
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags "ingress,metallb"
+```
+
+Kullanılabilir tag'ler: `traefik`, `helm`, `ingress`, `metallb`, `cert-manager`, `longhorn`, `grafana`/`monitoring`, `rancher`, `argocd`.
+
+> **Not**: Tag'li çalıştırmalar cluster'ın **zaten kurulu** olduğunu varsayar (k3s, helm vb. hazır olmalı). İlk kurulumda tam playbook'u tag'siz çalıştırın.
 
 ### Cluster Upgrade
 
@@ -305,6 +379,16 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 ```
 
 Grafana'ya erişim: `https://grafana.homelab.local` (admin kullanıcı adı ile)
+
+### ArgoCD'ye Erişim
+
+ArgoCD admin şifresini almak için:
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+ArgoCD'ye erişim: `https://argocd.homelab.local` (admin kullanıcı adı ile). Şifre kurulum sonrası `99_result.yml` özet çıktısında da gösterilir.
 
 ## 🔄 K3s Cluster Upgrade
 
@@ -521,7 +605,7 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 
 | Component | Namespace | HA Replicas | Single Replicas | Node Preference |
 |-----------|-----------|-------------|-----------------|-----------------|
-| **Ingress-Nginx Controller** | ingress-nginx | 2 | 1 | Master |
+| **Traefik (k3s gömülü)** | kube-system | 1 | 1 | k3s default |
 | **MetalLB Controller** | metallb-system | 1 | 1 | Master |
 | **MetalLB Speaker** | metallb-system | DaemonSet | DaemonSet | All Nodes |
 | **Cert-Manager Controller** | cert-manager | 2 | 1 | Master |
@@ -572,10 +656,10 @@ Yerel erişim için `/etc/hosts` dosyanıza şu satırları ekleyin:
 192.168.1.242    longhorn.homelab.local
 ```
 
-**Not**: IP adresi (`192.168.1.242`) MetalLB LoadBalancer IP'sidir. Ingress Controller servisinin IP'sini kontrol etmek için:
+**Not**: IP adresi (`192.168.1.242`) MetalLB LoadBalancer IP'sidir. Traefik Ingress servisinin IP'sini kontrol etmek için:
 
 ```bash
-kubectl get svc -n ingress-nginx ingress-nginx-controller
+kubectl get svc -n kube-system traefik
 ```
 
 ## 💾 Longhorn StorageClass
@@ -750,13 +834,11 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │           ├── meta
 │           ├── tasks
 │           │   ├── 00_system_requirements.yml
-│           │   ├── 00_traefik_uninstall.yml
 │           │   ├── 00_wellcome.yml
 │           │   ├── 01_configure_hostname.yml
 │           │   ├── 02_install_keepalived.yml
 │           │   ├── 03_install_k3s.yml
 │           │   ├── 04_install_helm.yml
-│           │   ├── 05_ingress_install.yml
 │           │   ├── 06_metallb_install.yml
 │           │   ├── 07_cert_manager_install.yml
 │           │   ├── 08_longhorn_install.yml

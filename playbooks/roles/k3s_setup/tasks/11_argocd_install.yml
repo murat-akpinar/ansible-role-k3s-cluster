@@ -127,9 +127,19 @@
     - (master_count | default(0) | int) < 3
   run_once: true
 
+- name: Debug selected ArgoCD values file
+  debug:
+    msg: >-
+      ArgoCD kurulum modu: {{ 'HA (3+ master)' if (master_count | default(0) | int) >= 3 else 'Single master (<3 master)' }}
+      — secilen values dosyasi: {{ argocd_values_file }}
+  when:
+    - "'master' in group_names"
+    - inventory_hostname == 'master-1'
+  run_once: true
+
 - name: Install ArgoCD Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install argocd argo/argo-cd --namespace argocd --create-namespace -f {{ argocd_values_file }}
+    cmd: helm install argocd argo/argo-cd --namespace argocd --create-namespace {{ ('--version ' ~ argocd_chart_version) if argocd_chart_version else '' }} -f {{ argocd_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -142,7 +152,7 @@
 
 - name: Install ArgoCD Helm chart (Single Master)
   ansible.builtin.command:
-    cmd: helm install argocd argo/argo-cd --namespace argocd --create-namespace -f {{ argocd_values_file }}
+    cmd: helm install argocd argo/argo-cd --namespace argocd --create-namespace {{ ('--version ' ~ argocd_chart_version) if argocd_chart_version else '' }} -f {{ argocd_values_file }}
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -193,10 +203,9 @@
   become_user: "{{ uid_1000_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  when:
     - inventory_hostname == 'master-1'
     - argocd_namespace_exists.rc != 0
-    - ingress_install | default(false)
     - cert_manager_install | default(false)
 
 - name: Apply argocd.homelab.local certificate

@@ -115,7 +115,7 @@
 
 - name: Install kube-prometheus-stack Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
+    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:
@@ -128,7 +128,7 @@
 
 - name: Install kube-prometheus-stack Helm chart (Single Master)
   ansible.builtin.command:
-    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-single-master.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
+    cmd: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-single-master.yml -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
   become: true
   become_user: "{{ uid_1000_user }}"
   environment:

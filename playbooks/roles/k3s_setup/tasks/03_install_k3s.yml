@@ -6,7 +6,6 @@
 - name: "Count the number of master nodes"
   set_fact:
     master_count: "{{ groups['master'] | length | int }}"
-  when: "'master' in group_names"
 
 - name: "Kubernetes Debug Master Count"
   debug:
@@ -42,8 +41,8 @@
         {% if k3s_version_env | default('') != '' %}
         export {{ k3s_version_env }}
         {% endif %}
-        curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
-      when: 
+        curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }} --write-kubeconfig-mode 644
+      when:
         - inventory_hostname == groups['master'][0]
         - k3s_first_master_status.rc != 0
       register: k3s_install_first_master
@@ -93,19 +92,21 @@
       shell: |
         export K3S_TOKEN="{{ k3s_token }}"
         export K3S_URL="https://{{ keepalived_vip }}:6443"
-        export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }}"
+        export INSTALL_K3S_EXEC="server --server $K3S_URL --tls-san {{ keepalived_vip }} --write-kubeconfig-mode 644"
         {% if k3s_version_env | default('') != '' %}
         export {{ k3s_version_env }}
         {% endif %}
         curl -sfL {{ k3s_install_url }} | sh -
-      when: 
-        - inventory_hostname != groups['master'][0] 
+      when:
+        - inventory_hostname != groups['master'][0]
         - "'master' in group_names"
         - (master_count | int) >= 3
         - k3s_additional_master_status.rc != 0
       register: join_additional_master
       become: true
-      ignore_errors: true
+      retries: 3
+      delay: 15
+      until: join_additional_master is succeeded
 
     - name: Ensure K3s is enabled and running on additional master nodes
       ansible.builtin.systemd:
@@ -162,8 +163,8 @@
         {% if k3s_version_env | default('') != '' %}
         export {{ k3s_version_env }}
         {% endif %}
-        curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }}
-      when: 
+        curl -sfL {{ k3s_install_url }} | sh -s - server --cluster-init --tls-san {{ keepalived_vip }} --write-kubeconfig-mode 644
+      when:
         - inventory_hostname == groups['master'][0]
         - k3s_single_master_status.rc != 0
       register: k3s_install_single_master
@@ -243,7 +244,8 @@
 - name: Check K3s service status on master nodes
   shell: systemctl status k3s | grep -E 'Active:|Main PID:'
   register: k3s_service_status
-  ignore_errors: true
+  changed_when: false
+  failed_when: false
   become: true
   when: "'master' in group_names"
 
@@ -255,7 +257,8 @@
 - name: Check K3s agent service status on worker nodes
   shell: systemctl status k3s-agent | grep -E 'Active:|Main PID:'
   register: k3s_agent_service_status
-  ignore_errors: true
+  changed_when: false
+  failed_when: false
   become: true
   when: "'worker' in group_names"
 
@@ -304,10 +307,4 @@
     line: 'export KUBECONFIG="/home/{{ uid_1000_user }}/.kube/config"'
     state: present
   when: "'master' in group_names and uid_1000_user is defined"
-
-- name: Source .bashrc to apply changes
-  shell: source /home/{{ uid_1000_user }}/.bashrc
-  when: "'master' in group_names and uid_1000_user is defined"
-  args:
-    executable: /bin/bash
 

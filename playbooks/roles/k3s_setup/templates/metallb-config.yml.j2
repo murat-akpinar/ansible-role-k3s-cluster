@@ -1,0 +1,21 @@
+# Bu dosya Ansible tarafindan vars/main.yml'deki degiskenlerden uretilir.
+# Elle duzenlemeyin; degisiklik icin metallb_ip_addresses / metallb_ip_pool_name guncelleyin.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: {{ metallb_ip_pool_name }}
+  namespace: metallb-system
+spec:
+  addresses:
+{% for addr in metallb_ip_addresses %}
+  - {{ addr }}
+{% endfor %}
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: l2advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - {{ metallb_ip_pool_name }}

@@ -1,9 +1,12 @@
 ansible_user: root
 keepalived_auth_pass: P@ssw0rd123!
 keepalived_vip: 192.168.1.244
+# Keepalived VRRP interface'i. Bos birakilirsa otomatik algilanir (ansible_default_ipv4.interface).
+# Farkli dagitimlarda eth0, ens3, ens18 vb. olabilir; otomatik algilama yanlis arabirimi
+# secerse asagiya sabit deger yazarak override edebilirsiniz (or: "eth0").
+keepalived_interface: ""
 helm_install: true
-traefik_uninstall: true
-ingress_install: true
+# Ingress controller: k3s ile gelen gomulu Traefik kullanilir (ayri kurulum/disable yok).
 metallb_install: true
 cert_manager_install: true
 longhorn_install: true
@@ -21,7 +24,6 @@ k3s_upgrade_version: ""  # Upgrade için kullanılacak versiyon (örnek: "v1.32.
 helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 
 # Helm Repository URLs
-helm_repo_ingress_nginx: https://kubernetes.github.io/ingress-nginx
 helm_repo_metallb: https://metallb.github.io/metallb
 helm_repo_cert_manager: https://charts.jetstack.io
 helm_repo_longhorn: https://charts.longhorn.io
@@ -31,6 +33,39 @@ helm_repo_argo: https://argoproj.github.io/argo-helm
 
 # Internal Service URLs
 prometheus_data_url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+
+# ============================================================================
+# Helm Chart Versions
+# ============================================================================
+# Bos birakilirsa repodaki EN SON surum kurulur. Tekrar uretilebilir (reproducible)
+# kurulum icin surumu sabitleyin (or: "v1.13.1" veya "4.7.1").
+metallb_chart_version: ""
+cert_manager_chart_version: "v1.13.1"   # onceden koda gomuluydu, varsayilan korundu
+longhorn_chart_version: ""
+kube_prometheus_stack_chart_version: ""
+argocd_chart_version: ""
+
+# ============================================================================
+# MetalLB IP Adres Havuzu (LoadBalancer servisleri icin)
+# ============================================================================
+# Birden fazla aralik/CIDR ekleyebilirsiniz (or: "192.168.1.240-192.168.1.250"
+# veya "192.168.1.0/24"). metallb-config.yml bu degerlerden uretilir.
+metallb_ip_pool_name: "first-pool"
+metallb_ip_addresses:
+  - "192.168.1.242-192.168.1.242"
+
+# ============================================================================
+# Longhorn StorageClass'lari
+# ============================================================================
+# Her giris bir StorageClass uretir. reclaim: Retain|Delete, replicas: replica sayisi.
+# Liste tamamen ozellestirilebilir; replica sayilarini buradan yonetin.
+longhorn_storage_classes:
+  - { name: "longhorn-retain-1", reclaim: "Retain", replicas: 1 }
+  - { name: "longhorn-retain-2", reclaim: "Retain", replicas: 2 }
+  - { name: "longhorn-retain-3", reclaim: "Retain", replicas: 3 }
+  - { name: "longhorn-delete-1", reclaim: "Delete", replicas: 1 }
+  - { name: "longhorn-delete-2", reclaim: "Delete", replicas: 2 }
+  - { name: "longhorn-delete-3", reclaim: "Delete", replicas: 3 }
 
 # NTP Configuration
 ntp_server: time.google.com
