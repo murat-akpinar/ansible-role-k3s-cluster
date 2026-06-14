@@ -4,9 +4,11 @@ metadata:
   name: rancher-ingress
   namespace: cattle-system
   annotations:
-    cert-manager.io/issuer: "selfsigned-issuer"
-    # Traefik: backend HTTPS konusur (rancher 443) + websecure entrypoint
-    traefik.ingress.kubernetes.io/service.serversscheme: "https"
+    # TLS secret'i (rancher-homelab-tls) explicit Certificate kaynagi uretir; ingress tls.secretName ile kullanir.
+    # Traefik: TLS'i Traefik sonlandirir, backend ile HTTP/80 konusur.
+    # Rancher, websecure entrypoint'inden gelen X-Forwarded-Proto: https sayesinde
+    # redirect yapmaz. (Backend HTTPS/443 + serversscheme=https denenince Traefik
+    # rancher'in self-signed sertifikasini dogrulayamayip 500 Internal Server Error verir.)
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
 spec:
   ingressClassName: traefik
@@ -24,5 +26,5 @@ spec:
           service:
             name: rancher
             port:
-              number: 443
+              number: 80
 

@@ -36,7 +36,7 @@ Bu Ansible rolü, **K3S** tabanlı Kubernetes cluster kurulumunu otomatikleştir
 - ✅ **Monitoring**: Prometheus + Grafana + Alertmanager
 - ✅ **Storage**: Longhorn ile distributed block storage
 - ✅ **Load Balancer**: MetalLB ile bare metal load balancing
-- ✅ **Ingress**: NGINX Ingress Controller
+- ✅ **Ingress**: k3s gömülü Traefik Ingress Controller
 - ✅ **Management**: Rancher ile cluster yönetimi
 - ✅ **GitOps**: ArgoCD ile sürekli dağıtım (CD)
 
@@ -200,8 +200,7 @@ Helm, Kubernetes paket yöneticisi olarak kurulur (eğer `helm_install: true` is
 ### Adım 7: Servis Kurulumları
 
 Yapılandırmaya göre şu servisler kurulur:
-- **Traefik Kaldırma**: Varsayılan Traefik ingress kaldırılır
-- **NGINX Ingress**: Ingress controller kurulur
+- **Ingress**: k3s ile gelen gömülü Traefik ingress controller kullanılır
 - **MetalLB**: Load balancer kurulur
 - **Cert-Manager**: SSL/TLS sertifika yönetimi
 - **Longhorn**: Distributed block storage
@@ -587,7 +586,7 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 
 | Component | HA (3+ Masters) | Single Master |
 |-----------|----------------|---------------|
-| **Ingress-Nginx** | 2 replicas | 1 replica |
+| **Traefik (k3s gömülü)** | k3s tarafından yönetilir | k3s tarafından yönetilir |
 | **Cert-Manager Controller** | 2 replicas | 1 replica |
 | **Cert-Manager Webhook** | 3 replicas | 1 replica |
 | **Cert-Manager CA Injector** | 2 replicas | 1 replica |

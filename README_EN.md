@@ -36,7 +36,7 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 - ✅ **Monitoring**: Prometheus + Grafana + Alertmanager
 - ✅ **Storage**: Distributed block storage with Longhorn
 - ✅ **Load Balancer**: Bare metal load balancing with MetalLB
-- ✅ **Ingress**: NGINX Ingress Controller
+- ✅ **Ingress**: k3s built-in Traefik Ingress Controller
 - ✅ **Management**: Cluster management with Rancher
 - ✅ **GitOps**: Continuous delivery (CD) with ArgoCD
 
@@ -201,8 +201,7 @@ Helm is installed as the Kubernetes package manager (if `helm_install: true`).
 ### Step 7: Service Installations
 
 The following services are installed based on configuration:
-- **Traefik Removal**: Default Traefik ingress is removed
-- **NGINX Ingress**: Ingress controller is installed
+- **Ingress**: k3s built-in Traefik ingress controller is used
 - **MetalLB**: Load balancer is installed
 - **Cert-Manager**: SSL/TLS certificate management
 - **Longhorn**: Distributed block storage
@@ -589,7 +588,7 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 
 | Component | HA (3+ Masters) | Single Master |
 |-----------|----------------|---------------|
-| **Ingress-Nginx** | 2 replicas | 1 replica |
+| **Traefik (k3s built-in)** | managed by k3s | managed by k3s |
 | **Cert-Manager Controller** | 2 replicas | 1 replica |
 | **Cert-Manager Webhook** | 3 replicas | 1 replica |
 | **Cert-Manager CA Injector** | 2 replicas | 1 replica |

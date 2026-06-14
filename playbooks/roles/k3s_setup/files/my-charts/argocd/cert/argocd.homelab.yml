@@ -5,8 +5,8 @@ metadata:
   name: argocd
   namespace: argocd
   annotations:
-    cert-manager.io/issuer: "selfsigned-issuer"
-    # Traefik: yalnizca websecure (443) entrypoint'inde yayinla; backend HTTP (varsayilan)
+    # TLS secret'i (argocd-tls) explicit Certificate kaynagi uretir; ingress tls.secretName ile kullanir.
+    # Traefik: yalnizca websecure (443) entrypoint'inde yayinla; backend HTTP (argocd server.insecure=true)
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
 spec:
   ingressClassName: traefik

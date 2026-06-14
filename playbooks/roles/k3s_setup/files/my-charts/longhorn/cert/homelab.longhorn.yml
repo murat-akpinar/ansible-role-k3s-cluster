@@ -4,7 +4,7 @@ metadata:
   name: longhorn
   namespace: longhorn-system
   annotations:
-    cert-manager.io/issuer: "selfsigned-issuer"
+    # TLS secret'i (homelab-longhorn-tls) explicit Certificate kaynagi uretir; ingress tls.secretName ile kullanir.
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
 spec:
   ingressClassName: traefik

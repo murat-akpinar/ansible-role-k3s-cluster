@@ -6,7 +6,7 @@ metadata:
   name: grafana
   namespace: monitoring
   annotations:
-    cert-manager.io/issuer: "selfsigned-issuer"
+    # TLS secret'i (grafana-tls) explicit Certificate kaynagi uretir; ingress tls.secretName ile kullanir.
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
 spec:
   ingressClassName: traefik

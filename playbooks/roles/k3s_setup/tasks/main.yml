@@ -4,10 +4,20 @@
 # - name: "System requirements Check"
 #   ansible.builtin.import_tasks: 00_system_requirements.yml
 
-- name: "Ensure acl package is installed (required for become to unprivileged user)"
+- name: "Ensure prerequisite packages are installed (acl + Longhorn storage deps)"
   ansible.builtin.package:
-    name: acl
+    name:
+      - acl            # become (unprivileged user) icin gerekli; yoksa metallb/helm task'lari setfacl hatasi verir
+      - open-iscsi     # Longhorn zorunlu bagimliligi; her node'da olmali yoksa volume attach olmaz
+      - nfs-common     # Longhorn RWX (ReadWriteMany) volume'lari icin
     state: present
+  become: true
+
+- name: "Ensure iscsid service is enabled and running (Longhorn icin)"
+  ansible.builtin.systemd:
+    name: iscsid
+    enabled: true
+    state: started
   become: true
 
 - name: "Configure Hostname"
