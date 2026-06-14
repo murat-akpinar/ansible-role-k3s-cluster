@@ -170,6 +170,6 @@
   become: true
   become_user: "{{ uid_user }}"
   environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"  
-  when: 
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
     - inventory_hostname == 'master-1'

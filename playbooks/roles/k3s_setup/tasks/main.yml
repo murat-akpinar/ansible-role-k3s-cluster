@@ -35,8 +35,39 @@
 - name: "Install and Configure keepalived"
   ansible.builtin.import_tasks: 02_install_keepalived.yml
 
-- name: "Install k3s" 
+- name: "Install k3s"
   ansible.builtin.import_tasks: 03_install_k3s.yml
+
+# Merkezi "API hazir mi" kapisi: k3s kurulumundan sonra, Helm/kubectl kullanan
+# tum rollerden (cert-manager, longhorn, grafana, rancher, argocd...) once calisir.
+# HA/etcd isinma veya apiserver restart penceresinde olusan 503 / connection refused
+# hatalarini burada bir kez bekleyerek onler. Roller artik kendi beklemelerini icermez.
+- name: "Wait for Kubernetes API server to be ready"
+  ansible.builtin.command:
+    cmd: kubectl get --raw=/readyz
+  register: k8s_api_ready
+  until: k8s_api_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  failed_when: false
+  become: true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when:
+    - "'master' in group_names"
+    - inventory_hostname == groups['master'][0]
+
+- name: "Fail if Kubernetes API server did not become ready"
+  ansible.builtin.fail:
+    msg: >-
+      Kubernetes API sunucusu beklenen surede ({{ 30 * 10 }} sn) hazir olmadi
+      (son cikti: {{ k8s_api_ready.stdout | default('') }}{{ k8s_api_ready.stderr | default('') }}).
+      Sonraki kurulum adimlari durduruldu.
+  when:
+    - "'master' in group_names"
+    - inventory_hostname == groups['master'][0]
+    - k8s_api_ready.rc != 0
 
 - name: "Wellcome Message"
   ansible.builtin.import_tasks: 00_wellcome.yml
