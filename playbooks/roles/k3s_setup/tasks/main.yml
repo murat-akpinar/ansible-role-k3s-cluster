@@ -1,8 +1,14 @@
 # Main tasks for k3s setup
 ---
 
-# - name: "System requirements Check" 
+# - name: "System requirements Check"
 #   ansible.builtin.import_tasks: 00_system_requirements.yml
+
+- name: "Ensure acl package is installed (required for become to unprivileged user)"
+  ansible.builtin.package:
+    name: acl
+    state: present
+  become: true
 
 - name: "Configure Hostname"
   ansible.builtin.import_tasks: 01_configure_hostname.yml
