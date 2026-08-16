@@ -22,7 +22,7 @@
       VIP        {{ keepalived_vip | default('-') }}
 
   » COMPONENTS
-      [{{ 'x' if helm_install        | default(false) else ' ' }}] Helm           [x] Traefik (ingress)
+      [{{ 'x' if helm_install        | default(false) else ' ' }}] Helm           [x] Traefik (Gateway API)
       [{{ 'x' if metallb_install     | default(false) else ' ' }}] MetalLB        [{{ 'x' if cert_manager_install | default(false) else ' ' }}] cert-manager
       [{{ 'x' if longhorn_install    | default(false) else ' ' }}] Longhorn       [{{ 'x' if grafana_install      | default(false) else ' ' }}] Monitoring (Prometheus/Grafana)
       [{{ 'x' if rancher_install     | default(false) else ' ' }}] Rancher        [{{ 'x' if argocd_install       | default(false) else ' ' }}] ArgoCD

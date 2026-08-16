@@ -38,7 +38,7 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 - ✅ **Monitoring**: Prometheus + Grafana + Alertmanager
 - ✅ **Storage**: Distributed block storage with Longhorn
 - ✅ **Load Balancer**: Bare metal load balancing with MetalLB
-- ✅ **Ingress**: k3s built-in Traefik Ingress Controller
+- ✅ **Gateway API**: Gateway API via the k3s built-in Traefik (no Ingress resources)
 - ✅ **Management**: Cluster management with Rancher
 - ✅ **GitOps**: Continuous delivery (CD) with ArgoCD
 
@@ -71,7 +71,7 @@ through this VIP. MetalLB hands out IPs for LoadBalancer services.
    │ app pods │   │ app pods │     │ app pods │      │ app pods │
    └──────────┘   └──────────┘     └──────────┘      └──────────┘
 
-   MetalLB IP pool: 192.168.1.242 (Traefik Ingress → *.homelab.local)
+   MetalLB IP pool: 192.168.1.242 (Traefik Gateway → *.homelab.local)
 ```
 
 - **VIP (Keepalived)**: If the active master fails, VRRP moves the VIP to another master; API access is not interrupted.
@@ -199,7 +199,7 @@ k3s_upgrade_version: "v1.32.9+k3s1"  # For upgrade (optional)
 
 # Specify which services to install
 helm_install: true
-# Ingress: k3s bundled Traefik is used (no separate flag)
+# L7 routing: k3s bundled Traefik + Gateway API (no separate flag)
 metallb_install: true
 cert_manager_install: true
 longhorn_install: true
@@ -275,7 +275,7 @@ Helm is installed as the Kubernetes package manager (if `helm_install: true`).
 ### Step 7: Service Installations
 
 The following services are installed based on configuration:
-- **Ingress**: k3s built-in Traefik ingress controller is used
+- **Gateway API**: CRDs are installed and the built-in Traefik's Gateway provider is enabled
 - **MetalLB**: Load balancer is installed
 - **Cert-Manager**: SSL/TLS certificate management
 - **Longhorn**: Distributed block storage
@@ -306,7 +306,7 @@ k3s_upgrade_version: "v1.32.9+k3s1"  # Optional
 
 # Service Installations
 helm_install: true
-# Ingress: k3s bundled Traefik (no separate flag)
+# L7 routing: k3s bundled Traefik + Gateway API (no separate flag)
 metallb_install: true
 cert_manager_install: true
 longhorn_install: true
@@ -322,7 +322,7 @@ Installation **automatically selects** values files based on master count:
 - **1 Master (Single)**: `values-single-master.yml` files are used
 
 **Pod Distribution Strategy:**
-- **System Pods** (Prometheus, Alertmanager, Cert-Manager, Ingress, MetalLB Controller): Run on master nodes
+- **System Pods** (Prometheus, Alertmanager, Cert-Manager, Traefik, MetalLB Controller): Run on master nodes
 - **Application Pods** (Grafana): Run on worker nodes
 - **Storage Pods** (Longhorn): Run with master preferred, worker fallback strategy
 
@@ -446,10 +446,10 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags longhor
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitoring
 
 # Multiple components
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags "ingress,metallb"
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags "gateway-api,metallb"
 ```
 
-Available tags: `traefik`, `helm`, `ingress`, `metallb`, `cert-manager`, `longhorn`, `grafana`/`monitoring`, `rancher`, `argocd`.
+Available tags: `helm`, `gateway-api`, `metallb`, `cert-manager`, `longhorn`, `grafana`/`monitoring`, `rancher`, `argocd`.
 
 > **Note**: Tagged runs assume the cluster is **already installed** (k3s, helm, etc. must be ready). For the initial installation, run the full playbook without tags.
 
@@ -700,28 +700,29 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 
 ## 🔐 SSL/TLS Certificates
 
-SSL/TLS certificates for all services are automatically managed by `cert-manager`. Certificate files are kept in separate directories:
+All services share a **single wildcard certificate**, issued and renewed automatically by `cert-manager`.
 
-### Grafana
-- **Directory**: `files/my-charts/grafana/cert/`
+### Wildcard certificate + shared Gateway
+- **Directory**: `files/my-charts/gateway/`
 - **Files**:
-  - `homelab.grafana.yml` - Ingress
-  - `homelab-grafana-certificate.yml` - Certificate
-- **Domain**: `grafana.homelab.local`
+  - `wildcard-certificate.yml` — `*.homelab.local` Certificate (ns: `kube-system`, secret: `homelab-wildcard-tls`)
+  - `gateway.yml` — `kube-system/homelab` Gateway, HTTPS listener, `allowedRoutes.namespaces.from: All`
+- The certificate lives in the same namespace as the Gateway, so `certificateRefs` is not cross-namespace and **no ReferenceGrant is required**.
 
-### Longhorn
-- **Directory**: `files/my-charts/longhorn/cert/`
-- **Files**:
-  - `homelab.longhorn.yml` - Ingress
-  - `homelab-longhorn-certificate.yml` - Certificate
-- **Domain**: `longhorn.homelab.local`
+### Service routing (HTTPRoute)
 
-### Rancher
-- **Directory**: `files/my-charts/rancher/cert/`
-- **Files**:
-  - `rancher.homelab.yml` - Ingress
-  - `rancher-homelab-certificate.yml` - Certificate
-- **Domain**: `rancher.homelab.local`
+Each service attaches to the shared Gateway with an `HTTPRoute` in its own namespace:
+
+| Service | File | Namespace | Domain |
+|---|---|---|---|
+| Grafana | `files/my-charts/grafana/httproute.yml` | `monitoring` | `grafana.homelab.local` |
+| Longhorn | `files/my-charts/longhorn/httproute.yml` | `longhorn-system` | `longhorn.homelab.local` |
+| Rancher | `files/my-charts/rancher/httproute.yml` | `cattle-system` | `rancher.homelab.local` |
+| ArgoCD | `files/my-charts/argocd/httproute.yml` | `argocd` | `argocd.homelab.local` |
+
+Publishing a new service needs no new certificate — the wildcard already covers it, just add an `HTTPRoute`.
+
+> **Careful**: the listener port in `gateway.yml` is **8443**, not 443. That is Traefik's `websecure` **entryPoint** port; the Traefik Service exposes it externally as 443. Using 443 there matches no entryPoint and leaves the Gateway `Programmed=False`.
 
 ### Hosts File Configuration
 
@@ -734,10 +735,10 @@ Add the following lines to your `/etc/hosts` file for local access:
 192.168.1.242    longhorn.homelab.local
 ```
 
-**Note**: The IP address (`192.168.1.242`) is the MetalLB LoadBalancer IP. To check the Traefik Ingress service IP:
+**Note**: The IP address (`192.168.1.242`) is the MetalLB LoadBalancer IP. To check the address assigned to the Gateway:
 
 ```bash
-kubectl get svc -n kube-system traefik
+kubectl get gateway -n kube-system homelab
 ```
 
 ## 💾 Longhorn StorageClass
@@ -867,75 +868,107 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 ## 📁 Structure
 
 ```bash
-├── ansible.cfg
 ├── collections
 │   └── requirements.yml
-├── hosts
 ├── inventory
 │   └── cluster_inventory.yml
-├── LICENSE
 ├── playbooks
 │   └── roles
-│       └── k3s_setup
-│           ├── files
-│           │   └── my-charts
-│           │       ├── cert-manager
-│           │       │   ├── selfsigned-issuer.yml
-│           │       │   ├── values-ha.yml
-│           │       │   └── values-single-master.yml
-│           │       ├── grafana
-│           │       │   ├── cert
-│           │       │   │   ├── homelab-grafana-certificate.yml
-│           │       │   │   └── homelab.grafana.yml
-│           │       │   ├── kube-prometheus-stack-values-master-only.yml
-│           │       │   ├── kube-prometheus-stack-values-single-master.yml
-│           │       │   └── kube-prometheus-stack-values.yml
-│           │       ├── ingress
-│           │       │   ├── values-ha.yml
-│           │       │   └── values-single-master.yml
-│           │       ├── longhorn
-│           │       │   ├── cert
-│           │       │   │   ├── homelab-longhorn-certificate.yml
-│           │       │   │   └── homelab.longhorn.yml
-│           │       │   ├── storageclass.yml
-│           │       │   ├── values-ha.yml
-│           │       │   └── values-single-master.yml
-│           │       ├── metallb
-│           │       │   ├── metallb-config.yml
-│           │       │   ├── values-ha.yml
-│           │       │   └── values-single-master.yml
-│           │       └── rancher
-│           │           ├── cert
-│           │           │   ├── rancher-homelab-certificate.yml
-│           │           │   └── rancher.homelab.yml
-│           │           └── rancher-deployment.yml
-│           ├── handlers
-│           │   └── main.yml
-│           ├── meta
+│       ├── extra_node_cluster
+│       │   ├── handlers
+│       │   │   └── main.yml
+│       │   ├── tasks
+│       │   │   ├── 00_system_requirements.yml
+│       │   │   ├── 01_check_existing_node.yml
+│       │   │   ├── 02_add_master_node.yml
+│       │   │   ├── 03_add_worker_node.yml
+│       │   │   ├── 04_install_keepalived.yml
+│       │   │   └── main.yml
+│       │   └── vars
+│       │       └── main.yml
+│       ├── k3s_setup
+│       │   ├── files
+│       │   │   ├── my-charts
+│       │   │   │   ├── argocd
+│       │   │   │   │   ├── httproute.yml
+│       │   │   │   │   ├── values-ha.yml
+│       │   │   │   │   └── values-single-master.yml
+│       │   │   │   ├── cert-manager
+│       │   │   │   │   ├── selfsigned-issuer.yml
+│       │   │   │   │   ├── values-ha.yml
+│       │   │   │   │   └── values-single-master.yml
+│       │   │   │   ├── gateway
+│       │   │   │   │   ├── gateway.yml
+│       │   │   │   │   └── wildcard-certificate.yml
+│       │   │   │   ├── grafana
+│       │   │   │   │   ├── httproute.yml
+│       │   │   │   │   ├── kube-prometheus-stack-values-master-only.yml
+│       │   │   │   │   └── kube-prometheus-stack-values-single-master.yml
+│       │   │   │   ├── longhorn
+│       │   │   │   │   ├── httproute.yml
+│       │   │   │   │   ├── values-ha.yml
+│       │   │   │   │   └── values-single-master.yml
+│       │   │   │   ├── metallb
+│       │   │   │   │   ├── values-ha.yml
+│       │   │   │   │   └── values-single-master.yml
+│       │   │   │   └── rancher
+│       │   │   │       ├── httproute.yml
+│       │   │   │       └── rancher-deployment.yml
+│       │   │   └── traefik-gateway-config.yml
+│       │   ├── handlers
+│       │   │   ├── .gitkeep
+│       │   │   └── main.yml
+│       │   ├── meta
+│       │   │   ├── .gitkeep
+│       │   │   └── main.yml
+│       │   ├── tasks
+│       │   │   ├── 00_system_requirements.yml
+│       │   │   ├── 00_wellcome.yml
+│       │   │   ├── 01_configure_hostname.yml
+│       │   │   ├── 02_install_keepalived.yml
+│       │   │   ├── 03_install_k3s.yml
+│       │   │   ├── 04_install_helm.yml
+│       │   │   ├── 05_gateway_api_install.yml
+│       │   │   ├── 06_metallb_install.yml
+│       │   │   ├── 07_cert_manager_install.yml
+│       │   │   ├── 08_longhorn_install.yml
+│       │   │   ├── 09_grafana_install.yml
+│       │   │   ├── 10_rancher_install.yml
+│       │   │   ├── 11_argocd_install.yml
+│       │   │   ├── 99_result.yml
+│       │   │   └── main.yml
+│       │   ├── templates
+│       │   │   ├── .gitkeep
+│       │   │   ├── chrony.j2
+│       │   │   ├── keepalived-backup.j2
+│       │   │   ├── keepalived-master.j2
+│       │   │   ├── kube-prometheus-stack-values.yml.j2
+│       │   │   ├── longhorn-storageclass.yml.j2
+│       │   │   ├── metallb-config.yml.j2
+│       │   │   └── wellcome.j2
+│       │   └── vars
+│       │       └── main.yml
+│       └── update_cluster
 │           ├── tasks
-│           │   ├── 00_system_requirements.yml
-│           │   ├── 00_wellcome.yml
-│           │   ├── 01_configure_hostname.yml
-│           │   ├── 02_install_keepalived.yml
-│           │   ├── 03_install_k3s.yml
-│           │   ├── 04_install_helm.yml
-│           │   ├── 06_metallb_install.yml
-│           │   ├── 07_cert_manager_install.yml
-│           │   ├── 08_longhorn_install.yml
-│           │   ├── 09_grafana_install.yml
-│           │   ├── 10_rancher_install.yml
+│           │   ├── 01_check_versions.yml
+│           │   ├── 02_upgrade_masters.yml
+│           │   ├── 03_upgrade_workers.yml
+│           │   ├── 04_verify_cluster.yml
+│           │   ├── 05_cleanup_stuck_nodes.yml
+│           │   ├── 06_rebalance_pods.yml
 │           │   └── main.yml
-│           ├── templates
-│           │   ├── chrony.j2
-│           │   ├── keepalived-backup.j2
-│           │   ├── keepalived-master.j2
-│           │   └── wellcome.j2
-│           └── vars
-│               └── main.yml
+│           ├── vars
+│           │   └── main.yml
+│           └── README.md
+├── .gitignore
+├── add_node.yml
+├── ansible.cfg
+├── k3s_setup.yml
+├── LICENSE
 ├── README.md
-└── site.yml
-
-22 directories, 48 files
+├── README_EN.md
+├── upgrade.yml
+└── verify.yml
 ```
 
 ---

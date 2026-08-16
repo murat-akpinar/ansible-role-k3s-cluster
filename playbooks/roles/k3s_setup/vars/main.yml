@@ -6,7 +6,8 @@ keepalived_vip: 192.168.1.244
 # secerse asagiya sabit deger yazarak override edebilirsiniz (or: "eth0").
 keepalived_interface: ""
 helm_install: true
-# Ingress controller: k3s ile gelen gomulu Traefik kullanilir (ayri kurulum/disable yok).
+# L7 yonlendirme: k3s ile gelen gomulu Traefik + Gateway API kullanilir
+# (ayri controller kurulumu/disable yok). Ingress kaynagi kullanilmaz.
 metallb_install: true
 cert_manager_install: true
 longhorn_install: false
@@ -95,6 +96,16 @@ longhorn_storage_classes:
   - { name: "longhorn-delete-1", reclaim: "Delete", replicas: 1 }
   - { name: "longhorn-delete-2", reclaim: "Delete", replicas: 2 }
   - { name: "longhorn-delete-3", reclaim: "Delete", replicas: 3 }
+
+# ============================================================================
+# Gateway API
+# ============================================================================
+# k3s Gateway API CRD'lerini getirmez, standard channel'dan kuruluyor.
+# Surumu Traefik ile UYUMLU tutun: k3s'in gomulu Traefik'i hangi sigs.k8s.io/gateway-api
+# surumune karsi derlendiyse onu yazin (Traefik 3.7.x -> v1.5.1). Kontrol:
+#   kubectl -n kube-system get deploy traefik -o jsonpath='{.spec.template.spec.containers[0].image}'
+#   curl -sL https://raw.githubusercontent.com/traefik/traefik/v<surum>/go.mod | grep gateway-api
+gateway_api_version: "v1.5.1"
 
 # NTP Configuration
 ntp_server: time.google.com

@@ -1,0 +1,20 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: homelab
+      namespace: kube-system
+      sectionName: websecure
+  hostnames:
+    - argocd.homelab.local
+  rules:
+    # match verilmedigi icin varsayilan kural gecerli: PathPrefix "/"
+    - backendRefs:
+        # TLS'i Gateway sonlandirir, backend ile HTTP konusulur
+        # (argocd values'ta server.insecure=true bunun icin ayarli).
+        - name: argocd-server
+          port: 80

@@ -1,0 +1,27 @@
+---
+# Tum servislerin paylastigi tek Gateway. Her uygulama kendi namespace'inde
+# bir HTTPRoute yazip buraya baglanir (allowedRoutes.namespaces.from: All).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: homelab
+  namespace: kube-system
+spec:
+  gatewayClassName: traefik
+  listeners:
+    - name: websecure
+      protocol: HTTPS
+      # DIKKAT: buradaki port Traefik'in ENTRYPOINT portudur (websecure = 8443),
+      # servisin disariya yayinladigi port degil. Traefik servisi 443 -> 8443
+      # esler; listener'a 443 yazilirsa eslesen entryPoint bulunamaz ve
+      # Gateway "Programmed=False / unsupported port" durumunda kalir.
+      port: 8443
+      hostname: "*.homelab.local"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: homelab-wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: All

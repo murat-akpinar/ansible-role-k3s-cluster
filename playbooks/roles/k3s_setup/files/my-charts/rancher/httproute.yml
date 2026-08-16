@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rancher
+  namespace: cattle-system
+spec:
+  parentRefs:
+    - name: homelab
+      namespace: kube-system
+      sectionName: websecure
+  hostnames:
+    - rancher.homelab.local
+  rules:
+    - backendRefs:
+        # TLS'i Gateway sonlandirir, backend ile HTTP/80 konusulur. Rancher,
+        # HTTPS listener'dan gelen X-Forwarded-Proto: https sayesinde redirect
+        # yapmaz. Backend'e HTTPS/443 verilirse Traefik rancher'in self-signed
+        # sertifikasini dogrulayamayip 500 Internal Server Error dondurur.
+        - name: rancher
+          port: 80

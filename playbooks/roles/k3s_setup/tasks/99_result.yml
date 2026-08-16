@@ -16,9 +16,9 @@
     - "'master' in group_names" 
     - getent_passwd_output.stdout != ""
 
-- name: Get Traefik Ingress LoadBalancer IP
-  command: kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-  register: ingress_lb_ip
+- name: Get homelab Gateway address
+  command: kubectl get gateway -n kube-system homelab -o jsonpath='{.status.addresses[0].value}'
+  register: gateway_address
   failed_when: false
   changed_when: false
   when:
@@ -98,7 +98,7 @@
       - "{{ bar }}"
       - "                    K3s CLUSTER KURULUM OZETI"
       - "{{ bar }}"
-      - "{{ 'Traefik  | LoadBalancer IP : ' ~ (ingress_lb_ip.stdout | default('N/A')) }}"
+      - "{{ 'Gateway  | LoadBalancer IP : ' ~ (gateway_address.stdout | default('') | trim | default('N/A', true)) }}"
       - "{{ ('Longhorn | ' ~ (longhorn_url | default('N/A'))) if (longhorn_install | default(false)) else '' }}"
       - "{{ ('Rancher  | ' ~ (rancher_url | default('N/A')) ~ '  ->  admin / ' ~ (rancher_bootstrap_password.stdout | default('N/A'))) if (rancher_install | default(false)) else '' }}"
       - "{{ ('Grafana  | ' ~ (grafana_url | default('N/A')) ~ '  ->  ' ~ (grafana_admin_user.stdout | default('admin')) ~ ' / ' ~ (grafana_admin_password.stdout | default('N/A'))) if (grafana_install | default(false)) else '' }}"

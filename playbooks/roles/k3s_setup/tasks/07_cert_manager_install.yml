@@ -179,3 +179,60 @@
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
     - inventory_hostname == 'master-1'
+
+# ============================
+# Paylasimli Gateway (*.homelab.local)
+# ============================
+# Issuer hazir oldugu icin wildcard sertifika ve onu kullanan Gateway burada
+# uygulanir. Uygulama rolleri (longhorn/grafana/rancher/argocd) yalnizca kendi
+# HTTPRoute'unu ekler.
+
+- name: Apply wildcard certificate for *.homelab.local
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/gateway/wildcard-certificate.yml
+  become: true
+  become_user: "{{ uid_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
+    - inventory_hostname == 'master-1'
+
+- name: Wait for wildcard certificate to be issued
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Ready --timeout=180s -n kube-system certificate/homelab-wildcard
+  become: true
+  become_user: "{{ uid_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: wildcard_cert_ready
+  until: wildcard_cert_ready.rc == 0
+  retries: 3
+  delay: 20
+  changed_when: false
+  when:
+    - inventory_hostname == 'master-1'
+
+- name: Apply shared homelab Gateway
+  ansible.builtin.command:
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/gateway/gateway.yml
+  become: true
+  become_user: "{{ uid_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
+    - inventory_hostname == 'master-1'
+
+- name: Wait for homelab Gateway to be Programmed
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Programmed --timeout=180s -n kube-system gateway/homelab
+  become: true
+  become_user: "{{ uid_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: homelab_gateway_programmed
+  until: homelab_gateway_programmed.rc == 0
+  retries: 3
+  delay: 20
+  changed_when: false
+  when:
+    - inventory_hostname == 'master-1'

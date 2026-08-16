@@ -194,21 +194,9 @@
   delay: 30
   when: inventory_hostname == 'master-1'
 
-- name: Apply Grafana ingress config
+- name: Apply Grafana HTTPRoute
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/cert/homelab.grafana.yml
-  become: true
-  become_user: "{{ uid_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when:
-    - inventory_hostname == 'master-1'
-    - monitoring_namespace_exists.rc != 0
-    - cert_manager_install | default(false)
-
-- name: Apply homelab.grafana certificate
-  ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/cert/homelab-grafana-certificate.yml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/grafana/httproute.yml
   become: true
   become_user: "{{ uid_user }}"
   environment:

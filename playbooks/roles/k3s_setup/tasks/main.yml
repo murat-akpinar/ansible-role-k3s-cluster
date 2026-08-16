@@ -78,7 +78,12 @@
   when: helm_install | default(false)
   tags: ['helm']
 
-# Ingress: k3s gomulu Traefik kullanilir (ayri kurulum task'i yok).
+# L7 yonlendirme: k3s gomulu Traefik + Gateway API (Ingress kullanilmiyor).
+# CRD'ler ve Traefik'in Gateway saglayicisi burada acilir; paylasimli Gateway
+# sertifikaya bagli oldugu icin cert-manager adiminda uygulanir.
+- name: "Install Gateway API"
+  ansible.builtin.import_tasks: 05_gateway_api_install.yml
+  tags: ['gateway-api']
 
 - name: "Install Metallb"
   ansible.builtin.import_tasks: 06_metallb_install.yml

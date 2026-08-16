@@ -73,8 +73,8 @@ applicationSet:
 # Configs - ArgoCD configuration parameters
 configs:
   params:
-    # Insecure mode for ingress (HTTP backend)
-    # This allows ArgoCD to work behind ingress with SSL termination
+    # Insecure mode (HTTP backend)
+    # TLS Gateway tarafinda sonlandirilir, backend ile HTTP konusulur
     "server.insecure": "true"
 
 # Redis configuration

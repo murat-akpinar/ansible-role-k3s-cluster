@@ -1,0 +1,21 @@
+---
+# *.homelab.local wildcard sertifikasi (selfsigned-issuer ClusterIssuer'dan uretilir).
+# Gateway ile AYNI namespace'te (kube-system) durur: boylece Gateway'in
+# certificateRefs'i cross-namespace olmaz ve ReferenceGrant gerekmez.
+# Yeni bir servis yayinlamak icin sertifika eklemeye gerek yok, sadece HTTPRoute yeter.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: homelab-wildcard
+  namespace: kube-system
+spec:
+  secretName: homelab-wildcard-tls
+  duration: 8760h
+  renewBefore: 2160h
+  commonName: "*.homelab.local"
+  dnsNames:
+    - "*.homelab.local"
+    - "homelab.local"
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer

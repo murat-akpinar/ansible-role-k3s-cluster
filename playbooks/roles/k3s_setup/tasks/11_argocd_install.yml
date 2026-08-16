@@ -202,26 +202,14 @@
     - argocd_namespace_exists.rc != 0
     - (argocd_helm_release.stdout | default('') | trim) == ''
 
-- name: Apply ArgoCD ingress config
+- name: Apply ArgoCD HTTPRoute
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/argocd/cert/argocd.homelab.yml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/argocd/httproute.yml
   become: true
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
-    - inventory_hostname == 'master-1'
-    - argocd_namespace_exists.rc != 0
-    - cert_manager_install | default(false)
-
-- name: Apply argocd.homelab.local certificate
-  ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/argocd/cert/argocd-homelab-certificate.yml
-  become: true
-  become_user: "{{ uid_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
     - inventory_hostname == 'master-1'
     - argocd_namespace_exists.rc != 0
     - cert_manager_install | default(false)

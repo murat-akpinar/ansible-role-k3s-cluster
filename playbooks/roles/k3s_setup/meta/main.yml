@@ -5,7 +5,7 @@ galaxy_info:
   author: Murat AKPINAR
   description: >-
     HA ve Single Master modlarını destekleyen, Keepalived VIP yönetimli
-    K3s tabanlı Kubernetes cluster kurulum rolü. Ingress-nginx, MetalLB,
+    K3s tabanlı Kubernetes cluster kurulum rolü. Gateway API (Traefik), MetalLB,
     cert-manager, Longhorn, kube-prometheus-stack, Rancher ve ArgoCD
     bileşenlerini opsiyonel olarak kurar.
   license: MIT

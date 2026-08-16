@@ -14,7 +14,8 @@
 #   - All pods are Running/Succeeded
 #   - Keepalived VIP is reachable
 #   - Pod health of each enabled component namespace
-#   - Traefik LoadBalancer IP is assigned
+#   - The shared Gateway (kube-system/homelab) is Programmed and has an address
+#   - Every HTTPRoute is Accepted by its parent Gateway
 #
 # Note: kubectl runs as root using /etc/rancher/k3s/k3s.yaml (mode 644), so no
 # privilege drop to an unprivileged user is needed. If k3s is not installed yet,
@@ -108,7 +109,7 @@
             KUBECONFIG: "{{ kubeconfig_path }}"
           vars:
             components:
-              - { name: "Ingress (Traefik)",        ns: "kube-system",    selector: "app.kubernetes.io/name=traefik", enabled: true }
+              - { name: "Traefik (Gateway API)",    ns: "kube-system",    selector: "app.kubernetes.io/name=traefik", enabled: true }
               - { name: "MetalLB",                  ns: "metallb-system", enabled: "{{ metallb_install | default(false) }}" }
               - { name: "cert-manager",             ns: "cert-manager",   enabled: "{{ cert_manager_install | default(false) }}" }
               - { name: "Longhorn",                 ns: "longhorn-system", enabled: "{{ longhorn_install | default(false) }}" }
@@ -143,11 +144,30 @@
               changed_when: false
               failed_when: false
 
-            - name: Get the Traefik LoadBalancer IP
+            - name: Check the homelab Gateway is Programmed
+              shell: >
+                kubectl get gateway -n kube-system homelab
+                -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}' 2>/dev/null
+              register: gateway_programmed
+              changed_when: false
+              failed_when: false
+
+            - name: Get the homelab Gateway address
               command: >
-                kubectl get svc -n kube-system traefik
-                -o jsonpath={.status.loadBalancer.ingress[0].ip}
-              register: ingress_lb_ip
+                kubectl get gateway -n kube-system homelab
+                -o jsonpath={.status.addresses[0].value}
+              register: gateway_address
+              changed_when: false
+              failed_when: false
+
+            # Her HTTPRoute icin parent'in Accepted kosulunu bir satira yazar;
+            # "True" olmayan (ya da status'u hic olusmamis) satirlari sayar.
+            - name: Count HTTPRoutes not Accepted by the Gateway
+              shell: >
+                kubectl get httproute -A
+                -o jsonpath='{range .items[*]}{.status.parents[*].conditions[?(@.type=="Accepted")].status}{"\n"}{end}'
+                2>/dev/null | grep -cv '^True$'
+              register: httproutes_not_accepted
               changed_when: false
               failed_when: false
 
@@ -190,9 +210,13 @@
               set_fact:
                 report_lines: "{{ report_lines + (component_lines | default([])) }}"
 
-            - name: Append Traefik LoadBalancer IP line
+            - name: Append Gateway API lines
               set_fact:
-                report_lines: "{{ report_lines + ['Traefik LB IP     — ' ~ ((ingress_lb_ip.stdout | default('') | trim) | default('N/A (not assigned)', true))] }}"
+                report_lines: "{{ report_lines + [
+                    ('[OK]  ' if ((gateway_programmed.stdout | default('') | trim) == 'True') else '[FAIL]') ~ ' Gateway Programmed — kube-system/homelab',
+                    ('[OK]  ' if ((httproutes_not_accepted.stdout | default('0') | trim | int) == 0) else '[FAIL]') ~ ' HTTPRoutes Accepted — not-accepted: ' ~ (httproutes_not_accepted.stdout | default('0') | trim),
+                    'Gateway LB IP     — ' ~ ((gateway_address.stdout | default('') | trim) | default('N/A (not assigned)', true))
+                  ] }}"
 
             - name: Append checklist footer
               set_fact:
@@ -205,6 +229,8 @@
                 overall_ok: "{{ (not_ready_nodes.stdout | int == 0)
                                 and (not_running_pods.stdout | int == 0)
                                 and (vip_ping.rc == 0)
+                                and ((gateway_programmed.stdout | default('') | trim) == 'True')
+                                and ((httproutes_not_accepted.stdout | default('0') | trim | int) == 0)
                                 and ((component_health.results | default([]) | map(attribute='stdout') | map('int') | sum) == 0) }}"
 
             - name: Print the health check checklist

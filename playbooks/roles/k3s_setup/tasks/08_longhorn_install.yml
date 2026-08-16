@@ -199,26 +199,14 @@
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
 
-- name: Apply Longhorn ingress config
+- name: Apply Longhorn HTTPRoute
   ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab.longhorn.yml
+    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/httproute.yml
   become: true
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
-    - inventory_hostname == 'master-1'
-    - longhorn_namespace_exists.rc != 0
-    - cert_manager_install | default(false)
-
-- name: Apply homelab.longhorn certificate
-  ansible.builtin.command:
-    cmd: kubectl apply -f {{ user_home_directory }}/my-charts/longhorn/cert/homelab-longhorn-certificate.yml
-  become: true
-  become_user: "{{ uid_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  when:
     - inventory_hostname == 'master-1'
     - longhorn_namespace_exists.rc != 0
     - cert_manager_install | default(false)
