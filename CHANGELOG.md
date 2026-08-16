@@ -31,6 +31,7 @@
 ### 📚 Documentation
 
 - README'ler tasinan dosyalar ve yeni degiskenlerle guncellendi ([998884f](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/998884fc0cc20ee8f276abb7d90c220d149c864c)) — - Baglanti degiskenlerinin envanterde durduğu belirtildi - cluster_domain ve keepalived_router_id ornek yapilandirmaya eklendi - HTTPRoute / gateway dosya yollari templates/my-charts/*.j2 olarak duzeltildi - Dizin agacindaki keepalived-master/backup.j2 -> keepalived.conf.j2
+- README'ler gercek dosya agaci, firewalld adimi ve eksik degiskenlerle guncellendi ([8b2c6ce](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/8b2c6ced354218543d204425983340324fe81d17)) — Gateway API gecisi sonrasi README'ler birkac yerde geride kalmisti:
 
 ### ⚙️ Miscellaneous Tasks
 
