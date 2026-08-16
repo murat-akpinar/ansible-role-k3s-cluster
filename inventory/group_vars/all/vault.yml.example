@@ -1,0 +1,8 @@
+---
+# Bu dosyayi vault.yml olarak kopyalayin, degerleri doldurun ve sifreleyin:
+#   cp inventory/group_vars/all/vault.yml.example inventory/group_vars/all/vault.yml
+#   ansible-vault encrypt inventory/group_vars/all/vault.yml
+# Sifrelenmis vault.yml .gitignore ile commit'ten haric tutulur.
+
+# Keepalived VRRP paylasilan parolasi (vars/main.yml'deki varsayilani ezer)
+vault_keepalived_auth_pass: "degistir-beni"

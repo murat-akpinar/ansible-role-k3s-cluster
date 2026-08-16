@@ -1,7 +1,8 @@
 # ansible_user / ansible_ssh_private_key_file inventory/cluster_inventory.yml'de.
-# DEGISTIRIN: VRRP paylasilan parolasi. Repoda duz metin durmamali; tercihen
-# ansible-vault ile sifreleyin (ansible-vault encrypt_string ...).
-keepalived_auth_pass: P@ssw0rd123!
+# VRRP paylasilan parolasi. Deger inventory/group_vars/all/vault.yml icindeki
+# vault_keepalived_auth_pass'ten gelir (bkz. README "Ansible Vault ile Secret
+# Yonetimi"); tanimli degilse asagidaki varsayilana duser. DEGISTIRIN.
+keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
 keepalived_vip: 192.168.1.244
 # Gateway/HTTPRoute/wildcard sertifika ve ozet ekranindaki URL'ler bu tek
 # degiskenden uretilir. Degistirince hepsi birlikte degisir.

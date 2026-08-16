@@ -167,6 +167,12 @@ Edit the `inventory/cluster_inventory.yml` file according to your environment:
 
 ```yaml
 all:
+  # Connection settings live HERE, not in vars/main.yml: these values apply
+  # before gather_facts — i.e. on the very first SSH connection — and keep the
+  # role shareable.
+  vars:
+    ansible_user: root
+    ansible_ssh_private_key_file: ~/.ssh/homelab
   children:
     master:
       hosts:
@@ -185,6 +191,8 @@ all:
 ```
 
 **Note**: If you don't want worker nodes, you can comment out the worker section. You can install an HA cluster with only 3 master nodes.
+
+**Note**: If `ansible_user` is not root it must have sudo rights; the role writes `~/.kube/config` into that user's home directory.
 
 ### 2. Configure Variables
 

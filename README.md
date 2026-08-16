@@ -167,6 +167,12 @@ Repodaki giriş playbook'ları (hepsi `-i inventory/cluster_inventory.yml` ile �
 
 ```yaml
 all:
+  # Bağlantı ayarları BURADA durur, vars/main.yml'de değil: bu değerler
+  # gather_facts'ten önce, yani ilk SSH bağlantısında da geçerli olur ve
+  # rol paylaşılabilir kalır.
+  vars:
+    ansible_user: root
+    ansible_ssh_private_key_file: ~/.ssh/homelab
   children:
     master:
       hosts:
@@ -185,6 +191,8 @@ all:
 ```
 
 **Not**: Eğer worker node istemiyorsanız, worker bölümünü yorum satırı yapabilirsiniz. Sadece 3 master node ile HA cluster kurabilirsiniz.
+
+**Not**: `ansible_user` root değilse sudo yetkisi olmalıdır; rol o kullanıcının home dizinine `~/.kube/config` yazar.
 
 ### 2. Yapılandırma Değişkenlerini Ayarlayın
 

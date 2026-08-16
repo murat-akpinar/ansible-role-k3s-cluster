@@ -2,6 +2,8 @@ collections/*
 !collections/requirements.yml
 .ansible/
 *.retry
+inventory/group_vars/all/vault.yml
+.vault_pass
 .vscode/
 minio/
 .rules
