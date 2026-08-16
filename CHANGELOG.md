@@ -9,6 +9,7 @@
 - Merkezi bekleme adımı eklendi ([dde887e](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/dde887e5a95367ea9cd95bd208f4f7a28c3cfd9e))
 - Taint true false eklendi ([839fd32](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/839fd32539f9fc7e74f400d258c319177a64ffcb))
 - Ingress kaynaklari Gateway API'ye tasindi ([24dce96](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/24dce967c9f83f5e29820ed8b55c00380ae0680a)) — k3s gomulu Traefik'in Gateway saglayicisi acildi; 4 Ingress kaynagi HTTPRoute'a cevrildi ve host basina sertifikalar tek wildcard sertifikada birlestirildi.
+- Bilesen surumleri guncellendi ve tek yerden yonetiliyor ([7933c07](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/7933c07a756bd8b246cfa5577af1dcde1e58fc7e)) — cert-manager v1.13.1 (2023) -> v1.21.1, Rancher v2.8.2 -> v2.15.0. Digerleri "" idi (her kurulumda en son); bugunun surumlerine sabitlendi.
 
 ### 🐛 Bug Fixes
 
