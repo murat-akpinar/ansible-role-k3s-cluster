@@ -69,7 +69,6 @@
   # artik wildcard sertifikayi tasiyan Gateway'e bagli, o yuzden ayni sarta baglandi.
   when:
     - inventory_hostname == 'master-1'
-    - rancher_namespace_exists.rc != 0
     - cert_manager_install | default(false)
 
 - name: Wait for bootstrap-secret to be created

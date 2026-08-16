@@ -160,13 +160,14 @@
               changed_when: false
               failed_when: false
 
-            # Her HTTPRoute icin parent'in Accepted kosulunu bir satira yazar;
-            # "True" olmayan (ya da status'u hic olusmamis) satirlari sayar.
+            # Her HTTPRoute icin parent'larin Accepted kosullarini tek satira yazar
+            # (N parent -> "TrueTrue..."). Hepsi True degilse ya da status hic
+            # olusmamissa (bos satir) o route sayilir.
             - name: Count HTTPRoutes not Accepted by the Gateway
               shell: >
                 kubectl get httproute -A
                 -o jsonpath='{range .items[*]}{.status.parents[*].conditions[?(@.type=="Accepted")].status}{"\n"}{end}'
-                2>/dev/null | grep -cv '^True$'
+                2>/dev/null | grep -cvE '^(True)+$'
               register: httproutes_not_accepted
               changed_when: false
               failed_when: false

@@ -29,12 +29,14 @@
     uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
-# --server-side: Gateway/HTTPRoute CRD'leri buyuk; klasik apply
-# last-applied-configuration annotation'inin 256KB sinirina takilabilir.
+# --server-side ZORUNLU: httproutes CRD'si tek basina ~460 KB, klasik apply'in
+#   yazdigi last-applied-configuration annotation'i 256 KB sinirini asar.
+# --force-conflicts: CRD'ler daha once klasik (client-side) apply ile kurulduysa
+#   alan sahipligi "kubectl-client-side-apply" manager'inda kalir ve SSA catisir.
 - name: Install Gateway API CRDs (standard channel {{ gateway_api_version }})
   ansible.builtin.command:
     cmd: >-
-      kubectl apply --server-side
+      kubectl apply --server-side --force-conflicts
       -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{ gateway_api_version }}/standard-install.yaml
   become: true
   become_user: "{{ uid_user }}"
@@ -44,7 +46,9 @@
   until: gateway_api_crd_result.rc == 0
   retries: 5
   delay: 15
-  changed_when: "'configured' in gateway_api_crd_result.stdout or 'created' in gateway_api_crd_result.stdout"
+  # SSA her calistirmada "serverside-applied" yazar, degisti/degismedi ayrimi
+  # ciktidan anlasilamaz; yanlis "changed" raporlamaktansa hic raporlamiyoruz.
+  changed_when: false
   when: inventory_hostname == 'master-1'
 
 - name: Wait for Gateway API CRDs to be established
