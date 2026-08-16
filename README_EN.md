@@ -291,13 +291,18 @@ The following services are installed based on configuration:
 All configuration variables are found in `playbooks/roles/k3s_setup/vars/main.yml`:
 
 ```yaml
-# Connection/operation user (default in vars/main.yml: murat).
-# kubeconfig and .kube/config are set up using this user's UID and home directory
-# (the UID does not have to be 1000). The SSH private key is NOT hardcoded here — see Security.
-ansible_user: murat
+# NOTE: connection variables (`ansible_user`, `ansible_ssh_private_key_file`)
+# live in `inventory/cluster_inventory.yml` under `all.vars`, NOT here, so they
+# apply to the very first SSH connection and the role stays shareable.
+
+# Cluster domain: the Gateway, the wildcard certificate, every HTTPRoute and the
+# summary screen URLs are all generated from this single variable.
+cluster_domain: homelab.local
 
 # Keepalived
 keepalived_vip: 192.168.1.244
+# Give a different VRRP router ID (1-255) if a second cluster shares the L2 network
+keepalived_router_id: 51
 # Password is read from Vault; falls back to the default if undefined (see Security section)
 keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
 
@@ -704,10 +709,10 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 All services share a **single wildcard certificate**, issued and renewed automatically by `cert-manager`.
 
 ### Wildcard certificate + shared Gateway
-- **Directory**: `files/my-charts/gateway/`
+- **Directory**: `templates/my-charts/gateway/` (templated, they contain the domain)
 - **Files**:
-  - `wildcard-certificate.yml` — `*.homelab.local` Certificate (ns: `kube-system`, secret: `homelab-wildcard-tls`)
-  - `gateway.yml` — `kube-system/homelab` Gateway, HTTPS listener, `allowedRoutes.namespaces.from: All`
+  - `wildcard-certificate.yml.j2` — `*.homelab.local` Certificate (ns: `kube-system`, secret: `homelab-wildcard-tls`)
+  - `gateway.yml.j2` — `kube-system/homelab` Gateway, HTTPS listener, `allowedRoutes.namespaces.from: All`
 - The certificate lives in the same namespace as the Gateway, so `certificateRefs` is not cross-namespace and **no ReferenceGrant is required**.
 
 ### Service routing (HTTPRoute)
@@ -716,10 +721,10 @@ Each service attaches to the shared Gateway with an `HTTPRoute` in its own names
 
 | Service | File | Namespace | Domain |
 |---|---|---|---|
-| Grafana | `files/my-charts/grafana/httproute.yml` | `monitoring` | `grafana.homelab.local` |
-| Longhorn | `files/my-charts/longhorn/httproute.yml` | `longhorn-system` | `longhorn.homelab.local` |
-| Rancher | `files/my-charts/rancher/httproute.yml` | `cattle-system` | `rancher.homelab.local` |
-| ArgoCD | `files/my-charts/argocd/httproute.yml` | `argocd` | `argocd.homelab.local` |
+| Grafana | `templates/my-charts/grafana/httproute.yml.j2` | `monitoring` | `grafana.homelab.local` |
+| Longhorn | `templates/my-charts/longhorn/httproute.yml.j2` | `longhorn-system` | `longhorn.homelab.local` |
+| Rancher | `templates/my-charts/rancher/httproute.yml.j2` | `cattle-system` | `rancher.homelab.local` |
+| ArgoCD | `templates/my-charts/argocd/httproute.yml.j2` | `argocd` | `argocd.homelab.local` |
 
 Publishing a new service needs no new certificate — the wildcard already covers it, just add an `HTTPRoute`.
 
@@ -960,8 +965,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   ├── templates
 │       │   │   ├── .gitkeep
 │       │   │   ├── chrony.j2
-│       │   │   ├── keepalived-backup.j2
-│       │   │   ├── keepalived-master.j2
+│       │   │   ├── keepalived.conf.j2
 │       │   │   ├── kube-prometheus-stack-values.yml.j2
 │       │   │   ├── longhorn-storageclass.yml.j2
 │       │   │   ├── metallb-config.yml.j2
