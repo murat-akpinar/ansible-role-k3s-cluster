@@ -114,7 +114,8 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 - **Master Nodes**: Minimum 2 CPU, 2GB RAM (at least 3 masters for HA)
 - **Worker Nodes**: Minimum 1 CPU, 1GB RAM
 - **Disk**: Minimum 20GB free space
-- **Operating System**: Tested on Ubuntu 22.04 (other Linux distributions may work)
+- **Operating System**: Tested on Ubuntu 22.04 and Rocky Linux 9 (including mixed clusters)
+  - On the RHEL family (Rocky/Alma/RHEL) firewalld is enabled by default and blocks flannel VXLAN; the role **opens the required ports automatically** (see [Step 1](#step-1-system-preparation))
 
 #### Approximate Per-Component Resource Cost
 
@@ -221,13 +222,25 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --key-file ~/.
 
 ## 📖 Detailed Installation
 
-### Step 1: System Requirements Check
+### Step 1: System Preparation
 
-The playbook automatically checks:
-- CPU count (minimum 2 on master)
-- RAM amount (minimum 2GB on master)
-- Disk space
-- Operating system
+On every node the playbook does the following (`00_system_requirements.yml`):
+- Checks CPU count (minimum 2 on master) and RAM (minimum 2GB on master) — fails fast if insufficient
+- **Disables swap** (at runtime and permanently in `/etc/fstab`)
+- Loads the kernel modules Kubernetes needs: `overlay`, `br_netfilter` (persisted via `/etc/modules-load.d/k3s.conf`)
+- Applies the sysctl settings: `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`
+- Installs and configures Chrony (see Step 3)
+
+**firewalld (RHEL family only)**: if firewalld is running, the role opens the following; the step is skipped on Ubuntu/Debian.
+
+| What | Why |
+|---|---|
+| `6443/tcp` | kube-apiserver |
+| `8472/udp` | flannel VXLAN — **if blocked**, nodes look Ready but the apiserver cannot reach pods on other nodes |
+| `10250/tcp` | kubelet metrics/exec |
+| `10.42.0.0/16`, `10.43.0.0/16` → `trusted` zone | pod and service networks |
+
+> ⚠️ If you change the networks with `--cluster-cidr` / `--service-cidr`, update the trusted CIDR list in `tasks/main.yml` as well.
 
 ### Step 2: Hostname Configuration
 
@@ -241,14 +254,16 @@ Each node's hostname must match the inventory name. The playbook automatically:
 
 Time synchronization between cluster nodes is critical. The playbook:
 - Installs Chrony
-- Configures `time.google.com` as NTP server
-- Starts and enables the service
+- Configures the server from the `ntp_server` variable (default `time.google.com`)
+- Starts and enables the service (`chrony` on Debian, `chronyd` on RHEL)
 
 ### Step 4: Keepalived Installation (Master Nodes)
 
 Keepalived is used for VIP management in HA clusters:
 - **3+ Masters**: Keepalived is installed, configured, and started
 - **1-2 Masters**: Keepalived is installed but not configured (ready for future use)
+
+If `keepalived_interface` is left empty the VRRP interface is auto-detected from `ansible_default_ipv4.interface`; if the wrong interface is picked, set a fixed value in `vars/main.yml` (`eth0`, `ens18`, etc.).
 
 ### Step 5: K3s Installation
 
@@ -301,6 +316,8 @@ cluster_domain: homelab.local
 
 # Keepalived
 keepalived_vip: 192.168.1.244
+# Empty = auto-detect from ansible_default_ipv4.interface (e.g. "eth0", "ens18")
+keepalived_interface: ""
 # Give a different VRRP router ID (1-255) if a second cluster shares the L2 network
 keepalived_router_id: 51
 # Password is read from Vault; falls back to the default if undefined (see Security section)
@@ -319,7 +336,29 @@ longhorn_install: true
 grafana_install: true
 rancher_install: true
 argocd_install: true
+
+# MetalLB IP pool — multiple ranges/CIDRs can be added
+metallb_ip_pool_name: "first-pool"
+metallb_ip_addresses:
+  - "192.168.1.242-192.168.1.242"
+
+# Must match the version Traefik was built against (Traefik 3.7.x -> v1.5.1)
+gateway_api_version: "v1.5.1"
+
+# NTP server (chrony)
+ntp_server: time.google.com
 ```
+
+Other variables living in the same file:
+
+| Variable | What it does |
+|---|---|
+| `k3s_server_args` | k3s server flags in **one place**: initial install, node addition and upgrade all use the same string. If omitted during an upgrade the install script rewrites the systemd unit and flags like `--disable servicelb` / `--tls-san` silently disappear |
+| `k3s_disable_servicelb` | Disables the k3s bundled ServiceLB (klipper) so MetalLB hands out LoadBalancer IPs. Set `false` to use klipper instead of MetalLB |
+| `k3s_master_taint` / `k3s_master_taint_value` | Protects masters from heavy workloads (see [Master/Worker Pod Distribution](#masterworker-pod-distribution)) |
+| `monitoring_storage_class` | StorageClass for the monitoring PVCs (see [Longhorn StorageClass](#-longhorn-storageclass)) |
+| `longhorn_storage_classes` | List of StorageClasses to generate — `reclaim` and `replicas` are managed here |
+| `helm_repo_*`, `helm_install_script_url`, `k3s_install_url` | External source URLs; change these for air-gapped/mirrored environments |
 
 ### Master/Worker Pod Distribution
 
@@ -865,6 +904,28 @@ journalctl -u keepalived -n 50 --no-pager
 ip -4 a show ens3 | grep 192.168.1.244
 ```
 
+### Webhook Calls Fail With "context deadline exceeded"
+
+Typical symptom: the MetalLB `IPAddressPool` apply step fails with
+`failed calling webhook ... context deadline exceeded`, and because the master drops out
+cert-manager/Grafana/Rancher/ArgoCD never get installed. Nodes look `Ready` but the
+apiserver cannot reach pods on other nodes — usually because firewalld blocks flannel
+VXLAN (UDP 8472) on the RHEL family.
+
+```bash
+# Is firewalld active?
+systemctl is-active firewalld
+
+# Are the ports/CIDRs the role should have opened still there?
+firewall-cmd --list-ports
+firewall-cmd --zone=trusted --list-sources
+
+# If missing, open them manually (the role does this automatically in Step 1)
+firewall-cmd --permanent --add-port=8472/udp
+firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16
+firewall-cmd --reload
+```
+
 ### Post-Upgrade Issues
 
 ```bash
@@ -901,44 +962,33 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 ├── playbooks
 │   └── roles
 │       ├── extra_node_cluster
-│       │   ├── handlers
-│       │   │   └── main.yml
 │       │   ├── tasks
 │       │   │   ├── 00_system_requirements.yml
 │       │   │   ├── 01_check_existing_node.yml
 │       │   │   ├── 02_add_master_node.yml
 │       │   │   ├── 03_add_worker_node.yml
-│       │   │   ├── 04_install_keepalived.yml
 │       │   │   └── main.yml
 │       │   └── vars
 │       │       └── main.yml
 │       ├── k3s_setup
-│       │   ├── files
+│       │   ├── files                       # static manifests/values (not templated)
 │       │   │   ├── my-charts
 │       │   │   │   ├── argocd
-│       │   │   │   │   ├── httproute.yml
 │       │   │   │   │   ├── values-ha.yml
 │       │   │   │   │   └── values-single-master.yml
 │       │   │   │   ├── cert-manager
 │       │   │   │   │   ├── selfsigned-issuer.yml
 │       │   │   │   │   ├── values-ha.yml
 │       │   │   │   │   └── values-single-master.yml
-│       │   │   │   ├── gateway
-│       │   │   │   │   ├── gateway.yml
-│       │   │   │   │   └── wildcard-certificate.yml
 │       │   │   │   ├── grafana
-│       │   │   │   │   ├── httproute.yml
 │       │   │   │   │   ├── kube-prometheus-stack-values-master-only.yml
 │       │   │   │   │   └── kube-prometheus-stack-values-single-master.yml
 │       │   │   │   ├── longhorn
-│       │   │   │   │   ├── httproute.yml
 │       │   │   │   │   ├── values-ha.yml
 │       │   │   │   │   └── values-single-master.yml
-│       │   │   │   ├── metallb
-│       │   │   │   │   ├── values-ha.yml
-│       │   │   │   │   └── values-single-master.yml
-│       │   │   │   └── rancher
-│       │   │   │       └── httproute.yml
+│       │   │   │   └── metallb
+│       │   │   │       ├── values-ha.yml
+│       │   │   │       └── values-single-master.yml
 │       │   │   └── traefik-gateway-config.yml
 │       │   ├── handlers
 │       │   │   ├── .gitkeep
@@ -961,9 +1011,21 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── 10_rancher_install.yml
 │       │   │   ├── 11_argocd_install.yml
 │       │   │   ├── 99_result.yml
+│       │   │   ├── _resolve_user.yml        # resolves ansible_user -> home directory
 │       │   │   └── main.yml
-│       │   ├── templates
-│       │   │   ├── .gitkeep
+│       │   ├── templates                    # rendered from cluster_domain etc.
+│       │   │   ├── my-charts
+│       │   │   │   ├── argocd
+│       │   │   │   │   └── httproute.yml.j2
+│       │   │   │   ├── gateway
+│       │   │   │   │   ├── gateway.yml.j2
+│       │   │   │   │   └── wildcard-certificate.yml.j2
+│       │   │   │   ├── grafana
+│       │   │   │   │   └── httproute.yml.j2
+│       │   │   │   ├── longhorn
+│       │   │   │   │   └── httproute.yml.j2
+│       │   │   │   └── rancher
+│       │   │   │       └── httproute.yml.j2
 │       │   │   ├── chrony.j2
 │       │   │   ├── keepalived.conf.j2
 │       │   │   ├── kube-prometheus-stack-values.yml.j2
@@ -1000,5 +1062,5 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 
 ---
 
-**Note**: This role has been tested on Ubuntu 22.04. Since K3s's official installation script (`curl -sfL https://get.k3s.io | sh -`) is used, it is expected to work on other Linux distributions as well.
+**Note**: This role has been tested on Ubuntu 22.04 and Rocky Linux 9 (including mixed clusters). Since K3s's official installation script (`curl -sfL https://get.k3s.io | sh -`) is used, it is expected to work on other Linux distributions as well.
 
