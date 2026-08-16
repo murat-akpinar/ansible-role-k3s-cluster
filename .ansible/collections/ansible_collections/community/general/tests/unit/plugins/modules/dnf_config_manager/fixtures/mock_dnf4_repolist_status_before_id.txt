@@ -1,3 +1,0 @@
-Repo-id            : appstream-debuginfo
-Repo-status        : disabled
-Repo-status        : disabled

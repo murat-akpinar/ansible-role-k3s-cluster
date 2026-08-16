@@ -1,1 +1,0 @@
-plugins/plugin_utils/inventory_filter.py pylint:ansible-bad-import-from
