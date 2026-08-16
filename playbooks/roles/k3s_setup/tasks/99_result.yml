@@ -3,32 +3,19 @@
 # Display Installation Results
 # ============================
 
-- name: Find home directory for ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_output
-  changed_when: false
-  when: "'master' in group_names"
-
-- name: Set home directory variable
-  set_fact:
-    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
-  when: 
-    - "'master' in group_names" 
-    - getent_passwd_output.stdout != ""
-
 - name: Get homelab Gateway address
   command: kubectl get gateway -n kube-system homelab -o jsonpath='{.status.addresses[0].value}'
   register: gateway_address
   failed_when: false
   changed_when: false
   when:
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
 
 - name: Retrieve Longhorn URL
   set_fact:
-    longhorn_url: "https://longhorn.homelab.local"
+    longhorn_url: "https://longhorn.{{ cluster_domain }}"
   when: 
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - longhorn_install | default(false)
 
 - name: Retrieve Rancher bootstrap password
@@ -37,14 +24,14 @@
   failed_when: false
   changed_when: false
   when: 
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - rancher_install | default(false)
 
 - name: Retrieve Rancher URL
   set_fact:
-    rancher_url: "https://rancher.homelab.local"
+    rancher_url: "https://rancher.{{ cluster_domain }}"
   when: 
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - rancher_install | default(false)
 
 - name: Retrieve Grafana admin password
@@ -53,7 +40,7 @@
   failed_when: false
   changed_when: false
   when: 
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - grafana_install | default(false)
 
 - name: Retrieve Grafana admin user
@@ -62,14 +49,14 @@
   failed_when: false
   changed_when: false
   when: 
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - grafana_install | default(false)
 
 - name: Retrieve Grafana URL
   set_fact:
-    grafana_url: "https://grafana.homelab.local"
+    grafana_url: "https://grafana.{{ cluster_domain }}"
   when: 
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - grafana_install | default(false)
 
 - name: Retrieve ArgoCD admin password
@@ -78,14 +65,14 @@
   failed_when: false
   changed_when: false
   when: 
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - argocd_install | default(false)
 
 - name: Retrieve ArgoCD URL
   set_fact:
-    argocd_url: "https://argocd.homelab.local"
+    argocd_url: "https://argocd.{{ cluster_domain }}"
   when: 
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - argocd_install | default(false)
 
 
@@ -107,5 +94,5 @@
       - "Not: URL'lere erisim icin /etc/hosts dosyaniza MetalLB LoadBalancer IP'sini ekleyin."
       - "{{ bar }}"
   when:
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
 

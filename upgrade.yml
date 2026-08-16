@@ -7,3 +7,29 @@
   roles:
     - update_cluster
 
+# Ayri play: `serial` yok, yani tum node'lar upgrade edildikten SONRA calisir.
+- hosts: master
+  become: true
+  vars_files:
+    - playbooks/roles/k3s_setup/vars/main.yml
+  tasks:
+    - name: "Resolve ansible_user home directory"
+      ansible.builtin.include_role:
+        name: k3s_setup
+        tasks_from: _resolve_user
+
+    - name: "Cleanup Stuck Nodes (Uncordon SchedulingDisabled nodes)"
+      ansible.builtin.import_role:
+        name: update_cluster
+        tasks_from: 05_cleanup_stuck_nodes.yml
+
+    - name: "Rebalance Pods Across Worker Nodes"
+      ansible.builtin.import_role:
+        name: update_cluster
+        tasks_from: 06_rebalance_pods.yml
+
+    - name: "Verify Cluster Status After Upgrade"
+      ansible.builtin.import_role:
+        name: update_cluster
+        tasks_from: 04_verify_cluster.yml
+

@@ -3,36 +3,6 @@
 # Install Rancher
 # ============================
 
-- name: Find home directory for ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_output
-  changed_when: false
-  when: "'master' in group_names"
-
-- name: Set home directory variable
-  set_fact:
-    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
-  when: 
-    - "'master' in group_names" 
-    - getent_passwd_output.stdout != ""
-
-- name: Define the user name with ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_result
-  changed_when: false
-
-- name: Set user name variable from getent passwd output
-  set_fact:
-    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
-  when: getent_passwd_result.stdout != ''
-
-- name: Check if Rancher namespace exists
-  command: kubectl get namespace cattle-system
-  register: rancher_namespace_exists
-  failed_when: false
-  changed_when: false
-  when: "'master' in group_names"
-
 - name: Render Rancher deployment from variables (rancher_version)
   ansible.builtin.template:
     src: rancher-deployment.yml.j2
@@ -48,16 +18,14 @@
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/rancher/rancher-deployment.yml
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: rancher_apply_result
   until: rancher_apply_result.rc == 0
   retries: 5
   delay: 30
-  when:
-    - inventory_hostname == 'master-1'
-    - rancher_namespace_exists.rc != 0
+  when: inventory_hostname == groups['master'][0]
 
 - name: Wait for Rancher pods to be in Running state
   command: kubectl get pods -n cattle-system -l app=rancher -o jsonpath='{.items[*].status.phase}'
@@ -65,19 +33,18 @@
   until: rancher_pod_status.stdout.find('Running') != -1
   retries: 15
   delay: 30
-  when: 
-    - inventory_hostname == 'master-1'
-    - rancher_namespace_exists.rc != 0
+  changed_when: false
+  when: inventory_hostname == groups['master'][0]
 
 - name: Apply Rancher HTTPRoute
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/rancher/httproute.yml
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
     - cert_manager_install | default(false)
 
 - name: Wait for bootstrap-secret to be created
@@ -87,19 +54,19 @@
   retries: 20
   delay: 10
   failed_when: false
-  when: inventory_hostname == 'master-1'
+  when: inventory_hostname == groups['master'][0]
 
 - name: Get Rancher bootstrap password from secret
   shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{% raw %}{{.data.bootstrapPassword|base64decode}}{{"\n"}}{% endraw %}'
   register: rancher_bootstrap_password_raw
-  when: inventory_hostname == 'master-1'
+  when: inventory_hostname == groups['master'][0]
 
 - name: Extract Rancher bootstrap password
   set_fact:
     rancher_bootstrap_password: "{{ rancher_bootstrap_password_raw.stdout | trim }}"
-  when: inventory_hostname == 'master-1'
+  when: inventory_hostname == groups['master'][0]
 
 - name: Show Rancher bootstrap password
   debug:
     msg: "Rancher Bootstrap Password: {{ rancher_bootstrap_password }}"
-  when: inventory_hostname == 'master-1'
+  when: inventory_hostname == groups['master'][0]

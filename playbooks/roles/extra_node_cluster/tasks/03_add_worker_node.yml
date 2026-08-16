@@ -25,11 +25,6 @@
     - "'worker' in group_names"
     - k3s_token is not defined or k3s_token | default('') == ''
 
-- name: Get keepalived VIP from vars
-  set_fact:
-    keepalived_vip: "{{ keepalived_vip | default('192.168.1.244') }}"
-  run_once: true
-
 - name: Count existing master nodes
   set_fact:
     existing_master_count: "{{ groups['master'] | length | int }}"
@@ -63,7 +58,7 @@
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
     {% endif %}
-    curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ k3s_token | default('') }} sh -
+    curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] | default(groups['master'][0]) }}:6443 K3S_TOKEN={{ k3s_token | default('') }} sh -
   when: 
     - "'worker' in group_names"
     - not node_already_joined | default(false)
@@ -83,34 +78,6 @@
     - not node_already_joined | default(false)
   become: true
 
-- name: Find home directory for ansible_user (on master node for kubectl commands)
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_output
-  changed_when: false
-  delegate_to: "{{ groups['master'][0] }}"
-  run_once: true
-
-- name: Set home directory variable (for all workers)
-  set_fact:
-    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
-  when: 
-    - getent_passwd_output is defined
-    - getent_passwd_output.stdout is defined
-    - getent_passwd_output.stdout != ""
-
-- name: Define the user name with ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_result
-  changed_when: false
-  delegate_to: "{{ groups['master'][0] }}"
-  run_once: true
-
-- name: Set user name variable from getent passwd output
-  set_fact:
-    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
-  when: getent_passwd_result.stdout != ''
-  run_once: true
-
 - name: Wait for worker node to appear in cluster
   ansible.builtin.shell: kubectl get nodes {{ inventory_hostname }} --no-headers
   register: verify_worker_join
@@ -120,7 +87,7 @@
     - "'worker' in group_names"
     - not node_already_joined | default(false)
   become: true
-  become_user: "{{ uid_user | default('root') }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
   delegate_to: "{{ groups['master'][0] }}"
@@ -138,7 +105,7 @@
     - not node_already_joined | default(false)
     - verify_worker_join.rc == 0
   become: true
-  become_user: "{{ uid_user | default('root') }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
   delegate_to: "{{ groups['master'][0] }}"

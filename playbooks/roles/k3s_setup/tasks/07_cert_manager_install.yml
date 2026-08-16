@@ -3,50 +3,6 @@
 # Install Cert-Manager
 # ============================
 
-- name: Find home directory for ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_output
-  changed_when: false
-  when: "'master' in group_names"
-
-- name: Set home directory variable
-  set_fact:
-    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
-  when: 
-  - "'master' in group_names" 
-  - getent_passwd_output.stdout != ""
-
-- name: Define the user name with ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_result
-  changed_when: false
-
-- name: Set user name variable from getent passwd output
-  set_fact:
-    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
-  when: getent_passwd_result.stdout != ''
-
-- name: Check if cert-manager namespace exists
-  command: kubectl get namespace cert-manager
-  register: cert_manager_namespace_exists
-  failed_when: false
-  changed_when: false
-  when: "'master' in group_names"
-
-- name: Check if cert-manager Helm release exists
-  ansible.builtin.command:
-    cmd: helm list -n cert-manager -q
-  register: cert_manager_helm_release
-  failed_when: false
-  changed_when: false
-  become: true
-  become_user: "{{ uid_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when:
-    - "'master' in group_names"
-    - inventory_hostname == 'master-1'
-
 - name: Check if Jetstack Helm repository is already added
   ansible.builtin.command:
     cmd: helm repo list
@@ -54,7 +10,7 @@
   failed_when: false
   changed_when: false
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   when: "'master' in group_names"
 
 - name: Fail if helm repo list failed for reasons other than no repositories
@@ -85,7 +41,7 @@
   ansible.builtin.command:
     cmd: helm repo add jetstack {{ helm_repo_cert_manager }}
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   when: 
     - "'master' in group_names"
     - not jetstack_repo_present
@@ -101,7 +57,7 @@
   ansible.builtin.command:
     cmd: helm repo update
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   when: 
     - "'master' in group_names"
 
@@ -127,37 +83,18 @@
     - (master_count | default(0) | int) < 3
   run_once: true
 
-- name: Install Cert-Manager Helm chart (HA mode - 3+ masters)
+- name: Install Cert-Manager Helm chart
   ansible.builtin.command:
     cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set crds.enabled=true -f {{ cert_manager_values_file }}
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: cert_manager_helm_result
   until: cert_manager_helm_result.rc == 0
   retries: 5
   delay: 30
-  when:
-    - inventory_hostname == 'master-1'
-    - (cert_manager_helm_release.stdout | default('') | trim) == ''
-    - (master_count | default(0) | int) >= 3
-
-- name: Install Cert-Manager Helm chart (Single Master)
-  ansible.builtin.command:
-    cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set crds.enabled=true -f {{ cert_manager_values_file }}
-  become: true
-  become_user: "{{ uid_user }}"
-  environment:
-    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  register: cert_manager_helm_result
-  until: cert_manager_helm_result.rc == 0
-  retries: 5
-  delay: 30
-  when:
-    - inventory_hostname == 'master-1'
-    - (cert_manager_helm_release.stdout | default('') | trim) == ''
-    - (master_count | default(0) | int) < 3
+  when: inventory_hostname == groups['master'][0]
 
 - name: Wait for Cert-Manager pods to be in Running state
   command: kubectl get pods -n cert-manager -l app.kubernetes.io/name=cert-manager -o jsonpath='{.items[*].status.phase}'
@@ -165,40 +102,38 @@
   until: cert_manager_pod_status.stdout.find('Running') != -1
   retries: 10
   delay: 60
-  when: 
-    - inventory_hostname == 'master-1'
-    - cert_manager_namespace_exists.rc != 0
-    - (cert_manager_helm_release.stdout | default('') | trim) == ''
+  changed_when: false
+  when: inventory_hostname == groups['master'][0]
 
 - name: Apply selfsigned issuer
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/cert-manager/selfsigned-issuer.yml
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
 
 # ============================
-# Paylasimli Gateway (*.homelab.local) - issuer'a bagli oldugu icin burada
+# Paylasimli Gateway (*.{{ cluster_domain }}) - issuer'a bagli oldugu icin burada
 # ============================
 
-- name: Apply wildcard certificate for *.homelab.local
+- name: Apply wildcard certificate for *.{{ cluster_domain }}
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/gateway/wildcard-certificate.yml
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
 
 - name: Wait for wildcard certificate to be issued
   ansible.builtin.command:
     cmd: kubectl wait --for=condition=Ready --timeout=180s -n kube-system certificate/homelab-wildcard
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: wildcard_cert_ready
@@ -207,23 +142,23 @@
   delay: 20
   changed_when: false
   when:
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
 
 - name: Apply shared homelab Gateway
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/gateway/gateway.yml
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   when:
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]
 
 - name: Wait for homelab Gateway to be Programmed
   ansible.builtin.command:
     cmd: kubectl wait --for=condition=Programmed --timeout=180s -n kube-system gateway/homelab
   become: true
-  become_user: "{{ uid_user }}"
+  become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: homelab_gateway_programmed
@@ -232,4 +167,4 @@
   delay: 20
   changed_when: false
   when:
-    - inventory_hostname == 'master-1'
+    - inventory_hostname == groups['master'][0]

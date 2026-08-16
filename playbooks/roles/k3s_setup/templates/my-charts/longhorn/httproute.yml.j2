@@ -10,7 +10,7 @@ spec:
       namespace: kube-system
       sectionName: websecure
   hostnames:
-    - longhorn.homelab.local
+    - longhorn.{{ cluster_domain }}
   rules:
     - backendRefs:
         - name: longhorn-frontend

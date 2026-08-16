@@ -1,7 +1,9 @@
 all:
-  # SSH private key'i burada tanımlayabilirsiniz (alternatif: --key-file ile geçin):
-  # vars:
-  #   ansible_ssh_private_key_file: ~/.ssh/homelab
+  # Baglanti ayarlari envanterde durur: rol paylasilabilir kalir ve bu degerler
+  # gather_facts'ten once, yani ILK baglantida da gecerli olur.
+  vars:
+    ansible_user: murat
+    ansible_ssh_private_key_file: /home/shyuuhei/.ssh/homelab
   children:
     master:
       hosts:

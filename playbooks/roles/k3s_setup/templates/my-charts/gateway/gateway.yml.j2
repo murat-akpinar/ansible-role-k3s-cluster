@@ -13,7 +13,7 @@ spec:
       # Traefik'in ENTRYPOINT portu (websecure). Servis disariya 443 yayinlar;
       # buraya 443 yazilirsa eslesen entryPoint bulunamaz.
       port: 8443
-      hostname: "*.homelab.local"
+      hostname: "*.{{ cluster_domain }}"
       tls:
         mode: Terminate
         certificateRefs:

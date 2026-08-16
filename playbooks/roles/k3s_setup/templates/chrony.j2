@@ -6,10 +6,10 @@ pool 1.ubuntu.pool.ntp.org iburst
 pool 2.ubuntu.pool.ntp.org iburst
 
 # DHCP'den gelen zaman kaynaklarını kullanma
-sourcedir /etc/chrony/sources.d
+sourcedir {{ '/etc/chrony/sources.d' if ansible_os_family == 'Debian' else '/etc/chrony.d' }}
 
 # Kimlik doğrulama anahtar dosyası
-keyfile /etc/chrony/chrony.keys
+keyfile {{ '/etc/chrony/chrony.keys' if ansible_os_family == 'Debian' else '/etc/chrony.keys' }}
 
 # Zaman sapmalarını kaydet
 driftfile /var/lib/chrony/chrony.drift

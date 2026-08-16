@@ -117,11 +117,14 @@
               - { name: "Rancher",                  ns: "cattle-system",  enabled: "{{ rancher_install | default(false) }}" }
               - { name: "ArgoCD",                   ns: "argocd",         enabled: "{{ argocd_install | default(false) }}" }
           block:
+            # Keepalived yalnizca 3+ master'da yapilandiriliyor (bkz.
+            # 02_install_keepalived.yml), altinda ortada VIP diye bir sey yok.
             - name: Check Keepalived VIP reachability
               command: "ping -c 2 -W 2 {{ keepalived_vip }}"
               register: vip_ping
               changed_when: false
               failed_when: false
+              when: groups['master'] | length >= 3
 
             - name: Count nodes that are not Ready
               shell: 'kubectl get nodes --no-headers | grep -v " Ready " | wc -l'
@@ -204,7 +207,7 @@
                   - "======================================================================"
                   - "{{ ('[OK]  ' if (not_ready_nodes.stdout | int == 0) else '[FAIL]') ~ ' Nodes Ready       — not-ready: ' ~ (not_ready_nodes.stdout | trim) ~ ' / total: ' ~ (total_nodes.stdout | trim) }}"
                   - "{{ ('[OK]  ' if (not_running_pods.stdout | int == 0) else '[FAIL]') ~ ' Pods Running      — not-running: ' ~ (not_running_pods.stdout | trim) }}"
-                  - "{{ ('[OK]  ' if (vip_ping.rc == 0) else '[FAIL]') ~ ' Keepalived VIP    — ' ~ keepalived_vip }}"
+                  - "{{ (('[OK]  ' if (vip_ping.rc | default(1) == 0) else '[FAIL]') ~ ' Keepalived VIP    — ' ~ keepalived_vip) if (groups['master'] | length >= 3) else '[SKIP] Keepalived VIP    — <3 master, keepalived kurulmuyor' }}"
 
             - name: Append component lines
               set_fact:
@@ -234,7 +237,7 @@
               vars:
                 overall_ok: "{{ (not_ready_nodes.stdout | int == 0)
                                 and (not_running_pods.stdout | int == 0)
-                                and (vip_ping.rc == 0)
+                                and ((groups['master'] | length < 3) or (vip_ping.rc | default(1) == 0))
                                 and ((not (cert_manager_install | default(false)))
                                      or (((gateway_programmed.stdout | default('') | trim) == 'True')
                                          and ((httproutes_not_accepted.stdout | default('0') | trim | int) == 0)))

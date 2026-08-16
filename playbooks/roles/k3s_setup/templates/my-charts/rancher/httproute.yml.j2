@@ -10,7 +10,7 @@ spec:
       namespace: kube-system
       sectionName: websecure
   hostnames:
-    - rancher.homelab.local
+    - rancher.{{ cluster_domain }}
   rules:
     - backendRefs:
         # Backend HTTP/80 olmali: HTTPS/443 verilince Traefik rancher'in

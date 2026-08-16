@@ -1,10 +1,18 @@
-ansible_user: murat
+# ansible_user / ansible_ssh_private_key_file inventory/cluster_inventory.yml'de.
+# DEGISTIRIN: VRRP paylasilan parolasi. Repoda duz metin durmamali; tercihen
+# ansible-vault ile sifreleyin (ansible-vault encrypt_string ...).
 keepalived_auth_pass: P@ssw0rd123!
 keepalived_vip: 192.168.1.244
+# Gateway/HTTPRoute/wildcard sertifika ve ozet ekranindaki URL'ler bu tek
+# degiskenden uretilir. Degistirince hepsi birlikte degisir.
+cluster_domain: homelab.local
 # Keepalived VRRP interface'i. Bos birakilirsa otomatik algilanir (ansible_default_ipv4.interface).
 # Farkli dagitimlarda eth0, ens3, ens18 vb. olabilir; otomatik algilama yanlis arabirimi
 # secerse asagiya sabit deger yazarak override edebilirsiniz (or: "eth0").
 keepalived_interface: ""
+# VRRP router ID. Ayni L2 agda birden fazla cluster varsa her birine farkli bir
+# deger verin (1-255), aksi halde VRRP instance'lari catisir.
+keepalived_router_id: 51
 helm_install: true
 # L7: k3s gomulu Traefik + Gateway API (Ingress yok).
 metallb_install: true
@@ -14,7 +22,6 @@ longhorn_install: false
 grafana_install: true
 rancher_install: true
 argocd_install: true
-ansible_ssh_private_key_file: /home/shyuuhei/.ssh/homelab # eğer farklı bir ssh key kullanıyorsanız burada belirtebilirsiniz.
 
 # External URLs and Download Links
 k3s_install_url: https://get.k3s.io

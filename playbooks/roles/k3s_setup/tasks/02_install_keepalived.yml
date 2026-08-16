@@ -80,31 +80,15 @@
 # Configure Keepalived
 # ============================
 
-    - name: Configure Keepalived for first master node
+    - name: Configure Keepalived
       template:
-        src: keepalived-master.j2
+        src: keepalived.conf.j2
         dest: /etc/keepalived/keepalived.conf
-      when: inventory_hostname == groups['master'][0]
-      register: keepalived_config_master
+      register: keepalived_config
 
-    - name: Configure Keepalived for other masters
-      template:
-        src: keepalived-backup.j2
-        dest: /etc/keepalived/keepalived.conf
-      when: 
-        - inventory_hostname != groups['master'][0]
-        - "'master' in group_names"
-      register: keepalived_config_backup
-
-    - name: Debug Keepalived configuration for first master
+    - name: Debug Keepalived configuration
       debug:
-        msg: "Keepalived master configuration result: {{ keepalived_config_master }}"
-      when: inventory_hostname == groups['master'][0]
-
-    - name: Debug Keepalived configuration for other masters
-      debug:
-        msg: "Keepalived backup configuration result: {{ keepalived_config_backup }}"
-      when: inventory_hostname != groups['master'][0]
+        msg: "Keepalived configuration result: {{ keepalived_config }}"
 
     - name: Verify Keepalived configuration file
       command: cat /etc/keepalived/keepalived.conf

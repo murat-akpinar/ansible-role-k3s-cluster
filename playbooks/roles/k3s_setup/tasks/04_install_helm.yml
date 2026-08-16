@@ -3,16 +3,6 @@
 # Install Helm
 # ============================
 
-- name: Define the user name with ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_result
-  changed_when: false
-
-- name: Set user name variable from getent passwd output
-  set_fact:
-    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
-  when: getent_passwd_result.stdout != ''
-
 - name: Check if Helm is installed
   command: which helm
   register: helm_installed
@@ -45,19 +35,6 @@
     state: started
   when: "'master' in group_names"
 
-- name: Find home directory for ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_output
-  changed_when: false
-  when: "'master' in group_names"
-
-- name: Set home directory variable
-  set_fact:
-    user_home_directory: "{{ getent_passwd_output.stdout.split(':')[5] }}"
-  when: 
-  - "'master' in group_names" 
-  - getent_passwd_output.stdout != ""
-
 - name: Copy my-charts directory to user's home directory
   copy:
     src: ./my-charts/
@@ -66,5 +43,24 @@
     group: "{{ ansible_user }}"
     mode: '0755'
   when:
-  - "'master' in group_names" 
+  - "'master' in group_names"
+  - user_home_directory is defined
+
+# Domain iceren manifest'ler tek degiskenden (cluster_domain) uretilir.
+- name: Render domain-dependent manifests into my-charts
+  ansible.builtin.template:
+    src: "my-charts/{{ item }}.j2"
+    dest: "{{ user_home_directory }}/my-charts/{{ item }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  loop:
+    - gateway/gateway.yml
+    - gateway/wildcard-certificate.yml
+    - argocd/httproute.yml
+    - grafana/httproute.yml
+    - longhorn/httproute.yml
+    - rancher/httproute.yml
+  when:
+  - "'master' in group_names"
   - user_home_directory is defined

@@ -10,10 +10,10 @@ spec:
   secretName: homelab-wildcard-tls
   duration: 8760h
   renewBefore: 2160h
-  commonName: "*.homelab.local"
+  commonName: "*.{{ cluster_domain }}"
   dnsNames:
-    - "*.homelab.local"
-    - "homelab.local"
+    - "*.{{ cluster_domain }}"
+    - "{{ cluster_domain }}"
   issuerRef:
     name: selfsigned-issuer
     kind: ClusterIssuer

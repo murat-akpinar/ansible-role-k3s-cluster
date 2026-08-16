@@ -14,11 +14,6 @@
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
 
-- name: Get keepalived VIP from vars
-  set_fact:
-    keepalived_vip: "{{ keepalived_vip | default('192.168.1.244') }}"
-  run_once: true
-
 - name: Count existing master nodes
   set_fact:
     existing_master_count: "{{ groups['master'] | length | int }}"
@@ -136,10 +131,10 @@
     - "'master' in group_names"
     - not node_already_joined | default(false)
   become: true
-  become_user: "{{ uid_user | default('root') }}"
   environment:
-    KUBECONFIG: "{{ user_home_directory | default('/root') }}/.kube/config"
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   delegate_to: "{{ groups['master'][0] }}"
+  until: verify_master_join.rc == 0
   retries: 5
   delay: 10
 

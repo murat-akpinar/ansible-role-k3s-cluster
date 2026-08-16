@@ -1,8 +1,11 @@
 # Main tasks for k3s setup
 ---
 
-# - name: "System requirements Check"
-#   ansible.builtin.import_tasks: 00_system_requirements.yml
+- name: "Resolve ansible_user home directory"
+  ansible.builtin.import_tasks: _resolve_user.yml
+
+- name: "System requirements Check"
+  ansible.builtin.import_tasks: 00_system_requirements.yml
 
 - name: "Ensure prerequisite packages are installed (acl + Longhorn storage deps)"
   ansible.builtin.package:

@@ -217,6 +217,51 @@
       when: single_k3s_token is defined
       run_once: true
 
+    - name: Get first master IP address (single master)
+      set_fact:
+        first_master_ip: "{{ hostvars[groups['master'][0]]['ansible_host'] | default(groups['master'][0]) }}"
+      run_once: true
+
+    - name: Check if K3s is already installed on additional master nodes (single master)
+      command: systemctl is-active k3s
+      register: k3s_extra_master_status_single
+      failed_when: false
+      changed_when: false
+      when:
+        - "'master' in group_names"
+        - inventory_hostname != groups['master'][0]
+      become: true
+
+    - name: Install K3s on additional master nodes (single master, join first master directly)
+      shell: |
+        export K3S_TOKEN="{{ single_k3s_token | default('') }}"
+        export K3S_URL="https://{{ first_master_ip }}:6443"
+        export INSTALL_K3S_EXEC="server --server $K3S_URL {{ k3s_server_args }}"
+        {% if k3s_version_env | default('') != '' %}
+        export {{ k3s_version_env }}
+        {% endif %}
+        curl -sfL {{ k3s_install_url }} | sh -
+      when:
+        - "'master' in group_names"
+        - inventory_hostname != groups['master'][0]
+        - k3s_extra_master_status_single.rc != 0
+        - (single_k3s_token | default('')) != ''
+      register: join_extra_master_single
+      become: true
+      retries: 3
+      delay: 15
+      until: join_extra_master_single is succeeded
+
+    - name: Ensure K3s is enabled and running on additional master nodes (single master)
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: yes
+        state: started
+      when:
+        - "'master' in group_names"
+        - inventory_hostname != groups['master'][0]
+      become: true
+
     - name: Check if K3s agent is already installed on worker nodes (single master)
       command: systemctl is-active k3s-agent
       register: k3s_worker_agent_status_single
@@ -230,7 +275,7 @@
         {% if k3s_version_env | default('') != '' %}
         export {{ k3s_version_env }}
         {% endif %}
-        curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 K3S_TOKEN={{ hostvars[groups['master'][0]]['single_k3s_token_raw'].stdout | default('') }} sh -
+        curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ first_master_ip }}:6443 K3S_TOKEN={{ hostvars[groups['master'][0]]['single_k3s_token_raw'].stdout | default('') }} sh -
       when: 
         - "'worker' in group_names"
         - k3s_worker_agent_status_single.rc != 0
@@ -276,44 +321,34 @@
     msg: "{{ k3s_agent_service_status.stdout }}"
   when: "'worker' in group_names"
 
-- name: Define the user name with ansible_user
-  command: getent passwd {{ ansible_user }}
-  register: getent_passwd_result
-  changed_when: false
-
-- name: Set user name variable from getent passwd output
-  set_fact:
-    uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
-  when: getent_passwd_result.stdout != ''
-
 - name: Create .kube directory for user with ansible_user
   ansible.builtin.file:
-    path: "/home/{{ uid_user }}/.kube"
+    path: "{{ user_home_directory }}/.kube"
     state: directory
     mode: '0755'
-    owner: "{{ uid_user }}"
-    group: "{{ uid_user }}"
-  when: "'master' in group_names and uid_user is defined"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: "'master' in group_names"
 
 - name: Remove existing kube config if it exists
   ansible.builtin.file:
-    path: "/home/{{ uid_user }}/.kube/config"
+    path: "{{ user_home_directory }}/.kube/config"
     state: absent
-  when: "'master' in group_names and uid_user is defined"
+  when: "'master' in group_names"
 
 - name: Create symbolic link to k3s.yaml for user's kube config
   ansible.builtin.file:
     src: /etc/rancher/k3s/k3s.yaml
-    dest: "/home/{{ uid_user }}/.kube/config"
+    dest: "{{ user_home_directory }}/.kube/config"
     state: link
-    owner: "{{ uid_user }}"
-    group: "{{ uid_user }}"
-  when: "'master' in group_names and uid_user is defined"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: "'master' in group_names"
 
 - name: Ensure .bashrc contains KUBECONFIG
   lineinfile:
-    path: "/home/{{ uid_user }}/.bashrc"
-    line: 'export KUBECONFIG="/home/{{ uid_user }}/.kube/config"'
+    path: "{{ user_home_directory }}/.bashrc"
+    line: 'export KUBECONFIG="{{ user_home_directory }}/.kube/config"'
     state: present
-  when: "'master' in group_names and uid_user is defined"
+  when: "'master' in group_names"
 

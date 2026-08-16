@@ -1,6 +1,12 @@
 ---
 # Main tasks for adding extra nodes to existing K3s cluster
 
+# user_home_directory tek kaynaktan (k3s_setup/tasks/_resolve_user.yml) gelir.
+- name: "Resolve ansible_user home directory"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: _resolve_user
+
 - name: "Ensure prerequisite packages are installed (acl + Longhorn storage deps)"
   ansible.builtin.package:
     # Paket isimleri OS ailesine gore degisir; ansible.builtin.package paket
@@ -36,8 +42,11 @@
   ansible.builtin.import_tasks: 02_add_master_node.yml
   when: "'master' in group_names"
 
+# Keepalived kurulumu k3s_setup ile birebir ayniydi; kopya yerine kaynagi cagiriyoruz.
 - name: "Install and Configure Keepalived (if 3+ masters after adding nodes)"
-  ansible.builtin.import_tasks: 04_install_keepalived.yml
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: 02_install_keepalived
   when: "'master' in group_names"
 
 - name: "Add Worker Node to Cluster"

@@ -12,12 +12,20 @@
     mode: '0644'
   become: true
 
-- name: Remove all files in /etc/update-motd.d directory
-  ansible.builtin.shell: rm -rf /etc/update-motd.d/*
+- name: Find dynamic MOTD scripts
+  ansible.builtin.find:
+    paths: /etc/update-motd.d
+    file_type: file
+  register: motd_scripts
   become: true
 
-- name: Restart SSH service to apply changes
-  ansible.builtin.service:
-    name: ssh
-    state: restarted
+# Silmek yerine exec bitini dusuruyoruz: idempotent ve geri alinabilir.
+# sshd /etc/motd'yi her girişte okur, servisi yeniden baslatmaya gerek yok.
+- name: Disable dynamic MOTD scripts
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: '0644'
+  loop: "{{ motd_scripts.files }}"
+  loop_control:
+    label: "{{ item.path }}"
   become: true

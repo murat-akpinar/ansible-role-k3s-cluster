@@ -1,0 +1,33 @@
+{# Tek template: state/priority envanterdeki master sirasindan turetilir. #}
+global_defs {
+    enable_script_security
+    script_user keepalived_script
+}
+
+{# k3s apiserver saglik kontrolu: k3s olurse priority duser ve VIP devreder.
+   Bu olmadan VIP, node tamamen dusene kadar olu apiserver'da kalir. #}
+vrrp_script chk_k3s {
+    script "/usr/bin/pidof k3s"
+    interval 2
+    weight -20
+    fall 2
+    rise 2
+}
+
+vrrp_instance VI_1 {
+    state {{ 'MASTER' if inventory_hostname == groups['master'][0] else 'BACKUP' }}
+    interface {{ keepalived_network }}
+    virtual_router_id {{ keepalived_router_id }}
+    priority {{ 100 + (groups['master'] | length) - (groups['master'].index(inventory_hostname)) }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ keepalived_auth_pass }}
+    }
+    virtual_ipaddress {
+        {{ keepalived_vip }}
+    }
+    track_script {
+        chk_k3s
+    }
+}

@@ -1,0 +1,18 @@
+---
+# ============================================================================
+# ansible_user'in ev dizinini TEK yerde cozer.
+# ============================================================================
+# Eskiden ayni "getent passwd + split(':')" blogu 15+ dosyada kopyaliydi; bir
+# kopya duzeltilince digerleri geride kaliyordu. Rol main.yml'lerinden bir kez
+# calisir, set_fact host boyunca (sonraki tum import'larda) gecerli kalir.
+#
+# Eski `uid_user` degiskeni kaldirildi: degeri her zaman ansible_user'in kendisiydi.
+
+- name: Resolve ansible_user account from passwd database
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ ansible_user }}"
+
+- name: Set user_home_directory fact
+  ansible.builtin.set_fact:
+    user_home_directory: "{{ ansible_facts.getent_passwd[ansible_user][4] }}"
