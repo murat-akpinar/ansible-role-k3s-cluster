@@ -96,13 +96,17 @@
   delay: 30
   when: inventory_hostname == groups['master'][0]
 
-- name: Wait for MetalLB pods to be in Running state
-  shell: |
-    kubectl get pods -n metallb-system -o jsonpath='{.items[*].status.phase}' | grep -v Running && exit 1 || exit 0
-  register: result
-  until: result.rc == 0
-  retries: 10
-  delay: 60
+# IPAddressPool/L2Advertisement bir validating webhook'tan gecer; webhook'u
+# metallb-controller servis eder. Deployment Available olana kadar beklemek
+# endpoint'in hazir oldugunu garanti eder (pod "Running" olmasi yetmez).
+- name: Wait for MetalLB controller to become available (webhook icin)
+  ansible.builtin.command:
+    cmd: kubectl wait --namespace metallb-system --for=condition=Available --timeout=300s deployment/metallb-controller
+  become: true
+  become_user: "{{ ansible_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Render MetalLB IPAddressPool config from variables
@@ -121,4 +125,10 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  # Controller Available olsa da webhook caBundle'inin yayilmasi birkac saniye
+  # surebiliyor; tek deneme yerine kisa araliklarla tekrar dene.
+  register: metallb_config_apply
+  until: metallb_config_apply.rc == 0
+  retries: 6
+  delay: 10
   when: inventory_hostname == groups['master'][0]

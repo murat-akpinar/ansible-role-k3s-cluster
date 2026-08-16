@@ -32,6 +32,47 @@
     state: started
   become: true
 
+# RHEL ailesinde (Rocky/Alma/RHEL) firewalld varsayilan olarak acik gelir ve
+# flannel'in VXLAN trafigini (UDP 8472) keser. Sonucu sinsi: node'lar Ready
+# gorunur, ama apiserver baska node'daki pod'a ulasamaz -> webhook cagrilari
+# "context deadline exceeded" ile duser (MetalLB IPAddressPool apply hatasi).
+# Ubuntu/Debian'da ufw kapali geldigi icin bu adim yalnizca RHEL'de gerekir.
+- name: "Check if firewalld is running"
+  ansible.builtin.command:
+    cmd: systemctl is-active firewalld
+  register: firewalld_state
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: "Open k3s ports in firewalld"
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 6443/tcp    # kube-apiserver
+    - 8472/udp    # flannel VXLAN (node <-> node pod trafigi)
+    - 10250/tcp   # kubelet (metrics-server, kubectl logs/exec)
+  become: true
+  when: firewalld_state.stdout == 'active'
+
+# Pod (10.42.0.0/16) ve Service (10.43.0.0/16) agleri k3s varsayilanlaridir;
+# --cluster-cidr / --service-cidr ile degistirilirse burasi da guncellenmeli.
+- name: "Trust pod and service CIDRs in firewalld"
+  ansible.posix.firewalld:
+    source: "{{ item }}"
+    zone: trusted
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 10.42.0.0/16
+    - 10.43.0.0/16
+  become: true
+  when: firewalld_state.stdout == 'active'
+
 - name: "Configure Hostname"
   ansible.builtin.import_tasks: 01_configure_hostname.yml
 
