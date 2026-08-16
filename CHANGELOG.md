@@ -25,3 +25,12 @@
 - Cert-manager kapaliyken verify yanlis FAIL veriyordu ([deb6c35](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/deb6c352122f76d83894031a37ad03c61f718ce6)) — Gateway ve HTTPRoute'lar 07_cert_manager_install.yml icinde olusturuluyor, yani cert_manager_install: false iken hic var olmuyorlar. verify.yml bunlari kosulsuz kontrol ettigi icin desteklenen bir yapilandirmada olmayan kaynagi FAIL diye raporluyordu.
 - Helm values'lardaki sessizce yok sayilan anahtarlar duzeltildi ([0fe9ffa](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/0fe9ffa166e2bb7b5fe89e6d0b182d6ecba416e6)) — Values dosyalari sabitlenen chart surumlerine karsi "helm template" ile render edilip cikti incelendi; iki ayar hic uygulanmiyordu.
 - K3s server flag'leri upgrade ve node ekleme sirasinda kayboluyordu ([cd7de00](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/cd7de0075f5c23a3d631609b0d430614719d6cc4)) — Ayni flag dizisi 8 yerde elle tekrarlanmis ve 3 farkli sekilde eksilmisti. k3s install script'i her calistiginda systemd unit'ini INSTALL_K3S_EXEC'e gore YENIDEN YAZDIGI icin eksik flag = kalici kayip.
+- Sessizce yok sayilan ayarlar, sabit master-1 ismi ve uygulanmayan helm degisiklikleri ([b842382](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/b842382787d11724ab94c08992010a0bb0f9789f)) — Tarama bulgularinin tamami (todo.md A1-A14, B1-B5, C1-C5).
+
+### 📚 Documentation
+
+- README'ler tasinan dosyalar ve yeni degiskenlerle guncellendi ([998884f](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/998884fc0cc20ee8f276abb7d90c220d149c864c)) — - Baglanti degiskenlerinin envanterde durduğu belirtildi - cluster_domain ve keepalived_router_id ornek yapilandirmaya eklendi - HTTPRoute / gateway dosya yollari templates/my-charts/*.j2 olarak duzeltildi - Dizin agacindaki keepalived-master/backup.j2 -> keepalived.conf.j2
+
+### ⚙️ Miscellaneous Tasks
+
+- Vendor'lanmis .ansible/ dizini git takibinden cikarildi ([83c148d](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/83c148d4a3d40c8b16eb37966785ed99664020a0)) — 3725 dosya / ~27 MB ucuncu parti collection kodu (community.general, ansible.posix) repoda izleniyordu. Bu dizin VS Code Ansible eklentisinin urunu; ansible'in collection arama yolunda degil, dolayisiyla hicbir ise yaramadan tasiniyordu. Collection'lar README'deki
