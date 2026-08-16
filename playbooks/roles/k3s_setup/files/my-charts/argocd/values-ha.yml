@@ -4,7 +4,7 @@
 
 # Server configuration
 server:
-  replicaCount: 2
+  replicas: 2
 
   affinity:
     podAntiAffinity:
@@ -21,7 +21,7 @@ server:
 
 # Application Controller configuration
 controller:
-  replicaCount: 2
+  replicas: 2
 
   affinity:
     podAntiAffinity:
@@ -38,7 +38,7 @@ controller:
 
 # Repo Server configuration
 repoServer:
-  replicaCount: 2
+  replicas: 2
 
   affinity:
     podAntiAffinity:
@@ -55,7 +55,7 @@ repoServer:
 
 # ApplicationSet Controller configuration
 applicationSet:
-  replicaCount: 2
+  replicas: 2
 
   affinity:
     podAntiAffinity:
@@ -78,11 +78,9 @@ configs:
     "server.insecure": "true"
 
 # Redis configuration
+# NOT: chart'ta redis.replicas yok; redis tek instance calisir.
+# Gercek redis HA icin redis-ha subchart'i gerekir (redis-ha.enabled: true).
 redis:
-  replicaCount: 2
-
-  # Note: ArgoCD Helm chart does not support Redis persistence
-  # Redis runs as Deployment (not StatefulSet), so persistence is not available
 
   affinity:
     podAntiAffinity:

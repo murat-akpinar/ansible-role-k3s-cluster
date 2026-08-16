@@ -36,7 +36,7 @@ grafana:
     dashboardsConfigMapRefEnabled: false
 
 # Kube State Metrics
-kubeStateMetrics:
+kube-state-metrics:
   # Worker preferred (etcd masterlarini bosaltir)
   affinity:
     nodeAffinity:

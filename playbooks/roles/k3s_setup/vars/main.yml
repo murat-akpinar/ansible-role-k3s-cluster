@@ -36,9 +36,9 @@ k3s_disable_servicelb: true
 #  - Yalnizca worker node varken acin (true); worker yoksa tolere etmeyen pod'lar Pending kalir.
 #  - Yalnizca YENI kurulan/kaydolan node'larda etkilidir; mevcut node'lari elle taint'leyin:
 #      kubectl taint nodes <master> node-role.kubernetes.io/master=system:NoSchedule
-#  - Monitoring zaten 'required' anti-master affinity ile master'a gitmez; bu taint cluster-geneli
-#    ek korumadir. Master'da kalmasi gereken bilesenler bu taint'i tolere etmelidir
-#    (rancher/argocd/cert-manager/metallb values'larinda 'system' tolerasyonu zaten var).
+#  - Master'da kalmasi gerekenler taint'i tolere eder: metallb speaker (DaemonSet),
+#    longhorn ve monitoring node-exporter. rancher/argocd/cert-manager BILEREK
+#    tolere etmez, worker'lara yerlesirler.
 k3s_master_taint: true
 k3s_master_taint_value: "node-role.kubernetes.io/master=system:NoSchedule"
 

@@ -57,7 +57,7 @@ alertmanager:
               topologyKey: "kubernetes.io/hostname"
 
 # Kube State Metrics
-kubeStateMetrics:
+kube-state-metrics:
   # Worker preferred (etcd masterlarini bosaltir)
   affinity:
     nodeAffinity:

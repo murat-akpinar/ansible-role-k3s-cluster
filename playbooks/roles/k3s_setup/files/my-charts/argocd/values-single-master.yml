@@ -4,19 +4,19 @@
 
 # Server configuration
 server:
-  replicaCount: 1
+  replicas: 1
 
 # Application Controller configuration
 controller:
-  replicaCount: 1
+  replicas: 1
 
 # Repo Server configuration
 repoServer:
-  replicaCount: 1
+  replicas: 1
 
 # ApplicationSet Controller configuration
 applicationSet:
-  replicaCount: 1
+  replicas: 1
 
 # Configs - ArgoCD configuration parameters
 configs:
@@ -25,9 +25,5 @@ configs:
     # TLS Gateway tarafinda sonlandirilir, backend ile HTTP konusulur
     "server.insecure": "true"
 
-# Redis configuration
-redis:
-  replicaCount: 1
-
-  # Note: ArgoCD Helm chart does not support Redis persistence
-  # Redis runs as Deployment (not StatefulSet), so persistence is not available
+# redis ayarlanmiyor: chart'ta redis.replicas yok, tek instance calisir.
+# Bos bir "redis:" anahtari null olur ve chart'i patlatir, o yuzden hic yazilmiyor.

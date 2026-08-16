@@ -138,6 +138,10 @@ nodeExporter:
 # Kube State Metrics (enabled by default)
 kubeStateMetrics:
   enabled: true
+
+# kube-state-metrics subchart. Toggle ustteki "kubeStateMetrics" altinda,
+# pod ayarlari BURADA; affinity ustte yazilirsa sessizce yok sayilir.
+kube-state-metrics:
   # Worker preferred (etcd masterlarini bosaltir)
   affinity:
     nodeAffinity:
