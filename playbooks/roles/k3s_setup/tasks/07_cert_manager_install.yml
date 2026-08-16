@@ -129,7 +129,7 @@
 
 - name: Install Cert-Manager Helm chart (HA mode - 3+ masters)
   ansible.builtin.command:
-    cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
+    cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set crds.enabled=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ uid_user }}"
   environment:
@@ -145,7 +145,7 @@
 
 - name: Install Cert-Manager Helm chart (Single Master)
   ansible.builtin.command:
-    cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set installCRDs=true -f {{ cert_manager_values_file }}
+    cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set crds.enabled=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ uid_user }}"
   environment:
@@ -181,11 +181,8 @@
     - inventory_hostname == 'master-1'
 
 # ============================
-# Paylasimli Gateway (*.homelab.local)
+# Paylasimli Gateway (*.homelab.local) - issuer'a bagli oldugu icin burada
 # ============================
-# Issuer hazir oldugu icin wildcard sertifika ve onu kullanan Gateway burada
-# uygulanir. Uygulama rolleri (longhorn/grafana/rancher/argocd) yalnizca kendi
-# HTTPRoute'unu ekler.
 
 - name: Apply wildcard certificate for *.homelab.local
   ansible.builtin.command:

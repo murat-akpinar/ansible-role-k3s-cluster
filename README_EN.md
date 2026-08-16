@@ -742,6 +742,26 @@ Add the following lines to your `/etc/hosts` file for local access:
 kubectl get gateway -n kube-system homelab
 ```
 
+### Component Versions
+
+All live in `playbooks/roles/k3s_setup/vars/main.yml`. `""` = pull the newest release each install.
+
+| Component | Variable | Version |
+|---|---|---|
+| MetalLB | `metallb_chart_version` | `0.16.1` |
+| cert-manager | `cert_manager_chart_version` | `v1.21.1` |
+| Longhorn | `longhorn_chart_version` | `1.12.1` |
+| kube-prometheus-stack | `kube_prometheus_stack_chart_version` | `88.3.0` |
+| ArgoCD | `argocd_chart_version` | `10.3.3` |
+| Rancher | `rancher_version` | `v2.15.0` |
+| k3s | `k3s_version` | `""` |
+
+```bash
+helm repo update && helm search repo jetstack/cert-manager --versions | head -3
+```
+
+> ⚠️ Rancher does not allow skipping minor versions. Jumping `rancher_version` from 2.8 to 2.15 on a running install breaks the DB migration; step through the minors.
+
 ## 💾 Longhorn StorageClass
 
 Longhorn provides distributed block storage for Kubernetes. During installation, 6 different StorageClasses are automatically created:
@@ -913,8 +933,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   │   ├── values-ha.yml
 │       │   │   │   │   └── values-single-master.yml
 │       │   │   │   └── rancher
-│       │   │   │       ├── httproute.yml
-│       │   │   │       └── rancher-deployment.yml
+│       │   │   │       └── httproute.yml
 │       │   │   └── traefik-gateway-config.yml
 │       │   ├── handlers
 │       │   │   ├── .gitkeep
@@ -946,6 +965,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── kube-prometheus-stack-values.yml.j2
 │       │   │   ├── longhorn-storageclass.yml.j2
 │       │   │   ├── metallb-config.yml.j2
+│       │   │   ├── rancher-deployment.yml.j2
 │       │   │   └── wellcome.j2
 │       │   └── vars
 │       │       └── main.yml
@@ -964,6 +984,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 ├── .gitignore
 ├── add_node.yml
 ├── ansible.cfg
+├── CHANGELOG.md
+├── cliff.toml
 ├── k3s_setup.yml
 ├── LICENSE
 ├── README.md

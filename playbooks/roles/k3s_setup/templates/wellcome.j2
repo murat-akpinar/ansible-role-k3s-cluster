@@ -29,7 +29,7 @@
 
   » VERSIONS
       k3s {{ k3s_version if (k3s_version | default('')) else 'latest' }}   ·   cert-manager {{ cert_manager_chart_version if (cert_manager_chart_version | default('')) else 'latest' }}   ·   MetalLB {{ metallb_chart_version if (metallb_chart_version | default('')) else 'latest' }}
-      Longhorn {{ longhorn_chart_version if (longhorn_chart_version | default('')) else 'latest' }}   ·   Rancher v2.8.2   ·   ArgoCD {{ argocd_chart_version if (argocd_chart_version | default('')) else 'latest' }}
+      Longhorn {{ longhorn_chart_version if (longhorn_chart_version | default('')) else 'latest' }}   ·   Rancher {{ rancher_version }}   ·   ArgoCD {{ argocd_chart_version if (argocd_chart_version | default('')) else 'latest' }}
 
 ───────────────────────────────────────────────────────────────────────────────
   kubectl get nodes -o wide   ·   helm list -A   ·   docs: README.md

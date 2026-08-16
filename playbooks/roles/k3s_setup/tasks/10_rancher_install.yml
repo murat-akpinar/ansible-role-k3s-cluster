@@ -33,6 +33,17 @@
   changed_when: false
   when: "'master' in group_names"
 
+- name: Render Rancher deployment from variables (rancher_version)
+  ansible.builtin.template:
+    src: rancher-deployment.yml.j2
+    dest: "{{ user_home_directory }}/my-charts/rancher/rancher-deployment.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  when:
+    - "'master' in group_names"
+    - user_home_directory is defined
+
 - name: Install rancher via kubectl apply
   ansible.builtin.command:
     cmd: kubectl apply -f {{ user_home_directory }}/my-charts/rancher/rancher-deployment.yml
@@ -65,8 +76,6 @@
   become_user: "{{ uid_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  # Eskiden Ingress cert_manager_install'dan bagimsiz uygulaniyordu; HTTPRoute
-  # artik wildcard sertifikayi tasiyan Gateway'e bagli, o yuzden ayni sarta baglandi.
   when:
     - inventory_hostname == 'master-1'
     - cert_manager_install | default(false)

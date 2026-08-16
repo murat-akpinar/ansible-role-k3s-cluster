@@ -1,8 +1,6 @@
 ---
-# k3s gomulu Traefik'te Gateway API saglayicisini acar.
-# Bu dosya /var/lib/rancher/k3s/server/manifests/ altina kopyalanir; k3s bu dizini
-# izler ve helm-controller HelmChartConfig'i gomulu traefik HelmChart'i ile birlestirir.
-# k3s'i yeniden baslatmak gerekmez.
+# k3s'in manifests dizinine kopyalanir; helm-controller bunu gomulu traefik
+# HelmChart'i ile birlestirir, restart gerekmez.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -13,11 +11,7 @@ spec:
     providers:
       kubernetesGateway:
         enabled: true
-    # Chart'in kendi varsayilan Gateway'i sadece HTTP:8000 listener'i uretir ve
-    # sertifika referansi alamaz. Onun yerine kube-system/homelab Gateway'ini
-    # (HTTPS + wildcard sertifika) kendimiz uyguluyoruz.
-    # NOT: gatewayClass bundan etkilenmez - chart'taki gatewayclass template'i
-    # yalnizca gatewayClass.enabled + providers.kubernetesGateway.enabled sartina
-    # bagli, dolayisiyla "traefik" GatewayClass'i yine olusur.
+    # Chart'in varsayilan Gateway'i yalnizca HTTP:8000 uretir, sertifika alamaz;
+    # kendi Gateway'imizi kullaniyoruz. GatewayClass bundan etkilenmez.
     gateway:
       enabled: false

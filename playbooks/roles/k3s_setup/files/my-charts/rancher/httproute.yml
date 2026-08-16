@@ -13,9 +13,7 @@ spec:
     - rancher.homelab.local
   rules:
     - backendRefs:
-        # TLS'i Gateway sonlandirir, backend ile HTTP/80 konusulur. Rancher,
-        # HTTPS listener'dan gelen X-Forwarded-Proto: https sayesinde redirect
-        # yapmaz. Backend'e HTTPS/443 verilirse Traefik rancher'in self-signed
-        # sertifikasini dogrulayamayip 500 Internal Server Error dondurur.
+        # Backend HTTP/80 olmali: HTTPS/443 verilince Traefik rancher'in
+        # self-signed sertifikasini dogrulayamayip 500 donduruyor.
         - name: rancher
           port: 80

@@ -740,6 +740,26 @@ Yerel erişim için `/etc/hosts` dosyanıza şu satırları ekleyin:
 kubectl get gateway -n kube-system homelab
 ```
 
+### Bileşen Sürümleri
+
+Tümü `playbooks/roles/k3s_setup/vars/main.yml` içinde. `""` = her kurulumda en son sürüm.
+
+| Bileşen | Değişken | Sürüm |
+|---|---|---|
+| MetalLB | `metallb_chart_version` | `0.16.1` |
+| cert-manager | `cert_manager_chart_version` | `v1.21.1` |
+| Longhorn | `longhorn_chart_version` | `1.12.1` |
+| kube-prometheus-stack | `kube_prometheus_stack_chart_version` | `88.3.0` |
+| ArgoCD | `argocd_chart_version` | `10.3.3` |
+| Rancher | `rancher_version` | `v2.15.0` |
+| k3s | `k3s_version` | `""` |
+
+```bash
+helm repo update && helm search repo jetstack/cert-manager --versions | head -3
+```
+
+> ⚠️ Rancher minor sürüm atlamaya izin vermez. `rancher_version`'ı çalışan bir kurulumda 2.8 → 2.15 sıçratmak DB migrasyonunu bozar; minor'leri tek tek geçin.
+
 ## 💾 Longhorn StorageClass
 
 Longhorn, Kubernetes için dağıtılmış blok depolama sağlar. Kurulum sırasında otomatik olarak 6 farklı StorageClass oluşturulur:
@@ -911,8 +931,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   │   ├── values-ha.yml
 │       │   │   │   │   └── values-single-master.yml
 │       │   │   │   └── rancher
-│       │   │   │       ├── httproute.yml
-│       │   │   │       └── rancher-deployment.yml
+│       │   │   │       └── httproute.yml
 │       │   │   └── traefik-gateway-config.yml
 │       │   ├── handlers
 │       │   │   ├── .gitkeep
@@ -944,6 +963,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── kube-prometheus-stack-values.yml.j2
 │       │   │   ├── longhorn-storageclass.yml.j2
 │       │   │   ├── metallb-config.yml.j2
+│       │   │   ├── rancher-deployment.yml.j2
 │       │   │   └── wellcome.j2
 │       │   └── vars
 │       │       └── main.yml
@@ -962,6 +982,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 ├── .gitignore
 ├── add_node.yml
 ├── ansible.cfg
+├── CHANGELOG.md
+├── cliff.toml
 ├── k3s_setup.yml
 ├── LICENSE
 ├── README.md

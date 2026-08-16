@@ -6,12 +6,9 @@ keepalived_vip: 192.168.1.244
 # secerse asagiya sabit deger yazarak override edebilirsiniz (or: "eth0").
 keepalived_interface: ""
 helm_install: true
-# L7 yonlendirme: k3s ile gelen gomulu Traefik + Gateway API kullanilir
-# (ayri controller kurulumu/disable yok). Ingress kaynagi kullanilmaz.
+# L7: k3s gomulu Traefik + Gateway API (Ingress yok).
 metallb_install: true
-# DIKKAT: paylasimli Gateway wildcard sertifikaya bagli oldugu icin Gateway ve
-# tum HTTPRoute'lar cert_manager_install: true iken kurulur. false yaparsaniz
-# hicbir servis hostname uzerinden erisilebilir olmaz (yalnizca ClusterIP/port-forward).
+# false ise Gateway ve HTTPRoute'lar hic kurulmaz -> hicbir servis hostname'den erisilemez.
 cert_manager_install: true
 longhorn_install: false
 grafana_install: true
@@ -59,15 +56,19 @@ helm_repo_argo: https://argoproj.github.io/argo-helm
 prometheus_data_url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
 
 # ============================================================================
-# Helm Chart Versions
+# Chart Surumleri  (2026-08-16 itibariyla son kararli; "" = her zaman en son)
+# helm repo update && helm search repo jetstack/cert-manager --versions | head -3
 # ============================================================================
-# Bos birakilirsa repodaki EN SON surum kurulur. Tekrar uretilebilir (reproducible)
-# kurulum icin surumu sabitleyin (or: "v1.13.1" veya "4.7.1").
-metallb_chart_version: ""
-cert_manager_chart_version: "v1.13.1"   # onceden koda gomuluydu, varsayilan korundu
-longhorn_chart_version: ""
-kube_prometheus_stack_chart_version: ""
-argocd_chart_version: ""
+metallb_chart_version: "0.16.1"
+cert_manager_chart_version: "v1.21.1"
+longhorn_chart_version: "1.12.1"
+kube_prometheus_stack_chart_version: "88.3.0"   # -> Prometheus Operator v0.93.0
+argocd_chart_version: "10.3.3"                  # -> ArgoCD v3.5.1
+
+# Rancher chart ile degil duz Deployment ile kuruluyor.
+# UYARI: Rancher minor atlamaya izin vermez (2.8 -> 2.15 DB migrasyonunu bozar).
+# Bu deger sifirdan kurulum icindir; mevcut Rancher'i minor minor yukseltin.
+rancher_version: "v2.15.0"
 
 # ============================================================================
 # Monitoring (Prometheus/Alertmanager/Grafana) PVC StorageClass
@@ -100,14 +101,8 @@ longhorn_storage_classes:
   - { name: "longhorn-delete-2", reclaim: "Delete", replicas: 2 }
   - { name: "longhorn-delete-3", reclaim: "Delete", replicas: 3 }
 
-# ============================================================================
-# Gateway API
-# ============================================================================
-# k3s Gateway API CRD'lerini getirmez, standard channel'dan kuruluyor.
-# Surumu Traefik ile UYUMLU tutun: k3s'in gomulu Traefik'i hangi sigs.k8s.io/gateway-api
-# surumune karsi derlendiyse onu yazin (Traefik 3.7.x -> v1.5.1). Kontrol:
-#   kubectl -n kube-system get deploy traefik -o jsonpath='{.spec.template.spec.containers[0].image}'
-#   curl -sL https://raw.githubusercontent.com/traefik/traefik/v<surum>/go.mod | grep gateway-api
+# Gateway API CRD surumu. Traefik'in derlendigi surumle eslesmeli
+# (Traefik 3.7.x -> v1.5.1); kontrol: traefik go.mod | grep gateway-api
 gateway_api_version: "v1.5.1"
 
 # NTP Configuration

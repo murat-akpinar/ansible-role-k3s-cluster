@@ -1,8 +1,6 @@
 ---
-# *.homelab.local wildcard sertifikasi (selfsigned-issuer ClusterIssuer'dan uretilir).
-# Gateway ile AYNI namespace'te (kube-system) durur: boylece Gateway'in
-# certificateRefs'i cross-namespace olmaz ve ReferenceGrant gerekmez.
-# Yeni bir servis yayinlamak icin sertifika eklemeye gerek yok, sadece HTTPRoute yeter.
+# Gateway ile ayni namespace'te durur; boylece certificateRefs cross-namespace
+# olmaz ve ReferenceGrant gerekmez.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:

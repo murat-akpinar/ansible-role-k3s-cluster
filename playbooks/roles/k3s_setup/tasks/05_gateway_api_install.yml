@@ -2,9 +2,7 @@
 # ============================
 # Gateway API (CRD + Traefik saglayicisi)
 # ============================
-# k3s Gateway API CRD'lerini getirmez; once CRD'leri kuruyoruz, sonra gomulu
-# Traefik'in kubernetesGateway saglayicisini aciyoruz. Sira onemli: CRD'ler
-# yoksa helm-controller GatewayClass'i olusturamaz ve traefik release'i patlar.
+# Sira onemli: CRD'ler yoksa helm-controller GatewayClass'i olusturamaz.
 
 - name: Find home directory for ansible_user
   command: getent passwd {{ ansible_user }}
@@ -29,10 +27,8 @@
     uid_user: "{{ getent_passwd_result.stdout.split(':')[0] }}"
   when: getent_passwd_result.stdout != ''
 
-# --server-side ZORUNLU: httproutes CRD'si tek basina ~460 KB, klasik apply'in
-#   yazdigi last-applied-configuration annotation'i 256 KB sinirini asar.
-# --force-conflicts: CRD'ler daha once klasik (client-side) apply ile kurulduysa
-#   alan sahipligi "kubectl-client-side-apply" manager'inda kalir ve SSA catisir.
+# --server-side zorunlu (httproutes CRD'si ~460 KB, annotation siniri 256 KB);
+# --force-conflicts eski client-side apply'dan kalan alan sahipligi icin.
 - name: Install Gateway API CRDs (standard channel {{ gateway_api_version }})
   ansible.builtin.command:
     cmd: >-
@@ -46,9 +42,7 @@
   until: gateway_api_crd_result.rc == 0
   retries: 5
   delay: 15
-  # SSA her calistirmada "serverside-applied" yazar, degisti/degismedi ayrimi
-  # ciktidan anlasilamaz; yanlis "changed" raporlamaktansa hic raporlamiyoruz.
-  changed_when: false
+  changed_when: false   # SSA ciktisindan degisiklik ayirt edilemiyor
   when: inventory_hostname == 'master-1'
 
 - name: Wait for Gateway API CRDs to be established
@@ -65,8 +59,6 @@
   changed_when: false
   when: inventory_hostname == 'master-1'
 
-# Tum master'lara yazilir: k3s her server'in manifests dizinini izler, ayni
-# HelmChartConfig birden fazla kez uygulanmasi idempotenttir.
 - name: Enable Traefik Gateway API provider via HelmChartConfig
   ansible.builtin.copy:
     src: traefik-gateway-config.yml
@@ -77,9 +69,8 @@
   become: true
   when: "'master' in group_names"
 
-# HelmChartConfig, helm-controller'in traefik release'ini yeniden calistirmasini
-# tetikler; GatewayClass o is bitene kadar hic var olmaz. "kubectl wait" olmayan
-# bir kaynakta beklemeden hata dondugu icin kisa timeout + cok deneme kullaniyoruz.
+# GatewayClass helm job bitene kadar yok; kubectl wait olmayan kaynakta hemen
+# hata dondugu icin kisa timeout + cok deneme.
 - name: Wait for traefik GatewayClass to be Accepted
   ansible.builtin.command:
     cmd: kubectl wait --for=condition=Accepted --timeout=30s gatewayclass/traefik

@@ -160,9 +160,8 @@
               changed_when: false
               failed_when: false
 
-            # Her HTTPRoute icin parent'larin Accepted kosullarini tek satira yazar
-            # (N parent -> "TrueTrue..."). Hepsi True degilse ya da status hic
-            # olusmamissa (bos satir) o route sayilir.
+            # Satir basina bir route: N parent -> "TrueTrue...". Hepsi True
+            # degilse ya da status yoksa (bos satir) sayilir.
             - name: Count HTTPRoutes not Accepted by the Gateway
               shell: >
                 kubectl get httproute -A
@@ -211,9 +210,6 @@
               set_fact:
                 report_lines: "{{ report_lines + (component_lines | default([])) }}"
 
-            # Gateway ve HTTPRoute'lar wildcard sertifikaya bagli oldugu icin
-            # yalnizca cert_manager_install acikken olusturulur; kapaliyken hic
-            # var olmayan kaynagi FAIL diye raporlamamak icin bu blok atlanir.
             - name: Append Gateway API lines
               set_fact:
                 report_lines: "{{ report_lines + [

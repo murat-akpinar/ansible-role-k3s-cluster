@@ -57,7 +57,7 @@ spec:
                 topologyKey: "kubernetes.io/hostname"
       containers:
         - name: rancher
-          image: rancher/rancher:v2.8.2
+          image: rancher/rancher:{{ rancher_version }}
           imagePullPolicy: Always
           ports:
             - containerPort: 80

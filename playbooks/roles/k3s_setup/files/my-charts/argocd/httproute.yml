@@ -12,9 +12,8 @@ spec:
   hostnames:
     - argocd.homelab.local
   rules:
-    # match verilmedigi icin varsayilan kural gecerli: PathPrefix "/"
+    # match yok -> varsayilan PathPrefix "/"
     - backendRefs:
-        # TLS'i Gateway sonlandirir, backend ile HTTP konusulur
-        # (argocd values'ta server.insecure=true bunun icin ayarli).
+        # TLS'i Gateway sonlandirir; backend HTTP (values: server.insecure=true).
         - name: argocd-server
           port: 80
