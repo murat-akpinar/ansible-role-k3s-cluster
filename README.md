@@ -275,6 +275,7 @@ Helm, Kubernetes paket yöneticisi olarak kurulur (eğer `helm_install: true` is
 
 Yapılandırmaya göre şu servisler kurulur:
 - **Gateway API**: k3s gömülü Traefik'in Gateway sağlayıcısı açılır, CRD'ler kurulur
+  > ⚠️ Paylaşımlı Gateway wildcard sertifikaya bağlı: `cert_manager_install: false` ise Gateway ve HTTPRoute'lar **hiç kurulmaz**, servisler hostname üzerinden erişilemez.
 - **MetalLB**: Load balancer kurulur
 - **Cert-Manager**: SSL/TLS sertifika yönetimi
 - **Longhorn**: Distributed block storage

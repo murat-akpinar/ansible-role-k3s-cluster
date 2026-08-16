@@ -276,6 +276,7 @@ Helm is installed as the Kubernetes package manager (if `helm_install: true`).
 
 The following services are installed based on configuration:
 - **Gateway API**: CRDs are installed and the built-in Traefik's Gateway provider is enabled
+  > ⚠️ The shared Gateway depends on the wildcard certificate: with `cert_manager_install: false` the Gateway and HTTPRoutes are **not created at all**, so no service is reachable by hostname.
 - **MetalLB**: Load balancer is installed
 - **Cert-Manager**: SSL/TLS certificate management
 - **Longhorn**: Distributed block storage

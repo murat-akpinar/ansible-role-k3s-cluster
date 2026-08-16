@@ -211,6 +211,9 @@
               set_fact:
                 report_lines: "{{ report_lines + (component_lines | default([])) }}"
 
+            # Gateway ve HTTPRoute'lar wildcard sertifikaya bagli oldugu icin
+            # yalnizca cert_manager_install acikken olusturulur; kapaliyken hic
+            # var olmayan kaynagi FAIL diye raporlamamak icin bu blok atlanir.
             - name: Append Gateway API lines
               set_fact:
                 report_lines: "{{ report_lines + [
@@ -218,6 +221,12 @@
                     ('[OK]  ' if ((httproutes_not_accepted.stdout | default('0') | trim | int) == 0) else '[FAIL]') ~ ' HTTPRoutes Accepted — not-accepted: ' ~ (httproutes_not_accepted.stdout | default('0') | trim),
                     'Gateway LB IP     — ' ~ ((gateway_address.stdout | default('') | trim) | default('N/A (not assigned)', true))
                   ] }}"
+              when: cert_manager_install | default(false)
+
+            - name: Note that Gateway API checks were skipped
+              set_fact:
+                report_lines: "{{ report_lines + ['[SKIP] Gateway API      — cert_manager_install: false (Gateway/HTTPRoute kurulmuyor)'] }}"
+              when: not (cert_manager_install | default(false))
 
             - name: Append checklist footer
               set_fact:
@@ -230,8 +239,9 @@
                 overall_ok: "{{ (not_ready_nodes.stdout | int == 0)
                                 and (not_running_pods.stdout | int == 0)
                                 and (vip_ping.rc == 0)
-                                and ((gateway_programmed.stdout | default('') | trim) == 'True')
-                                and ((httproutes_not_accepted.stdout | default('0') | trim | int) == 0)
+                                and ((not (cert_manager_install | default(false)))
+                                     or (((gateway_programmed.stdout | default('') | trim) == 'True')
+                                         and ((httproutes_not_accepted.stdout | default('0') | trim | int) == 0)))
                                 and ((component_health.results | default([]) | map(attribute='stdout') | map('int') | sum) == 0) }}"
 
             - name: Print the health check checklist

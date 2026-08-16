@@ -9,6 +9,9 @@ helm_install: true
 # L7 yonlendirme: k3s ile gelen gomulu Traefik + Gateway API kullanilir
 # (ayri controller kurulumu/disable yok). Ingress kaynagi kullanilmaz.
 metallb_install: true
+# DIKKAT: paylasimli Gateway wildcard sertifikaya bagli oldugu icin Gateway ve
+# tum HTTPRoute'lar cert_manager_install: true iken kurulur. false yaparsaniz
+# hicbir servis hostname uzerinden erisilebilir olmaz (yalnizca ClusterIP/port-forward).
 cert_manager_install: true
 longhorn_install: false
 grafana_install: true

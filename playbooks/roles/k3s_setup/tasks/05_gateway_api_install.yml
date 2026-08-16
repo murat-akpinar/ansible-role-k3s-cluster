@@ -53,7 +53,11 @@
 
 - name: Wait for Gateway API CRDs to be established
   ansible.builtin.command:
-    cmd: kubectl wait --for=condition=Established --timeout=120s crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io
+    cmd: >-
+      kubectl wait --for=condition=Established --timeout=120s
+      crd/gatewayclasses.gateway.networking.k8s.io
+      crd/gateways.gateway.networking.k8s.io
+      crd/httproutes.gateway.networking.k8s.io
   become: true
   become_user: "{{ uid_user }}"
   environment:
