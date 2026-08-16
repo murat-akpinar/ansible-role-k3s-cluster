@@ -1,0 +1,230 @@
+---
+####################################################################
+# WARNING: These are designed specifically for Ansible tests       #
+# and should not be used as examples of how to write Ansible roles #
+####################################################################
+
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: Create a load-balancer (Check)
+  check_mode: true
+  community.general.scaleway_lb:
+    state: present
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    organization_id: '{{ scw_org }}'
+    description: '{{ description }}'
+    tags: '{{ tags }}'
+  register: lb_creation_check_task
+
+- ansible.builtin.debug:
+    var: lb_creation_check_task
+
+- name: lb_creation_check_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_creation_check_task is success
+
+- name: lb_creation_check_task is changed
+  ansible.builtin.assert:
+    that:
+      - lb_creation_check_task is changed
+
+- name: Create load-balancer
+  community.general.scaleway_lb:
+    state: present
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    organization_id: '{{ scw_org }}'
+    description: '{{ description }}'
+    tags: '{{ tags }}'
+    wait: true
+  register: lb_creation_task
+
+- ansible.builtin.debug:
+    var: lb_creation_task
+
+- name: lb_creation_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_creation_task is success
+
+- name: lb_creation_task is changed
+  ansible.builtin.assert:
+    that:
+      - lb_creation_task is changed
+
+- name: Assert that the load-balancer is in a valid state
+  ansible.builtin.assert:
+    that:
+      - lb_creation_task.scaleway_lb.status == "ready"
+
+- name: Create load-balancer (Confirmation)
+  community.general.scaleway_lb:
+    state: present
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    organization_id: '{{ scw_org }}'
+    tags: '{{ tags }}'
+    description: '{{ description }}'
+  register: lb_creation_confirmation_task
+
+- ansible.builtin.debug:
+    var: lb_creation_confirmation_task
+
+- name: lb_creation_confirmation_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_creation_confirmation_task is success
+
+- name: lb_creation_confirmation_task is not changed
+  ansible.builtin.assert:
+    that:
+      - lb_creation_confirmation_task is not changed
+
+- name: Assert that the load-balancer is in a valid state
+  ansible.builtin.assert:
+    that:
+      - lb_creation_confirmation_task.scaleway_lb.status == "ready"
+
+- name: Update load-balancer (Check)
+  check_mode: true
+  community.general.scaleway_lb:
+    state: present
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    organization_id: '{{ scw_org }}'
+    tags: '{{ tags }}'
+    description: '{{ updated_description }}'
+  register: lb_update_check_task
+
+- ansible.builtin.debug:
+    var: lb_update_check_task
+
+- name: lb_update_check_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_update_check_task is success
+
+- name: lb_update_check_task is changed
+  ansible.builtin.assert:
+    that:
+      - lb_update_check_task is changed
+
+- name: Update load-balancer
+  community.general.scaleway_lb:
+    state: present
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    tags: '{{ tags }}'
+    organization_id: '{{ scw_org }}'
+    description: '{{ updated_description }}'
+    wait: true
+  register: lb_update_task
+
+- ansible.builtin.debug:
+    var: lb_update_task
+
+- name: lb_update_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_update_task is success
+
+- name: lb_update_task is changed
+  ansible.builtin.assert:
+    that:
+      - lb_update_task is changed
+
+- name: Assert that the load-balancer is in a valid state
+  ansible.builtin.assert:
+    that:
+      - lb_update_task.scaleway_lb.status == "ready"
+
+- name: Update load-balancer (Confirmation)
+  community.general.scaleway_lb:
+    state: present
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    tags: '{{ tags }}'
+    organization_id: '{{ scw_org }}'
+    description: '{{ updated_description }}'
+  register: lb_update_confirmation_task
+
+- ansible.builtin.debug:
+    var: lb_update_confirmation_task
+
+- name: lb_update_confirmation_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_update_confirmation_task is success
+
+- name: lb_update_confirmation_task is not changed
+  ansible.builtin.assert:
+    that:
+      - lb_update_confirmation_task is not changed
+
+- name: Assert that the load-balancer is in a valid state
+  ansible.builtin.assert:
+    that:
+      - lb_update_confirmation_task.scaleway_lb.status == "ready"
+
+- name: Delete load-balancer (Check)
+  check_mode: true
+  community.general.scaleway_lb:
+    state: absent
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    description: '{{ description }}'
+    organization_id: '{{ scw_org }}'
+  register: lb_deletion_check_task
+
+- name: lb_deletion_check_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_deletion_check_task is success
+
+- name: lb_deletion_check_task is changed
+  ansible.builtin.assert:
+    that:
+      - lb_deletion_check_task is changed
+
+- name: Delete load-balancer
+  community.general.scaleway_lb:
+    state: absent
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    description: '{{ description }}'
+    organization_id: '{{ scw_org }}'
+    wait: true
+  register: lb_deletion_task
+
+- name: lb_deletion_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_deletion_task is success
+
+- name: lb_deletion_task is changed
+  ansible.builtin.assert:
+    that:
+      - lb_deletion_task is changed
+
+- name: Delete load-balancer (Confirmation)
+  community.general.scaleway_lb:
+    state: absent
+    name: '{{ name }}'
+    region: '{{ scaleway_region }}'
+    description: '{{ description }}'
+    organization_id: '{{ scw_org }}'
+  register: lb_deletion_confirmation_task
+
+- name: lb_deletion_confirmation_task is success
+  ansible.builtin.assert:
+    that:
+      - lb_deletion_confirmation_task is success
+
+- name: lb_deletion_confirmation_task is not changed
+  ansible.builtin.assert:
+    that:
+      - lb_deletion_confirmation_task is not changed

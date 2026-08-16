@@ -1,0 +1,32 @@
+{
+ "collection_info": {
+  "namespace": "community",
+  "name": "general",
+  "version": "13.3.0",
+  "authors": [
+   "Ansible (https://github.com/ansible)"
+  ],
+  "readme": "README.md",
+  "tags": [
+   "community"
+  ],
+  "description": "The community.general collection is a part of the Ansible package and includes many modules and plugins supported by Ansible community which are not part of more specialized community collections.",
+  "license": [],
+  "license_file": "COPYING",
+  "dependencies": {
+   "community.library_inventory_filtering_v1": ">=1.0.0"
+  },
+  "repository": "https://github.com/ansible-collections/community.general",
+  "documentation": "https://docs.ansible.com/projects/ansible/latest/collections/community/general/",
+  "homepage": "https://github.com/ansible-collections/community.general",
+  "issues": "https://github.com/ansible-collections/community.general/issues"
+ },
+ "file_manifest_file": {
+  "name": "FILES.json",
+  "ftype": "file",
+  "chksum_type": "sha256",
+  "chksum_sha256": "e1c4b987f7bf2ad73c0bce6490fd2378c63212761abe46aae112740210a12910",
+  "format": 1
+ },
+ "format": 1
+}

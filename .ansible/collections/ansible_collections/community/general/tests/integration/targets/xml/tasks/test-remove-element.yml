@@ -1,0 +1,35 @@
+---
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: Setup test fixture
+  ansible.builtin.copy:
+    src: fixtures/ansible-xml-beers.xml
+    dest: /tmp/ansible-xml-beers.xml
+
+
+- name: Remove '/business/rating'
+  community.general.xml:
+    path: /tmp/ansible-xml-beers.xml
+    xpath: /business/rating
+    state: absent
+  register: remove_element
+
+- name: Add trailing newline
+  ansible.builtin.shell: echo "" >> /tmp/ansible-xml-beers.xml
+
+- name: Compare to expected result
+  ansible.builtin.copy:
+    src: results/test-remove-element.xml
+    dest: /tmp/ansible-xml-beers.xml
+  check_mode: true
+  diff: true
+  register: comparison
+
+- name: Test expected result
+  ansible.builtin.assert:
+    that:
+      - remove_element is changed
+      - comparison is not changed  # identical
+  # ansible.builtin.command: diff -u {{ role_path }}/results/test-remove-element.xml /tmp/ansible-xml-beers.xml

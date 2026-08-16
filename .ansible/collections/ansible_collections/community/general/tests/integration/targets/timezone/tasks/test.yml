@@ -1,0 +1,612 @@
+---
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+##
+## test setting timezone, idempotency and checkmode
+##
+
+- name: set timezone to Australia/Brisbane (checkmode)
+  community.general.timezone:
+    name: Australia/Brisbane
+  check_mode: true
+  register: timezone_set_checkmode
+
+- name: ensure timezone reported as changed in checkmode
+  ansible.builtin.assert:
+    that:
+      - timezone_set_checkmode.changed
+      - timezone_set_checkmode.diff.after.name == 'Australia/Brisbane'
+      - timezone_set_checkmode.diff.before.name == 'Etc/UTC'
+
+- name: ensure checkmode didn't change the timezone
+  ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Australia/Brisbane
+  register: result
+  failed_when: result is not failed
+  changed_when: false
+
+- name: ensure that checkmode didn't update the timezone in the config file
+  ansible.builtin.command: egrep '^(TIME)?ZONE="Etc/UTC"' {{ timezone_config_file }}
+  when:
+    - ansible_facts.service_mgr != 'systemd'
+    - ansible_facts.os_family == 'RedHat'
+
+- name: ensure that checkmode didn't update the timezone in the config file
+  ansible.builtin.command: egrep '^Etc/UTC' {{ timezone_config_file }}
+  when:
+    - ansible_facts.service_mgr != 'systemd'
+    - ansible_facts.os_family == 'Debian'
+
+- name: set timezone to Australia/Brisbane
+  community.general.timezone:
+    name: Australia/Brisbane
+  register: timezone_set
+
+- name: ensure timezone changed
+  ansible.builtin.assert:
+    that:
+      - timezone_set.changed
+      - timezone_set.diff.after.name == 'Australia/Brisbane'
+      - timezone_set.diff.before.name == 'Etc/UTC'
+
+- name: ensure that the timezone is actually set
+  ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Australia/Brisbane
+  changed_when: false
+
+- name: ensure that the timezone is updated in the config file
+  ansible.builtin.command: egrep '^(TIME)?ZONE="Australia/Brisbane"' {{ timezone_config_file }}
+  when:
+    - ansible_facts.service_mgr != 'systemd'
+    - ansible_facts.os_family == 'RedHat'
+
+- name: ensure that the timezone is updated in the config file
+  ansible.builtin.command: egrep '^Australia/Brisbane' {{ timezone_config_file }}
+  when:
+    - ansible_facts.service_mgr != 'systemd'
+    - ansible_facts.os_family == 'Debian'
+
+- name: set timezone to Australia/Brisbane again
+  community.general.timezone:
+    name: Australia/Brisbane
+  register: timezone_again
+
+- name: ensure timezone idempotency
+  ansible.builtin.assert:
+    that:
+      - not timezone_again.changed
+
+- name: set timezone to Australia/Brisbane again in checkmode
+  community.general.timezone:
+    name: Australia/Brisbane
+  register: timezone_again_checkmode
+
+- name: set timezone idempotency (checkmode)
+  ansible.builtin.assert:
+    that:
+      - not timezone_again_checkmode.changed
+
+##
+## tests for same timezones with different names
+##
+
+- name: check dpkg-reconfigure
+  ansible.builtin.shell: type dpkg-reconfigure  # noqa: command-instead-of-shell
+  register: check_dpkg_reconfigure
+  ignore_errors: true
+  changed_when: false
+
+- name: check timedatectl
+  ansible.builtin.shell: type timedatectl && timedatectl
+  register: check_timedatectl
+  ignore_errors: true
+  changed_when: false
+
+- block:
+    - name: set timezone to Etc/UTC
+      community.general.timezone:
+        name: Etc/UTC
+
+    - name: change timezone from Etc/UTC to UTC
+      community.general.timezone:
+        name: UTC
+      register: timezone_etcutc_to_utc
+
+    - name: check timezone changed from Etc/UTC to UTC
+      ansible.builtin.assert:
+        that:
+          - timezone_etcutc_to_utc.changed
+          - timezone_etcutc_to_utc.diff.before.name == 'Etc/UTC'
+          - timezone_etcutc_to_utc.diff.after.name == 'UTC'
+
+    - name: change timezone from UTC to Etc/UTC
+      community.general.timezone:
+        name: Etc/UTC
+      register: timezone_utc_to_etcutc
+
+    - name: check timezone changed from UTC to Etc/UTC
+      ansible.builtin.assert:
+        that:
+          - timezone_utc_to_etcutc.changed
+          - timezone_utc_to_etcutc.diff.before.name == 'UTC'
+          - timezone_utc_to_etcutc.diff.after.name == 'Etc/UTC'
+
+  when:
+    # FIXME: Due to the bug of the dpkg-reconfigure, those tests failed on non-systemd debian
+    - check_dpkg_reconfigure.rc != 0 or check_timedatectl.rc == 0
+
+##
+## no systemd tests for timezone
+##
+
+- block:
+  ##
+  ## test with empty config file
+  ##
+
+    - name: empty config file
+      ansible.builtin.command: cp /dev/null {{ timezone_config_file }}
+
+    - name: set timezone to Europe/Belgrade (empty config file)
+      community.general.timezone:
+        name: Europe/Belgrade
+      register: timezone_empty_conf
+
+    - name: check if timezone set (empty config file)
+      ansible.builtin.assert:
+        that:
+          - timezone_empty_conf.changed
+          - timezone_empty_conf.diff.after.name == 'Europe/Belgrade'
+          - timezone_empty_conf.diff.before.name == 'n/a'
+
+    - name: check if the timezone is actually set (empty config file)
+      ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Europe/Belgrade
+      changed_when: false
+
+
+  ##
+  ## test with deleted config file
+  ##
+
+    - name: remove config file
+      ansible.builtin.file:
+        path: '{{ timezone_config_file }}'
+        state: absent
+
+    - name: set timezone to Europe/Belgrade (no config file)
+      community.general.timezone:
+        name: Europe/Belgrade
+      register: timezone_missing_conf
+
+    - name: check if timezone set (no config file)
+      ansible.builtin.assert:
+        that:
+          - timezone_missing_conf.changed
+          - timezone_missing_conf.diff.after.name == 'Europe/Belgrade'
+          - timezone_missing_conf.diff.before.name == 'n/a'
+
+    - name: check if the timezone is actually set (no config file)
+      ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Europe/Belgrade
+      changed_when: false
+
+
+  ##
+  ## test with /etc/localtime as symbolic link to a zoneinfo file
+  ##
+
+    - name: create symlink /etc/locatime -> /usr/share/zoneinfo/Etc/UTC
+      ansible.builtin.file:
+        src: /usr/share/zoneinfo/Etc/UTC
+        dest: /etc/localtime
+        state: link
+        force: true
+
+    - name: set timezone to Europe/Belgrade (over symlink)
+      community.general.timezone:
+        name: Europe/Belgrade
+      register: timezone_symllink
+
+    - name: check if timezone set (over symlink)
+      ansible.builtin.assert:
+        that:
+          - timezone_symllink.changed
+          - timezone_symllink.diff.after.name == 'Europe/Belgrade'
+          - timezone_symllink.diff.before.name == 'Etc/UTC'
+
+    - name: check if the timezone is actually set (over symlink)
+      ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Europe/Belgrade
+      changed_when: false
+
+
+  ##
+  ## test with /etc/localtime as broken symbolic link
+  ##
+
+    - name: set timezone to a broken symlink
+      ansible.builtin.file:
+        src: /tmp/foo
+        dest: /etc/localtime
+        state: link
+        force: true
+
+    - name: set timezone to Europe/Belgrade (over broken symlink)
+      community.general.timezone:
+        name: Europe/Belgrade
+      register: timezone_symllink_broken
+
+    - name: check if timezone set (over broken symlink)
+      ansible.builtin.assert:
+        that:
+          - timezone_symllink_broken.changed
+          - timezone_symllink_broken.diff.after.name == 'Europe/Belgrade'
+          - timezone_symllink_broken.diff.before.name == 'n/a'
+
+    - name: check if the timezone is actually set (over broken symlink)
+      ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Europe/Belgrade
+      changed_when: false
+
+
+  ##
+  ## test with /etc/localtime set manually using copy
+  ##
+
+    - name: set timezone manually by coping zone info file to /etc/localtime
+      ansible.builtin.copy:
+        src: /usr/share/zoneinfo/Etc/UTC
+        dest: /etc/localtime
+        remote_src: true
+
+    - name: set timezone to Europe/Belgrade (over copied file)
+      community.general.timezone:
+        name: Europe/Belgrade
+      register: timezone_copied
+
+    - name: check if timezone set (over copied file)
+      ansible.builtin.assert:
+        that:
+          - timezone_copied.changed
+          - timezone_copied.diff.after.name == 'Europe/Belgrade'
+          - timezone_copied.diff.before.name == 'n/a'
+
+    - name: check if the timezone is actually set (over copied file)
+      ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Europe/Belgrade
+      changed_when: false
+  when:
+    - ansible_facts.service_mgr != 'systemd'
+    - timezone_config_file is defined
+
+
+####
+#### hwclock tests
+####
+
+- name: check if hwclock is supported in the environment
+  ansible.builtin.command: hwclock --test
+  register: hwclock_test
+  ignore_errors: true
+
+- name: check if timedatectl works in the environment
+  ansible.builtin.command: timedatectl
+  register: timedatectl_test
+  ignore_errors: true
+
+- name:
+  ansible.builtin.set_fact:
+    hwclock_supported: '{{ hwclock_test is successful or (timedatectl_test is successful and "RTC time: n/a" not in timedatectl_test.stdout) }}'
+##
+## test set hwclock, idempotency and checkmode
+##
+
+- block:
+    - name: set hwclock to local
+      community.general.timezone:
+        hwclock: local
+
+    - name: set hwclock to UTC (checkmode)
+      community.general.timezone:
+        hwclock: UTC
+      check_mode: true
+      register: hwclock_set_checkmode
+
+    - name: ensure hwclock reported as changed (checkmode)
+      ansible.builtin.assert:
+        that:
+          - hwclock_set_checkmode.changed
+          - hwclock_set_checkmode.diff.after.hwclock == 'UTC'
+          - hwclock_set_checkmode.diff.before.hwclock == 'local'
+
+    - block:
+        - name: ensure that checkmode didn't update hwclock in /etc/adjtime
+          ansible.builtin.command: grep ^UTC /etc/adjtime
+          register: result
+          failed_when: result is not failed
+
+        - name: ensure that checkmode didn't update hwclock the config file
+          ansible.builtin.command: grep ^UTC=no {{ hwclock_config_file }}
+      when: ansible_facts.service_mgr != 'systemd'
+
+    - name: set hwclock to UTC
+      community.general.timezone:
+        hwclock: UTC
+      register: hwclock_set
+
+    - name: ensure hwclock changed
+      ansible.builtin.assert:
+        that:
+          - hwclock_set.changed
+          - hwclock_set.diff.after.hwclock == 'UTC'
+          - hwclock_set.diff.before.hwclock == 'local'
+
+    - block:
+        - name: ensure that hwclock is updated in /etc/adjtime
+          ansible.builtin.command: grep ^UTC /etc/adjtime
+
+        - name: ensure that hwclock is updated in the config file
+          ansible.builtin.command: grep ^UTC=yes {{ hwclock_config_file }}
+      when: ansible_facts.service_mgr != 'systemd'
+
+    - name: set hwclock to RTC again
+      community.general.timezone:
+        hwclock: UTC
+      register: hwclock_again
+
+    - name: set hwclock idempotency
+      ansible.builtin.assert:
+        that:
+          - not hwclock_again.changed
+
+    - name: set hwclock to RTC again (checkmode)
+      community.general.timezone:
+        hwclock: UTC
+      check_mode: true
+      register: hwclock_again_checkmode
+
+    - name: set hwclock idempotency (checkmode)
+      ansible.builtin.assert:
+        that:
+          - not hwclock_again_checkmode.changed
+
+
+    ##
+    ## no systemd tests for hwclock
+    ##
+
+    - block:
+        ##
+        ## test set hwclock with both /etc/adjtime and conf file deleted
+        ##
+
+        - name: remove /etc/adjtime and conf file
+          ansible.builtin.file:
+            path: '{{ item }}'
+            state: absent
+          with_items:
+            - /etc/adjtime
+            - '{{ hwclock_config_file }}'
+
+        - name: set hwclock to UTC with deleted /etc/adjtime and conf file
+          community.general.timezone:
+            hwclock: UTC
+          register: hwclock_set_utc_deleted_adjtime_and_conf
+
+        - name: ensure hwclock changed with deleted /etc/adjtime and conf
+          ansible.builtin.assert:
+            that:
+              - hwclock_set_utc_deleted_adjtime_and_conf.changed
+              - hwclock_set_utc_deleted_adjtime_and_conf.diff.after.hwclock == 'UTC'
+              - hwclock_set_utc_deleted_adjtime_and_conf.diff.before.hwclock == 'n/a'
+
+
+        ##
+        ## test set hwclock with /etc/adjtime deleted
+        ##
+
+        - name: remove /etc/adjtime
+          ansible.builtin.file:
+            path: '{{ item }}'
+            state: absent
+          with_items:
+            - /etc/adjtime
+
+        - name: set hwclock to UTC with deleted /etc/adjtime
+          community.general.timezone:
+            hwclock: UTC
+          register: hwclock_set_utc_deleted_adjtime_utc
+
+        - name: ensure hwclock changed with deleted /etc/adjtime
+          ansible.builtin.assert:
+            that:
+              - not hwclock_set_utc_deleted_adjtime_utc.changed
+              - hwclock_set_utc_deleted_adjtime_utc.diff.after.hwclock == 'UTC'
+              - hwclock_set_utc_deleted_adjtime_utc.diff.before.hwclock == 'UTC'
+
+        - name: set hwclock to LOCAL with deleted /etc/adjtime
+          community.general.timezone:
+            hwclock: local
+          register: hwclock_set_local_deleted_adjtime_local
+
+        - name: ensure hwclock changed to LOCAL with deleted /etc/adjtime
+          ansible.builtin.assert:
+            that:
+              - hwclock_set_local_deleted_adjtime_local.changed
+              - hwclock_set_local_deleted_adjtime_local.diff.after.hwclock == 'local'
+              - hwclock_set_local_deleted_adjtime_local.diff.before.hwclock == 'UTC'
+
+
+        ##
+        ## test set hwclock with conf file deleted
+        ##
+
+        - name: remove conf file
+          ansible.builtin.file:
+            path: '{{ item }}'
+            state: absent
+          with_items:
+            - '{{ hwclock_config_file }}'
+
+        - name: set hwclock to UTC with deleted conf
+          community.general.timezone:
+            hwclock: UTC
+          register: hwclock_set_utc_deleted_conf
+
+        - name: ensure hwclock changed with deleted /etc/adjtime
+          ansible.builtin.assert:
+            that:
+              - hwclock_set_utc_deleted_conf.changed
+              - hwclock_set_utc_deleted_conf.diff.after.hwclock == 'UTC'
+              - hwclock_set_utc_deleted_conf.diff.before.hwclock == 'n/a'
+
+
+        ##
+        ## test set hwclock with /etc/adjtime missing UTC/LOCAL strings
+        ##
+
+        - name: create /etc/adjtime without UTC/LOCAL
+          ansible.builtin.copy:
+            content: '0.0 0 0\n0'
+            dest: /etc/adjtime
+
+        - name: set hwclock to UTC with broken /etc/adjtime
+          community.general.timezone:
+            hwclock: UTC
+          register: hwclock_set_utc_broken_adjtime
+
+        - name: ensure hwclock doesn't report changed with broken /etc/adjtime
+          ansible.builtin.assert:
+            that:
+              - not hwclock_set_utc_broken_adjtime.changed
+              - hwclock_set_utc_broken_adjtime.diff.after.hwclock == 'UTC'
+              - hwclock_set_utc_broken_adjtime.diff.before.hwclock == 'UTC'
+
+        - name: set hwclock to LOCAL with broken /etc/adjtime
+          community.general.timezone:
+            hwclock: local
+          register: hwclock_set_local_broken_adjtime
+
+        - name: ensure hwclock changed to LOCAL with broken /etc/adjtime
+          ansible.builtin.assert:
+            that:
+              - hwclock_set_local_broken_adjtime.changed
+              - hwclock_set_local_broken_adjtime.diff.after.hwclock == 'local'
+              - hwclock_set_local_broken_adjtime.diff.before.hwclock == 'UTC'
+      when:
+        - ansible_facts.service_mgr != 'systemd'
+        - hwclock_config_file is defined
+
+    ####
+    #### timezone + hwclock tests
+    ####
+
+    ##
+    ## test set timezone and hwclock, idempotency and checkmode
+    ##
+
+    - name: set timezone to Etc/UTC and hwclock to local
+      community.general.timezone:
+        name: Etc/UTC
+        hwclock: local
+
+    - name: set timezone to Europe/Belgrade and hwclock to UTC (checkmode)
+      community.general.timezone:
+        name: Europe/Belgrade
+        hwclock: UTC
+      check_mode: true
+      register: tzclock_set_checkmode
+
+    - name: ensure timezone and hwclock reported as changed in checkmode
+      ansible.builtin.assert:
+        that:
+          - tzclock_set_checkmode.changed
+          - tzclock_set_checkmode.diff.after.name == 'Europe/Belgrade'
+          - tzclock_set_checkmode.diff.before.name == 'Etc/UTC'
+          - tzclock_set_checkmode.diff.after.hwclock == 'UTC'
+          - tzclock_set_checkmode.diff.before.hwclock == 'local'
+
+    - name: ensure checkmode didn't change the timezone
+      ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Australia/Brisbane
+      register: result
+      failed_when: result is not failed
+      changed_when: false
+
+    - block:
+        - name: ensure that checkmode didn't update the timezone in the config file
+          ansible.builtin.command: egrep '^(TIME)?ZONE="Etc/UTC"' {{ timezone_config_file }}
+          when:
+            - ansible_facts.os_family == 'RedHat'
+
+        - name: ensure that checkmode didn't update the timezone in the config file
+          ansible.builtin.command: egrep '^Etc/UTC' {{ timezone_config_file }}
+          when:
+            - ansible_facts.os_family == 'Debian'
+
+        - name: ensure that checkmode didn't update hwclock in /etc/adjtime
+          ansible.builtin.command: grep ^UTC /etc/adjtime
+          register: result
+          failed_when: result is not failed
+
+        - name: ensure that checkmode didn't update hwclock the config file
+          ansible.builtin.command: grep ^UTC=no {{ hwclock_config_file }}
+      when: ansible_facts.service_mgr != 'systemd'
+
+    - name: set timezone to Europe/Belgrade and hwclock to UTC
+      community.general.timezone:
+        name: Europe/Belgrade
+        hwclock: UTC
+      register: tzclock_set
+
+    - name: ensure timezone and hwclock changed
+      ansible.builtin.assert:
+        that:
+          - tzclock_set.changed
+          - tzclock_set.diff.after.name == 'Europe/Belgrade'
+          - tzclock_set.diff.before.name == 'Etc/UTC'
+          - tzclock_set.diff.after.hwclock == 'UTC'
+          - tzclock_set.diff.before.hwclock == 'local'
+
+    - name: ensure that the timezone is actually set
+      ansible.builtin.command: cmp /etc/localtime /usr/share/zoneinfo/Europe/Belgrade
+      changed_when: false
+
+    - block:
+        - name: ensure that the timezone is updated in the config file
+          ansible.builtin.command: egrep '^(TIME)?ZONE="Europe/Belgrade"' {{ timezone_config_file }}
+          when:
+            - ansible_facts.os_family == 'RedHat'
+
+        - name: ensure that the timezone is updated in the config file
+          ansible.builtin.command: egrep 'Europe/Belgrade' {{ timezone_config_file }}
+          when:
+            - ansible_facts.os_family == 'Debian'
+
+        - name: ensure that hwclock is updated in /etc/adjtime
+          ansible.builtin.command: grep ^UTC /etc/adjtime
+
+        - name: ensure that hwclock is updated in the config file
+          ansible.builtin.command: grep ^UTC=yes {{ hwclock_config_file }}
+      when: ansible_facts.service_mgr != 'systemd'
+
+    - name: set timezone to Europe/Belgrade and hwclock to UTC again
+      community.general.timezone:
+        name: Europe/Belgrade
+        hwclock: UTC
+      register: tzclock_set_again
+
+    - name: set timezone and hwclock idempotency
+      ansible.builtin.assert:
+        that:
+          - not tzclock_set_again.changed
+
+    - name: set timezone to Europe/Belgrade and hwclock to UTC again (checkmode)
+      community.general.timezone:
+        name: Europe/Belgrade
+        hwclock: UTC
+      register: tzclock_set_again_checkmode
+
+    - name: set timezone and hwclock idempotency in checkmode
+      ansible.builtin.assert:
+        that:
+          - not tzclock_set_again_checkmode.changed
+
+  when:
+    - ansible_facts.system == 'Linux'
+    - hwclock_supported

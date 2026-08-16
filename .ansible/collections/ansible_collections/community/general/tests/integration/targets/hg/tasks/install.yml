@@ -1,0 +1,84 @@
+---
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: get the default python version
+  ansible.builtin.command: "{{ ansible_python_interpreter }} -V"
+  register: default_python_version
+
+- name: find the default python
+  ansible.builtin.command: which python
+  register: which_python
+
+- name: find the default pip
+  ansible.builtin.command: which pip
+  register: which_pip
+
+- name: preserve the default python
+  ansible.builtin.command: cp -av "{{ which_python.stdout }}" "{{ which_python.stdout }}.default"
+
+- name: preserve the default pip
+  ansible.builtin.command: cp -av "{{ which_pip.stdout }}" "{{ which_pip.stdout }}.default"
+
+# using the apt module prevents autoremove from working, so call apt-get via shell instead
+- name: install mercurial (apt)
+  ansible.builtin.shell: apt-get -y update && apt-get -y install mercurial
+  when: ansible_facts.pkg_mgr == 'apt'
+
+- name: install mercurial package
+  ansible.builtin.package:
+    name: mercurial
+    state: present
+  when: ansible_facts.pkg_mgr in ['apk', 'community.general.apk', 'pacman', 'community.general.pacman', 'pkgng', 'community.general.pkgng', 'zypper', 'community.general.zypper']
+
+- name: install mercurial (dnf)
+  ansible.builtin.dnf:
+    name: mercurial
+  when: ansible_facts.pkg_mgr == 'dnf'
+
+- name: install mercurial (yum)
+  ansible.builtin.dnf:
+    name: mercurial
+  when: ansible_facts.pkg_mgr == 'yum'
+
+- name: preserve the updated python
+  ansible.builtin.command: cp -av "{{ which_python.stdout }}" "{{ which_python.stdout }}.updated"
+
+- name: preserve the updated pip
+  ansible.builtin.command: cp -av "{{ which_pip.stdout }}" "{{ which_pip.stdout }}.updated"
+
+- name: locate mercurial
+  ansible.builtin.command: which hg
+  register: which_hg
+
+- name: get the mercurial interpreter
+  ansible.builtin.command: head -n 1 "{{ which_hg.stdout }}"
+  register: hg_interpreter
+
+- name: stat the mercurial interpreter
+  ansible.builtin.stat:
+    path: "{{ hg_interpreter.stdout[2:] }}"
+  register: stat_hg_interpreter
+
+- name: bypass the mercurial python interpreter symlink (if needed)
+  ansible.builtin.lineinfile:
+    path: "{{ which_hg.stdout }}"
+    regexp: "^#!.*$"
+    line: "#!{{ stat_hg_interpreter.stat.lnk_source }}"
+  when: stat_hg_interpreter.stat.islnk
+
+- name: restore the default python
+  ansible.builtin.command: cp -av "{{ which_python.stdout }}.default" "{{ which_python.stdout }}"
+
+- name: restore the default pip
+  ansible.builtin.command: cp -av "{{ which_pip.stdout }}.default" "{{ which_pip.stdout }}"
+
+- name: get the current python version
+  ansible.builtin.command: "{{ ansible_python_interpreter }} -V"
+  register: current_python_version
+
+- name: verify the python version has not changed
+  ansible.builtin.assert:
+    that:
+      - default_python_version.stdout == current_python_version.stdout

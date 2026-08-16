@@ -1,0 +1,308 @@
+---
+####################################################################
+# WARNING: These are designed specifically for Ansible tests       #
+# and should not be used as examples of how to write Ansible roles #
+####################################################################
+
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: Determine Python versions
+  ansible.builtin.set_fact:
+    python_3_14: "3.14"
+    python_3_13: "3.{{ 12 if ansible_facts.python.version.minor == 13 else 13 }}"
+    python_3_13_5: "3.{{ 12 if ansible_facts.python.version.minor == 13 else 13 }}.5"
+
+- name: Install uv python package
+  ansible.builtin.pip:
+    name: uv
+
+- name: Install uv in RHEL
+  when: ansible_facts['os_family'] == "RedHat"
+  ansible.builtin.shell: |
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  environment:
+    UV_INSTALL_DIR: "{{ ansible_env.HOME }}/ansible/bin"
+  args:
+    creates: "{{ ansible_env.HOME }}/ansible/bin/uv"
+
+- name: Check if Python {{ python_3_14 }} exists already
+  ansible.builtin.command: uv python find {{ python_3_14 }}
+  ignore_errors: true
+  register: check_python_314_exists
+  changed_when: false
+
+- name: Install Python {{ python_3_14 }} in check mode
+  community.general.uv_python:
+    version: "{{ python_3_14 }}"
+    state: present
+  check_mode: true
+  register: install_check_mode
+
+- name: Verify Python {{ python_3_14 }} installation in check mode
+  ansible.builtin.assert:
+    that:
+      - (install_check_mode is changed) == (check_python_314_exists is failed)
+      - install_check_mode is not failed
+      - install_check_mode.python_versions | length >= 1
+
+- name: Install Python {{ python_3_14 }}
+  community.general.uv_python:
+    version: "{{ python_3_14 }}"
+    state: present
+  register: install_python
+
+- name: Verify Python {{ python_3_14 }} installation
+  ansible.builtin.assert:
+    that:
+      - (install_python is changed) == (check_python_314_exists is failed)
+      - install_python is not failed
+      - install_python.python_versions | length >= 1
+      - install_python.python_paths | length >= 1
+
+- name: Get Python install path stats
+  ansible.builtin.stat:
+    path: "{{ install_python.python_paths[0] }}"
+    follow: true
+  register: python_path_stats
+
+- name: Verify that Python {{ python_3_14 }} install path exists on host
+  ansible.builtin.fail:
+    msg: "Python install path {{ install_python.python_paths[0] }} is not correct"
+  when: not python_path_stats.stat.exists
+
+- name: Re-install Python {{ python_3_14 }}
+  community.general.uv_python:
+    version: "{{ python_3_14 }}"
+    state: present
+  register: reinstall_python
+
+- name: Verify Python {{ python_3_14 }} re-installation
+  ansible.builtin.assert:
+    that:
+      - reinstall_python is not changed
+      - reinstall_python is not failed
+      - reinstall_python.python_versions | length >= 1
+      - reinstall_python.python_paths | length >= 1
+
+- name: Check if Python {{ python_3_13_5 }} exists already
+  ansible.builtin.command: uv python find {{ python_3_13_5 }}
+  ignore_errors: true
+  register: check_python_3135_exists
+  changed_when: false
+
+- name: Install Python {{ python_3_13_5 }}
+  community.general.uv_python:
+    version: "{{ python_3_13_5 }}"
+  register: install_python_3135
+
+- name: Verify Python {{ python_3_13_5 }} installation
+  ansible.builtin.assert:
+    that:
+      - (install_python_3135 is changed) == (check_python_3135_exists is failed)
+      - install_python_3135 is not failed
+      - python_3_13_5 in install_python_3135.python_versions
+      - install_python_3135.python_paths | length >= 1
+
+- name: Re-install Python {{ python_3_13_5 }}
+  community.general.uv_python:
+    version: "{{ python_3_13_5 }}"
+    state: present
+  register: reinstall_python
+
+- name: Verify Python {{ python_3_13_5 }} installation
+  ansible.builtin.assert:
+    that:
+      - reinstall_python is not changed
+      - reinstall_python is not failed
+      - python_3_13_5 in reinstall_python.python_versions
+
+- name: Remove uninstalled Python 3.10 # removes latest patch version for 3.10 if exists
+  community.general.uv_python:
+    version: "3.10"
+    state: absent
+  register: remove_python
+
+- name: Verify Python 3.10 deletion
+  ansible.builtin.assert:
+    that:
+      - remove_python is not changed
+      - remove_python is not failed
+      - remove_python.python_versions | length == 0
+
+- name: Remove Python {{ python_3_13_5 }} in check mode
+  community.general.uv_python:
+    version: "{{ python_3_13_5 }}"
+    state: absent
+  check_mode: true
+  register: remove_python_in_check_mode
+
+- name: Verify Python {{ python_3_13_5 }} deletion in check mode
+  ansible.builtin.assert:
+    that:
+      - (remove_python_in_check_mode is changed) == (install_python_3135 is changed)
+      - remove_python_in_check_mode is not failed
+
+- name: Additional check for Python {{ python_3_13_5 }} deletion in check mode
+  when: install_python_3135 is changed
+  ansible.builtin.assert:
+    that:
+      - 'python_3_13_5 in remove_python_in_check_mode.python_versions'
+      - remove_python_in_check_mode.python_paths | length >= 1
+
+- name: Remove Python {{ python_3_13_5 }}
+  community.general.uv_python:
+    version: "{{ python_3_13_5 }}"
+    state: absent
+  register: remove_python
+
+- name: Verify Python {{ python_3_13_5 }} deletion
+  ansible.builtin.assert:
+    that:
+      - (remove_python is changed) == (install_python_3135 is changed)
+      - remove_python is not failed
+
+- name: Additional check for Python {{ python_3_13_5 }} deletion
+  when: install_python_3135 is changed
+  ansible.builtin.assert:
+    that:
+      - remove_python.python_paths | length >= 1
+      - 'python_3_13_5 in remove_python.python_versions'
+
+- name: Remove Python {{ python_3_13_5 }} again
+  community.general.uv_python:
+    version: "{{ python_3_13_5 }}"
+    state: absent
+  register: remove_python
+
+- name: Verify Python {{ python_3_13_5 }} deletion again
+  ansible.builtin.assert:
+    that:
+      - remove_python is not changed
+      - remove_python is not failed
+      - remove_python.python_versions | length == 0
+      - remove_python.python_paths | length == 0
+
+- name: Upgrade Python {{ python_3_13 }}
+  community.general.uv_python:
+    version: "{{ python_3_13 }}"
+    state: latest
+  register: upgrade_python
+
+- name: Verify Python {{ python_3_13 }} upgrade
+  ansible.builtin.assert:
+    that:
+      - upgrade_python is changed
+      - upgrade_python is not failed
+      - upgrade_python.python_versions | length >= 1
+      - upgrade_python.python_paths | length >= 1
+
+- name: Upgrade Python {{ python_3_13 }} in check mode
+  community.general.uv_python:
+    version: "{{ python_3_13 }}"
+    state: latest
+  check_mode: true
+  register: upgrade_python
+
+- name: Verify Python {{ python_3_13 }} upgrade in check mode
+  ansible.builtin.assert:
+    that:
+      - upgrade_python is not changed
+      - upgrade_python is not failed
+      - upgrade_python.python_versions | length >= 1
+
+- name: Upgrade Python {{ python_3_13 }} again
+  community.general.uv_python:
+    version: "{{ python_3_13 }}"
+    state: latest
+  check_mode: true
+  register: upgrade_python
+
+- name: Verify Python {{ python_3_13 }} upgrade again
+  ansible.builtin.assert:
+    that:
+      - upgrade_python is not changed
+      - upgrade_python is not failed
+      - upgrade_python.python_versions | length >= 1
+
+- name: Install unsupported Python version in check mode
+  community.general.uv_python:
+    version: 2.0
+    state: present
+  register: unsupported_python_check_mode
+  ignore_errors: true
+  check_mode: true
+
+- name: Verify unsupported Python 2.0 install in check mode
+  ansible.builtin.assert:
+    that:
+      - unsupported_python_check_mode is not changed
+      - unsupported_python_check_mode is failed
+      - '"Version 2.0 is not available." in unsupported_python_check_mode.msg'
+
+- name: Install unsupported Python version
+  community.general.uv_python:
+    state: present
+    version: 2.0
+  register: unsupported_python
+  ignore_errors: true
+
+- name: Verify unsupported Python 2.0 install
+  ansible.builtin.assert:
+    that:
+      - unsupported_python is not changed
+      - unsupported_python is failed
+
+- name: Install unsupported Python version with latest state
+  community.general.uv_python:
+    version: "2.0"
+    state: latest
+  register: unsupported_python
+  ignore_errors: true
+
+- name: Verify Python 2.0 install with latest state
+  ansible.builtin.assert:
+    that:
+      - unsupported_python is not changed
+      - unsupported_python is failed
+
+- name: Delete Python {{ python_3_13 }} version
+  community.general.uv_python:
+    version: "{{ python_3_13 }}"
+    state: absent
+  register: uninstall_result
+
+- name: Verify Python {{ python_3_13 }} deletion
+  ansible.builtin.assert:
+    that:
+      - uninstall_result is changed
+      - uninstall_result is not failed
+      - uninstall_result.python_versions | length >= 1
+      - python_3_13 in uninstall_result.python_versions[0]
+
+- name: No specified version
+  community.general.uv_python:
+    state: latest
+    version: ""
+  ignore_errors: true
+  register: no_version
+
+- name: Verify failure when no version is specified
+  ansible.builtin.assert:
+    that:
+      - no_version is failed
+      - '"Unsupported version format" in no_version.msg'
+
+- name: Unsupported version format given
+  community.general.uv_python:
+    state: latest
+    version: "3.8.post2"
+  ignore_errors: true
+  register: wrong_version
+
+- name: Verify failure when unsupported version format is specified
+  ansible.builtin.assert:
+    that:
+      - wrong_version is failed
+      - '"Unsupported version format" in wrong_version.msg'

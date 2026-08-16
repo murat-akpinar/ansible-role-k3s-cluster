@@ -1,0 +1,90 @@
+---
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: Copy test files
+  ansible.builtin.copy:
+    src: "files/"
+    dest: "{{ remote_tmp_dir }}"
+
+- name: Get original file stat
+  ansible.builtin.stat:
+    path: "{{ remote_tmp_dir }}/file.txt"
+  register: orig_file_stat
+
+- name: Set supported formats
+  ansible.builtin.set_fact:
+    formats:
+      - bz2
+      - gz
+      - xz
+
+- name: Ensure xz is present to create compressed files (not Debian)
+  ansible.builtin.package:
+    name:
+      - xz
+      - bzip2
+    state: latest
+  when:
+    - ansible_facts.system != 'FreeBSD'
+    - ansible_facts.os_family != 'Darwin'
+    - ansible_facts.os_family != 'Debian'
+
+- name: Ensure xz is present to create compressed files (Debian)
+  ansible.builtin.package:
+    name: xz-utils
+    state: latest
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Ensure xz is present to create compressed file (macOS)
+  block:
+    - name: Find brew binary
+      ansible.builtin.command: which brew
+      register: brew_which
+    - name: Get owner of brew binary
+      ansible.builtin.stat:
+        path: "{{ brew_which.stdout }}"
+      register: brew_stat
+    - name: "Install package"
+      community.general.homebrew:
+        name: xz
+        state: present
+        update_homebrew: false
+      become: true
+      become_user: "{{ brew_stat.stat.pw_name }}"
+      # Newer versions of brew want to compile a package which takes a long time. Do not upgrade homebrew until a
+      # proper solution can be found
+      environment:
+        HOMEBREW_NO_AUTO_UPDATE: "True"
+  when:
+    - ansible_facts.os_family == 'Darwin'
+
+- name: Generate compressed files
+  ansible.builtin.shell: |
+    gzip < {{ item }} > {{ item }}.gz
+    bzip2 < {{ item }} > {{ item }}.bz2
+    xz < {{ item }} > {{ item }}.xz
+  loop:
+    - "{{ remote_tmp_dir }}/file.txt"
+    - "{{ remote_tmp_dir }}/second_file.txt"
+
+# Run tests
+- name: Run core tests
+  block:
+    - ansible.builtin.include_tasks: core.yml
+      loop: "{{ formats }}"
+      loop_control:
+        loop_var: format
+    - ansible.builtin.import_tasks: cleanup.yml
+
+
+- name: Run idempotency and check mode tests
+  block:
+    - ansible.builtin.import_tasks: misc.yml
+    - ansible.builtin.import_tasks: cleanup.yml
+
+- name: Run tests for destination file
+  block:
+    - ansible.builtin.import_tasks: dest.yml
+    - ansible.builtin.import_tasks: cleanup.yml

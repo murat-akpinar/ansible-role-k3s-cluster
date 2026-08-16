@@ -1,0 +1,91 @@
+---
+####################################################################
+# WARNING: These are designed specifically for Ansible tests       #
+# and should not be used as examples of how to write Ansible roles #
+####################################################################
+
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: Install lxml (FreeBSD)
+  ansible.builtin.package:
+    name: 'py{{ ansible_facts.python.version.major }}{{ ansible_facts.python.version.minor }}-lxml'
+    state: present
+  when: ansible_facts.os_family == "FreeBSD"
+
+- name: Install requirements (RHEL 8)
+  ansible.builtin.package:
+    name:
+      - libxml2-devel
+      - libxslt-devel
+      - python3-lxml
+    state: present
+  when: ansible_facts.distribution == "RedHat" and ansible_facts.distribution_major_version == "8"
+
+# Needed for MacOSX !
+- name: Install lxml
+  ansible.builtin.pip:
+    name: lxml
+    state: present
+#  when: ansible_facts.os_family == "Darwin"
+
+- name: Get lxml version
+  ansible.builtin.command: "{{ ansible_python_interpreter }} -c 'from lxml import etree; print(\".\".join(str(v) for v in etree.LXML_VERSION))'"
+  register: lxml_version
+
+- name: Set lxml capabilities as variables
+  ansible.builtin.set_fact:
+    # NOTE: Some tests require predictable element attribute order,
+    #       which is only guaranteed starting from lxml v3.0alpha1
+    lxml_predictable_attribute_order: '{{ lxml_version.stdout is version("3", ">=") }}'
+
+    # NOTE: The xml module requires at least lxml v2.3.0
+    lxml_xpath_attribute_result_attrname: '{{ lxml_version.stdout is version("2.3.0", ">=") }}'
+
+- name: Only run the tests when lxml v2.3.0+
+  when: lxml_xpath_attribute_result_attrname
+  block:
+
+    - ansible.builtin.include_tasks: test-add-children-elements.yml
+    - ansible.builtin.include_tasks: test-add-children-from-groupvars.yml
+    - ansible.builtin.include_tasks: test-add-children-insertafter.yml
+    - ansible.builtin.include_tasks: test-add-children-insertbefore.yml
+    - ansible.builtin.include_tasks: test-add-children-with-attributes.yml
+    - ansible.builtin.include_tasks: test-add-element-implicitly.yml
+    - ansible.builtin.include_tasks: test-count.yml
+    - ansible.builtin.include_tasks: test-mutually-exclusive-attributes.yml
+    - ansible.builtin.include_tasks: test-remove-attribute.yml
+    - ansible.builtin.include_tasks: test-remove-attribute-nochange.yml
+    - ansible.builtin.include_tasks: test-remove-element.yml
+    - ansible.builtin.include_tasks: test-remove-element-nochange.yml
+    - ansible.builtin.include_tasks: test-set-attribute-value.yml
+    - ansible.builtin.include_tasks: test-set-attribute-value-boolean.yml
+    - ansible.builtin.include_tasks: test-set-children-elements.yml
+    - ansible.builtin.include_tasks: test-set-children-elements-level.yml
+    - ansible.builtin.include_tasks: test-set-children-elements-value.yml
+    - ansible.builtin.include_tasks: test-set-element-value.yml
+    - ansible.builtin.include_tasks: test-set-element-value-empty.yml
+    - ansible.builtin.include_tasks: test-set-element-value-predicate.yml
+    - ansible.builtin.include_tasks: test-pretty-print.yml
+    - ansible.builtin.include_tasks: test-pretty-print-only.yml
+    - ansible.builtin.include_tasks: test-add-namespaced-children-elements.yml
+    - ansible.builtin.include_tasks: test-remove-namespaced-attribute.yml
+    - ansible.builtin.include_tasks: test-remove-namespaced-attribute-nochange.yml
+    - ansible.builtin.include_tasks: test-set-namespaced-attribute-value.yml
+    - ansible.builtin.include_tasks: test-set-namespaced-element-value.yml
+    - ansible.builtin.include_tasks: test-set-namespaced-children-elements.yml
+    - ansible.builtin.include_tasks: test-get-element-content.yml
+    - ansible.builtin.include_tasks: test-print-match.yml
+    - ansible.builtin.include_tasks: test-xmlstring.yml
+    - ansible.builtin.include_tasks: test-children-elements-xml.yml
+    - ansible.builtin.include_tasks: test-preserve-doctype.yml
+
+    # Unicode tests
+    - ansible.builtin.include_tasks: test-add-children-elements-unicode.yml
+    - ansible.builtin.include_tasks: test-add-children-with-attributes-unicode.yml
+    - ansible.builtin.include_tasks: test-set-attribute-value-unicode.yml
+    - ansible.builtin.include_tasks: test-count-unicode.yml
+    - ansible.builtin.include_tasks: test-get-element-content.yml
+    - ansible.builtin.include_tasks: test-set-children-elements-unicode.yml
+    - ansible.builtin.include_tasks: test-set-element-value-unicode.yml

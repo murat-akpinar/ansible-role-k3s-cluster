@@ -1,0 +1,53 @@
+---
+# Test code for the iso_extract module.
+# Copyright (c) 2017, James Tanner <tanner.jc@gmail.com>
+# Copyright (c) 2017, Dag Wieers <dag@wieers.com>
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: Gather facts
+  ansible.builtin.setup:
+  become: true
+
+- name: Include distribution specific variables
+  ansible.builtin.include_vars: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_facts.distribution }}.yml"
+        - "{{ ansible_facts.os_family }}.yml"
+        - default.yml
+      paths:
+        - "{{ role_path }}/vars"
+
+- name: "{{ ansible_facts.os_family | upper }} | Install 7zip package"
+  ansible.builtin.package:
+    name: "{{ iso_extract_7zip_package }}"
+    state: present
+  when: ansible_facts.distribution != 'MacOSX'
+
+- name: macOS
+  when: ansible_facts.distribution == 'MacOSX'
+  block:
+    - name: MACOS | Find brew binary
+      ansible.builtin.command: which brew
+      register: brew_which
+      when: ansible_facts.distribution in ['MacOSX']
+
+    - name: MACOS | Get owner of brew binary
+      ansible.builtin.stat:
+        path: "{{ brew_which.stdout }}"
+      register: brew_stat
+      when: ansible_facts.distribution in ['MacOSX']
+
+    - name: MACOS | Install 7zip package
+      community.general.homebrew:
+        name: p7zip
+        state: present
+        update_homebrew: false
+      become: true
+      become_user: "{{ brew_stat.stat.pw_name }}"
+      # Newer versions of brew want to compile a package which takes a long time. Do not upgrade homebrew until a
+      # proper solution can be found
+      environment:
+        HOMEBREW_NO_AUTO_UPDATE: "True"

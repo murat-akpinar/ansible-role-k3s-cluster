@@ -42,6 +42,11 @@ k3s_disable_servicelb: true
 k3s_master_taint: true
 k3s_master_taint_value: "node-role.kubernetes.io/master=system:NoSchedule"
 
+# k3s server flag'leri TEK yerde: ilk kurulum, node ekleme ve upgrade ayni stringi
+# kullanir. Upgrade sirasinda eksik verilirse install script systemd unit'i yeniden
+# yazar ve --disable servicelb / --tls-san gibi flag'ler sessizce kaybolur.
+k3s_server_args: "--tls-san {{ keepalived_vip }} --write-kubeconfig-mode 644{{ ' --disable servicelb' if (k3s_disable_servicelb | default(true)) else '' }}{{ ' --node-taint ' ~ (k3s_master_taint_value | default('node-role.kubernetes.io/master=system:NoSchedule')) if (k3s_master_taint | default(false) | bool) else '' }}"
+
 
 # Helm Repository URLs
 helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3

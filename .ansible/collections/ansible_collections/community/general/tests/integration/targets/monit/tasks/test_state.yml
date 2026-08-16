@@ -1,0 +1,38 @@
+---
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- ansible.builtin.import_tasks: check_state.yml
+  vars:
+    reason: verify initial service state
+    service_state: "{{ initial_state }}"
+
+- name: change httpd_echo process state to {{ state }}
+  community.general.monit:
+    name: httpd_echo
+    state: "{{ state }}"
+  register: result
+
+- name: check that state changed
+  ansible.builtin.assert:
+    that:
+      - result is success
+      - result is changed
+
+- ansible.builtin.import_tasks: check_state.yml
+  vars:
+    reason: check service state after action
+    service_state: "{{ expected_state }}"
+
+- name: try change state again to {{ state }}
+  community.general.monit:
+    name: httpd_echo
+    state: "{{ state }}"
+  register: result
+
+- name: check that state is not changed
+  ansible.builtin.assert:
+    that:
+      - result is success
+      - result is not changed
