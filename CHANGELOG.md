@@ -28,6 +28,7 @@
 - Sessizce yok sayilan ayarlar, sabit master-1 ismi ve uygulanmayan helm degisiklikleri ([b842382](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/b842382787d11724ab94c08992010a0bb0f9789f)) — Tarama bulgularinin tamami (todo.md A1-A14, B1-B5, C1-C5).
 - RHEL firewalld flannel VXLAN'i kesiyor ve MetalLB webhook beklemesi sahte gecis veriyordu ([33f395e](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/33f395eb63c43b26b70705051a6a7a4e00be4db9)) — Karisik cluster'da (Ubuntu master + Rocky worker) MetalLB IPAddressPool apply adimi "failed calling webhook ... context deadline exceeded" ile dusuyor, master oyundan dustugu icin cert-manager/grafana/rancher/argocd hic kurulmuyordu.
 - README'deki inventory ornegi eksikti ve vault bolumu olmayan dosyalari anlatiyordu ([1b72b2e](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/1b72b2e7964479695a6153faeb8620d3a66f07c1)) — Hizli baslangictaki inventory ornegi `all.vars` blogunu hic gostermiyordu. Ornegi kopyalayan kullanicida ansible_user/ansible_ssh_private_key_file tanimsiz kaliyor; bu degerlerin envanterde durmasi gerekiyor cunku gather_facts'ten once, ILK SSH baglantisinda gecerli olmalilar. README'nin Yapilandirma bolumu bunu zaten soyluyordu ama ornek onu yansitmiyordu.
+- *(vars)* Varsayilan degerler calisan en kucuk kuruluma gore duzeltildi ([df0c4b3](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/df0c4b3cb8112ccb67b4935b8b256cf3e47b594f))
 
 ### 🚜 Refactor
 
