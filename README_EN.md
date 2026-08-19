@@ -120,7 +120,7 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 #### Approximate Per-Component Resource Cost
 
 The values below are approximate **idle** consumption; real usage grows with workload.
-Optional components (cert-manager, Longhorn, monitoring, Rancher, ArgoCD) are **off by default** in `vars/main.yml`; each one you enable adds the cost below.
+The default install is plain k3s: only the k3s rows and the bundled Traefik below apply. Every other component is **off** in `vars/main.yml`; each one you enable adds the cost below.
 
 | Component | CPU (idle) | RAM (idle) | Note |
 |-----------|-----------|------------|------|
@@ -207,9 +207,9 @@ k3s_version: "v1.32.8+k3s1"  # For initial installation
 k3s_upgrade_version: "v1.32.9+k3s1"  # For upgrade (optional)
 
 # Specify which services to install (defaults shipped in the repo)
-helm_install: true
-# L7 routing: k3s bundled Traefik + Gateway API (no separate flag)
-metallb_install: true
+helm_install: false
+gateway_api_install: false
+metallb_install: false
 cert_manager_install: false
 longhorn_install: false
 grafana_install: false
@@ -217,24 +217,40 @@ rancher_install: false
 argocd_install: false
 ```
 
-**The default install is a bare k3s cluster**: k3s + bundled Traefik + MetalLB
-+ Gateway API CRDs. If you want more, set the matching variable to `true`
-**before** running the playbook:
+**The default install is plain k3s**: the role installs nothing into the
+cluster besides k3s itself. All you get is k3s and what ships **bundled** with
+it — Traefik, ServiceLB (klipper), CoreDNS, local-path-provisioner,
+metrics-server.
+
+> Traefik comes with k3s; the role has no step that installs it. **Gateway API
+> does not come with k3s**: the role installs its CRDs and enables Traefik's
+> Gateway provider, so with `gateway_api_install: false` Traefik runs as a
+> plain Ingress controller.
+
+If you want more, set the matching variable to `true` **before** running the
+playbook:
 
 | What you want | What to do |
 |---|---|
+| Any component installed via Helm | `helm_install: true` — the helm binary and the `my-charts` templates (Gateway/HTTPRoute/values files) are produced by that step; nothing below can install without it |
+| Use `Gateway` / `HTTPRoute` resources | `gateway_api_install: true` — installs the CRDs and enables the bundled Traefik's Gateway provider |
 | Reach services at `https://<name>.homelab.local` | `cert_manager_install: true` — the shared Gateway and the `*.homelab.local` wildcard certificate are created by that step; with it off no Gateway exists at all |
+| Hand out LoadBalancer IPs from a pool on your network | `metallb_install: true` **+** `k3s_disable_servicelb: true` — leaving both LB controllers on makes klipper and MetalLB race for the same Service |
 | Persistent/replicated disks (PVC) | `longhorn_install: true` |
 | Prometheus + Grafana + Alertmanager | `grafana_install: true` |
 | Rancher management UI | `rancher_install: true` (Rancher needs cert-manager for its own TLS, enable both) |
 | GitOps / ArgoCD | `argocd_install: true` |
 
-> If you want any of these reachable by hostname, `cert_manager_install` must
-> be `true`; otherwise they install fine but are only reachable through
-> `kubectl port-forward` / NodePort.
+Dependency order: `helm_install` → `gateway_api_install` →
+`cert_manager_install` → the rest. When enabling a component, everything to its
+left must be enabled too.
+
+> For any of these to be reachable by hostname, both `gateway_api_install` and
+> `cert_manager_install` must be on; otherwise they install fine but are only
+> reachable through `kubectl port-forward` / NodePort.
 
 To enable something after the cluster is up, set the variable to `true` and
-re-run the playbook with the matching tag (e.g. `--tags grafana`).
+re-run the playbook with the matching tags (e.g. `--tags helm,grafana`).
 
 ### 3. Install Cluster
 
@@ -326,8 +342,9 @@ The following services are installed based on configuration (✅ = on by default
 | Service | Default | What it does |
 |---|:---:|---|
 | **Traefik** | ✅ | Ships **bundled** with k3s, the role does not install it and it has no flag of its own |
-| **Gateway API** | ✅ | CRDs are installed and the bundled Traefik's Gateway provider is enabled (runs unconditionally) |
-| **MetalLB** | ✅ | Hands out IPs to LoadBalancer services |
+| **ServiceLB (klipper)** | ✅ | Bundled with k3s; gives LoadBalancer services a node IP (turn off with `k3s_disable_servicelb`) |
+| **Gateway API** | ❌ | Installs the CRDs and enables Traefik's Gateway provider — **not** part of k3s, the role adds it |
+| **MetalLB** | ❌ | Hands out LoadBalancer IPs from a pool on your network (instead of klipper) |
 | **Cert-Manager** | ❌ | SSL/TLS certificate management + the shared Gateway |
 | **Longhorn** | ❌ | Distributed block storage |
 | **kube-prometheus-stack** | ❌ | Prometheus + Grafana + Alertmanager |
@@ -364,10 +381,13 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 k3s_version: "v1.32.8+k3s1"
 k3s_upgrade_version: "v1.32.9+k3s1"  # Optional
 
-# Service Installations — default: bare k3s (Traefik + MetalLB + Gateway API CRDs)
-helm_install: true
-# L7 routing: k3s bundled Traefik + Gateway API (no separate flag)
-metallb_install: true
+# Service Installations — default: plain k3s, everything off
+# Dependency order: helm_install -> gateway_api_install -> cert_manager_install -> the rest
+helm_install: false
+# Gateway API CRDs + the bundled Traefik's Gateway provider (not part of k3s)
+gateway_api_install: false
+# LoadBalancer IP pool; if you enable it, also set k3s_disable_servicelb: true
+metallb_install: false
 # Owns the Gateway and the wildcard certificate; set true for hostname access
 cert_manager_install: false
 longhorn_install: false
@@ -392,7 +412,7 @@ Other variables living in the same file:
 | Variable | What it does |
 |---|---|
 | `k3s_server_args` | k3s server flags in **one place**: initial install, node addition and upgrade all use the same string. If omitted during an upgrade the install script rewrites the systemd unit and flags like `--disable servicelb` / `--tls-san` silently disappear |
-| `k3s_disable_servicelb` | Disables the k3s bundled ServiceLB (klipper) so MetalLB hands out LoadBalancer IPs. **Do not set it to `false` while `metallb_install: true`** — two LB controllers would race to assign an IP to the same Service. To use klipper, set `metallb_install` to `false` as well |
+| `k3s_disable_servicelb` | When `true`, disables the k3s bundled ServiceLB (klipper). Defaults to `false`: MetalLB is off too, so klipper hands out LoadBalancer IPs. **Do not turn both off** — no LB controller would be left and the `traefik` service stays `<pending>`. If you set `metallb_install: true`, set this to `true` as well |
 | `k3s_master_taint` / `k3s_master_taint_value` | Protects masters from heavy workloads (see [Master/Worker Pod Distribution](#masterworker-pod-distribution)) |
 | `monitoring_storage_class` | StorageClass for the monitoring PVCs (see [Longhorn StorageClass](#-longhorn-storageclass)) |
 | `longhorn_storage_classes` | List of StorageClasses to generate — `reclaim` and `replicas` are managed here |

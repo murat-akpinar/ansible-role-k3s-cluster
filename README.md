@@ -120,7 +120,7 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 #### Bileşen Başına Yaklaşık Kaynak Maliyeti
 
 Aşağıdaki değerler **boştaki (idle)** yaklaşık tüketimdir; gerçek kullanım iş yüküne göre artar.
-İsteğe bağlı bileşenler (cert-manager, Longhorn, monitoring, Rancher, ArgoCD) `vars/main.yml`'de **varsayılan olarak kapalıdır**; açtıkça aşağıdaki maliyeti eklersiniz.
+Varsayılan kurulum saf k3s'tir: aşağıdakilerden yalnızca k3s satırları ve gömülü Traefik gelir. Diğer bileşenlerin hepsi `vars/main.yml`'de **kapalıdır**; açtıkça aşağıdaki maliyeti eklersiniz.
 
 | Bileşen | CPU (idle) | RAM (idle) | Not |
 |---------|-----------|------------|-----|
@@ -207,9 +207,9 @@ k3s_version: "v1.32.8+k3s1"  # İlk kurulum için
 k3s_upgrade_version: "v1.32.9+k3s1"  # Upgrade için (opsiyonel)
 
 # Hangi servisleri kurmak istediğinizi belirtin (repodaki varsayılanlar)
-helm_install: true
-# L7 yönlendirme: k3s gömülü Traefik + Gateway API (ayrı flag yok)
-metallb_install: true
+helm_install: false
+gateway_api_install: false
+metallb_install: false
 cert_manager_install: false
 longhorn_install: false
 grafana_install: false
@@ -217,24 +217,37 @@ rancher_install: false
 argocd_install: false
 ```
 
-**Varsayılan kurulum çıplak bir k3s cluster'ıdır**: k3s + gömülü Traefik +
-MetalLB + Gateway API CRD'leri. Fazlasını istiyorsanız kurulumdan **önce**
-ilgili değişkeni `true` yapın:
+**Varsayılan kurulum saf k3s'tir**: rol cluster'a k3s dışında hiçbir şey
+kurmaz. Gelen tek şey k3s'in kendisi ve onunla **gömülü** olanlardır —
+Traefik, ServiceLB (klipper), CoreDNS, local-path-provisioner, metrics-server.
+
+> Traefik k3s ile gelir, rolün onu kuran bir adımı yoktur. **Gateway API ise
+> k3s ile gelmez**: CRD'lerini ve Traefik'in Gateway sağlayıcısını rol kurar,
+> yani `gateway_api_install: false` iken Traefik düz Ingress controller olarak
+> çalışır.
+
+Fazlasını istiyorsanız kurulumdan **önce** ilgili değişkeni `true` yapın:
 
 | Ne istiyorsanız | Ne yapmalısınız |
 |---|---|
+| Helm ile kurulan herhangi bir bileşen | `helm_install: true` — helm binary'si ve `my-charts` şablonları (Gateway/HTTPRoute/values dosyaları) bu adımda üretilir, aşağıdakilerin hiçbiri onsuz kurulamaz |
+| `Gateway` / `HTTPRoute` kaynakları kullanmak | `gateway_api_install: true` — CRD'ler kurulur, gömülü Traefik'in Gateway sağlayıcısı açılır |
 | Servislere `https://<isim>.homelab.local` ile erişmek | `cert_manager_install: true` — paylaşımlı Gateway ve `*.homelab.local` wildcard sertifikası bu adımda kurulur, kapalıyken Gateway hiç oluşmaz |
+| LoadBalancer IP'lerini ağınızdaki bir havuzdan vermek | `metallb_install: true` **+** `k3s_disable_servicelb: true` — ikisi birden açık kalırsa klipper ile MetalLB aynı Service'e IP atamaya çalışır |
 | Kalıcı/replikalı disk (PVC) | `longhorn_install: true` |
 | Prometheus + Grafana + Alertmanager | `grafana_install: true` |
 | Rancher yönetim arayüzü | `rancher_install: true` (Rancher kendi TLS'i için cert-manager ister, birlikte açın) |
 | GitOps / ArgoCD | `argocd_install: true` |
 
-> Bu bileşenlerin hepsi hostname üzerinden erişilsin istiyorsanız
-> `cert_manager_install: true` olmalıdır; aksi halde kurulurlar ama yalnızca
-> `kubectl port-forward` / NodePort ile açılırlar.
+Bağımlılık sırası: `helm_install` → `gateway_api_install` → `cert_manager_install`
+→ diğerleri. Bir bileşeni açarken solundakiler de açık olmalıdır.
+
+> Bu bileşenler hostname üzerinden erişilsin istiyorsanız `gateway_api_install`
+> **ve** `cert_manager_install` açık olmalıdır; aksi halde kurulurlar ama
+> yalnızca `kubectl port-forward` / NodePort ile açılırlar.
 
 Kurulumdan sonra açmak isterseniz değişkeni `true` yapıp playbook'u ilgili
-tag ile tekrar çalıştırmanız yeterlidir (ör. `--tags grafana`).
+tag ile tekrar çalıştırmanız yeterlidir (ör. `--tags helm,grafana`).
 
 ### 3. Cluster'ı Kurun
 
@@ -325,8 +338,9 @@ Yapılandırmaya göre şu servisler kurulur (✅ = varsayılan açık):
 | Servis | Varsayılan | Ne yapar |
 |---|:---:|---|
 | **Traefik** | ✅ | k3s ile **gömülü** gelir, rol ayrıca kurmaz; ayrı bir flag'i de yoktur |
-| **Gateway API** | ✅ | CRD'ler kurulur, Traefik'in Gateway sağlayıcısı açılır (koşulsuz çalışır) |
-| **MetalLB** | ✅ | LoadBalancer servislerine IP dağıtır |
+| **ServiceLB (klipper)** | ✅ | k3s ile gömülü; LoadBalancer servislerine node IP'si verir (`k3s_disable_servicelb` ile kapatılır) |
+| **Gateway API** | ❌ | CRD'ler kurulur, Traefik'in Gateway sağlayıcısı açılır — k3s ile **gelmez**, rolün eklediği bir şeydir |
+| **MetalLB** | ❌ | LoadBalancer servislerine ağınızdaki havuzdan IP dağıtır (klipper yerine) |
 | **Cert-Manager** | ❌ | SSL/TLS sertifika yönetimi + paylaşımlı Gateway |
 | **Longhorn** | ❌ | Distributed block storage |
 | **kube-prometheus-stack** | ❌ | Prometheus + Grafana + Alertmanager |
@@ -364,10 +378,13 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 k3s_version: "v1.32.8+k3s1"
 k3s_upgrade_version: "v1.32.9+k3s1"  # Opsiyonel
 
-# Servis Kurulumları — varsayılan: çıplak k3s (Traefik + MetalLB + Gateway API CRD)
-helm_install: true
-# L7 yönlendirme: k3s gömülü Traefik + Gateway API (ayrı flag yok)
-metallb_install: true
+# Servis Kurulumları — varsayılan: saf k3s, hepsi kapalı
+# Bağımlılık sırası: helm_install -> gateway_api_install -> cert_manager_install -> diğerleri
+helm_install: false
+# Gateway API CRD'leri + gömülü Traefik'in Gateway sağlayıcısı (k3s ile gelmez)
+gateway_api_install: false
+# LoadBalancer IP havuzu; açarsanız k3s_disable_servicelb'i de true yapın
+metallb_install: false
 # Gateway + wildcard sertifikanın sahibi; hostname erişimi istiyorsanız true yapın
 cert_manager_install: false
 longhorn_install: false
@@ -392,7 +409,7 @@ Ayrıca bu dosyada yer alan diğer değişkenler:
 | Değişken | Ne işe yarar |
 |---|---|
 | `k3s_server_args` | k3s server flag'leri **tek yerde**: ilk kurulum, node ekleme ve upgrade aynı string'i kullanır. Upgrade sırasında eksik verilirse install script systemd unit'i yeniden yazar ve `--disable servicelb` / `--tls-san` sessizce kaybolur |
-| `k3s_disable_servicelb` | k3s gömülü ServiceLB (klipper) kapatılır, LoadBalancer IP'lerini MetalLB verir. **`metallb_install: true` iken `false` yapmayın** — iki LB controller aynı Service'e IP atamaya çalışır. Klipper kullanacaksanız `metallb_install`'ı da `false` yapın |
+| `k3s_disable_servicelb` | `true` ise k3s gömülü ServiceLB (klipper) kapatılır. Varsayılan `false`: MetalLB de kapalı olduğu için LoadBalancer IP'lerini klipper verir. **İkisini birden kapatmayın** — hiçbir LB controller kalmaz ve `traefik` servisi `<pending>` takılır. `metallb_install: true` yaparsanız bunu da `true` yapın |
 | `k3s_master_taint` / `k3s_master_taint_value` | Master'ları ağır iş yüklerinden korur (bkz. [Master/Worker Pod Dağılımı](#masterworker-pod-dağılımı)) |
 | `monitoring_storage_class` | Monitoring PVC'lerinin StorageClass'ı (bkz. [Longhorn StorageClass](#-longhorn-storageclass)) |
 | `longhorn_storage_classes` | Üretilecek StorageClass listesi — `reclaim` ve `replicas` buradan yönetilir |
