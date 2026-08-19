@@ -15,17 +15,20 @@ keepalived_interface: ""
 # deger verin (1-255), aksi halde VRRP instance'lari catisir.
 keepalived_router_id: 51
 # ============================================================================
-# Varsayilan kurulum: calisan en kucuk cluster (k3s + Traefik + Gateway + TLS).
-# Grafana/Rancher/ArgoCD/Longhorn opsiyoneldir, ihtiyac duyanlar true yapar.
+# Varsayilan kurulum: ciplak k3s cluster'i (Traefik + MetalLB + Gateway API CRD).
+# TLS'li hostname erisimi ve 3. parti bilesenler opt-in; asagidakileri true yapin.
 # ============================================================================
 # Traefik k3s ile gomulu gelir, ayrica kurulmaz; Gateway API saglayicisi
 # 05_gateway_api_install.yml tarafindan her kurulumda acilir (L7, Ingress yok).
 helm_install: true
 # LoadBalancer IP'lerini MetalLB dagitir; kapatilirsa Gateway EXTERNAL-IP alamaz.
 metallb_install: true
-# Paylasilan homelab Gateway'i ve wildcard sertifikayi cert-manager adimi kurar.
-# false ise Gateway ve HTTPRoute'lar hic kurulmaz -> hicbir servis hostname'den erisilemez.
-cert_manager_install: true
+# Paylasilan homelab Gateway'i ve *.{{ cluster_domain }} wildcard sertifikasini
+# cert-manager adimi kurar (Gateway'in tek listener'i bu sertifikaya bagli).
+# false ise Gateway ve HTTPRoute'lar hic kurulmaz -> hicbir servis hostname'den
+# erisilemez; servislere NodePort/port-forward ile ulasilir. Grafana, Rancher,
+# ArgoCD veya Longhorn UI'sini hostname ile acacaksaniz bunu true yapin.
+cert_manager_install: false
 longhorn_install: false
 grafana_install: false
 rancher_install: false
