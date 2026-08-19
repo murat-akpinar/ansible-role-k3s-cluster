@@ -1,8 +1,12 @@
 # Main tasks for k3s setup
 ---
 
+# tags: always — user_home_directory'yi kubectl/helm kullanan her adim istiyor.
+# Tag'siz olsaydi "--tags grafana" gibi kismi calistirmalarda atlanir ve
+# sonraki adimlar undefined variable ile duserdi.
 - name: "Resolve ansible_user home directory"
   ansible.builtin.import_tasks: _resolve_user.yml
+  tags: always
 
 - name: "System requirements Check"
   ansible.builtin.import_tasks: 00_system_requirements.yml
