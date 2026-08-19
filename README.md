@@ -120,7 +120,7 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 #### Bileşen Başına Yaklaşık Kaynak Maliyeti
 
 Aşağıdaki değerler **boştaki (idle)** yaklaşık tüketimdir; gerçek kullanım iş yüküne göre artar.
-İsteğe bağlı bileşenleri `vars/main.yml`'de kapatarak kaynak tasarrufu yapabilirsiniz.
+İsteğe bağlı bileşenler (cert-manager, Longhorn, monitoring, Rancher, ArgoCD) `vars/main.yml`'de **varsayılan olarak kapalıdır**; açtıkça aşağıdaki maliyeti eklersiniz.
 
 | Bileşen | CPU (idle) | RAM (idle) | Not |
 |---------|-----------|------------|-----|
@@ -206,16 +206,35 @@ keepalived_vip: 192.168.1.244
 k3s_version: "v1.32.8+k3s1"  # İlk kurulum için
 k3s_upgrade_version: "v1.32.9+k3s1"  # Upgrade için (opsiyonel)
 
-# Hangi servisleri kurmak istediğinizi belirtin
+# Hangi servisleri kurmak istediğinizi belirtin (repodaki varsayılanlar)
 helm_install: true
 # L7 yönlendirme: k3s gömülü Traefik + Gateway API (ayrı flag yok)
 metallb_install: true
-cert_manager_install: true
-longhorn_install: true
-grafana_install: true
-rancher_install: true
-argocd_install: true
+cert_manager_install: false
+longhorn_install: false
+grafana_install: false
+rancher_install: false
+argocd_install: false
 ```
+
+**Varsayılan kurulum çıplak bir k3s cluster'ıdır**: k3s + gömülü Traefik +
+MetalLB + Gateway API CRD'leri. Fazlasını istiyorsanız kurulumdan **önce**
+ilgili değişkeni `true` yapın:
+
+| Ne istiyorsanız | Ne yapmalısınız |
+|---|---|
+| Servislere `https://<isim>.homelab.local` ile erişmek | `cert_manager_install: true` — paylaşımlı Gateway ve `*.homelab.local` wildcard sertifikası bu adımda kurulur, kapalıyken Gateway hiç oluşmaz |
+| Kalıcı/replikalı disk (PVC) | `longhorn_install: true` |
+| Prometheus + Grafana + Alertmanager | `grafana_install: true` |
+| Rancher yönetim arayüzü | `rancher_install: true` (Rancher kendi TLS'i için cert-manager ister, birlikte açın) |
+| GitOps / ArgoCD | `argocd_install: true` |
+
+> Bu bileşenlerin hepsi hostname üzerinden erişilsin istiyorsanız
+> `cert_manager_install: true` olmalıdır; aksi halde kurulurlar ama yalnızca
+> `kubectl port-forward` / NodePort ile açılırlar.
+
+Kurulumdan sonra açmak isterseniz değişkeni `true` yapıp playbook'u ilgili
+tag ile tekrar çalıştırmanız yeterlidir (ör. `--tags grafana`).
 
 ### 3. Cluster'ı Kurun
 
@@ -238,7 +257,12 @@ Playbook her node'da şunları yapar (`00_system_requirements.yml`):
 - sysctl ayarlarını uygular: `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`
 - Chrony kurar ve yapılandırır (bkz. Adım 3)
 
-**firewalld (yalnızca RHEL ailesi)**: firewalld çalışıyorsa rol şunları açar; Ubuntu/Debian'da bu adım atlanır.
+Ardından `00_prerequisites.yml` her node'da ortak paketleri kurar: `acl`
+(unprivileged `ansible_user` ile `become` için), `open-iscsi`/`nfs-common`
+(RHEL'de `iscsi-initiator-utils`/`nfs-utils`) ve `iscsid` servisi — Longhorn
+sonradan açılırsa hazır olsun diye.
+
+**firewalld (yalnızca RHEL ailesi)**: firewalld çalışıyorsa aynı dosya şunları açar; Ubuntu/Debian'da bu adım atlanır.
 
 | Ne | Neden |
 |---|---|
@@ -247,7 +271,7 @@ Playbook her node'da şunları yapar (`00_system_requirements.yml`):
 | `10250/tcp` | kubelet metrics/exec |
 | `10.42.0.0/16`, `10.43.0.0/16` → `trusted` zone | pod ve service ağları |
 
-> ⚠️ `--cluster-cidr` / `--service-cidr` ile ağları değiştirirseniz `tasks/main.yml` içindeki trusted CIDR listesini de güncelleyin.
+> ⚠️ `--cluster-cidr` / `--service-cidr` ile ağları değiştirirseniz `tasks/00_prerequisites.yml` içindeki trusted CIDR listesini de güncelleyin.
 
 ### Adım 2: Hostname Yapılandırması
 
@@ -296,15 +320,20 @@ Helm, Kubernetes paket yöneticisi olarak kurulur (eğer `helm_install: true` is
 
 ### Adım 7: Servis Kurulumları
 
-Yapılandırmaya göre şu servisler kurulur:
-- **Gateway API**: k3s gömülü Traefik'in Gateway sağlayıcısı açılır, CRD'ler kurulur
-  > ⚠️ Paylaşımlı Gateway wildcard sertifikaya bağlı: `cert_manager_install: false` ise Gateway ve HTTPRoute'lar **hiç kurulmaz**, servisler hostname üzerinden erişilemez.
-- **MetalLB**: Load balancer kurulur
-- **Cert-Manager**: SSL/TLS sertifika yönetimi
-- **Longhorn**: Distributed block storage
-- **kube-prometheus-stack**: Prometheus + Grafana + Alertmanager
-- **Rancher**: Kubernetes management platform
-- **ArgoCD**: GitOps sürekli dağıtım (CD) — `argocd.homelab.local` üzerinden erişilir (bkz. [ArgoCD'ye Erişim](#argocdye-erişim))
+Yapılandırmaya göre şu servisler kurulur (✅ = varsayılan açık):
+
+| Servis | Varsayılan | Ne yapar |
+|---|:---:|---|
+| **Traefik** | ✅ | k3s ile **gömülü** gelir, rol ayrıca kurmaz; ayrı bir flag'i de yoktur |
+| **Gateway API** | ✅ | CRD'ler kurulur, Traefik'in Gateway sağlayıcısı açılır (koşulsuz çalışır) |
+| **MetalLB** | ✅ | LoadBalancer servislerine IP dağıtır |
+| **Cert-Manager** | ❌ | SSL/TLS sertifika yönetimi + paylaşımlı Gateway |
+| **Longhorn** | ❌ | Distributed block storage |
+| **kube-prometheus-stack** | ❌ | Prometheus + Grafana + Alertmanager |
+| **Rancher** | ❌ | Kubernetes yönetim arayüzü |
+| **ArgoCD** | ❌ | GitOps sürekli dağıtım (CD) — `argocd.homelab.local` (bkz. [ArgoCD'ye Erişim](#argocdye-erişim)) |
+
+> ⚠️ Paylaşımlı Gateway wildcard sertifikaya bağlı: `cert_manager_install: false` ise Gateway ve HTTPRoute'lar **hiç kurulmaz**, servisler hostname üzerinden erişilemez. Gateway'in tek listener'ı HTTPS'tir ve `homelab-wildcard-tls` secret'ını ister; o secret'ı da cert-manager üretir.
 
 ## ⚙️ Yapılandırma
 
@@ -335,15 +364,16 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 k3s_version: "v1.32.8+k3s1"
 k3s_upgrade_version: "v1.32.9+k3s1"  # Opsiyonel
 
-# Servis Kurulumları
+# Servis Kurulumları — varsayılan: çıplak k3s (Traefik + MetalLB + Gateway API CRD)
 helm_install: true
 # L7 yönlendirme: k3s gömülü Traefik + Gateway API (ayrı flag yok)
 metallb_install: true
-cert_manager_install: true
-longhorn_install: true
-grafana_install: true
-rancher_install: true
-argocd_install: true
+# Gateway + wildcard sertifikanın sahibi; hostname erişimi istiyorsanız true yapın
+cert_manager_install: false
+longhorn_install: false
+grafana_install: false
+rancher_install: false
+argocd_install: false
 
 # MetalLB IP havuzu — birden fazla aralık/CIDR eklenebilir
 metallb_ip_pool_name: "first-pool"
@@ -362,7 +392,7 @@ Ayrıca bu dosyada yer alan diğer değişkenler:
 | Değişken | Ne işe yarar |
 |---|---|
 | `k3s_server_args` | k3s server flag'leri **tek yerde**: ilk kurulum, node ekleme ve upgrade aynı string'i kullanır. Upgrade sırasında eksik verilirse install script systemd unit'i yeniden yazar ve `--disable servicelb` / `--tls-san` sessizce kaybolur |
-| `k3s_disable_servicelb` | k3s gömülü ServiceLB (klipper) kapatılır, LoadBalancer IP'lerini MetalLB verir. MetalLB yerine klipper isterseniz `false` |
+| `k3s_disable_servicelb` | k3s gömülü ServiceLB (klipper) kapatılır, LoadBalancer IP'lerini MetalLB verir. **`metallb_install: true` iken `false` yapmayın** — iki LB controller aynı Service'e IP atamaya çalışır. Klipper kullanacaksanız `metallb_install`'ı da `false` yapın |
 | `k3s_master_taint` / `k3s_master_taint_value` | Master'ları ağır iş yüklerinden korur (bkz. [Master/Worker Pod Dağılımı](#masterworker-pod-dağılımı)) |
 | `monitoring_storage_class` | Monitoring PVC'lerinin StorageClass'ı (bkz. [Longhorn StorageClass](#-longhorn-storageclass)) |
 | `longhorn_storage_classes` | Üretilecek StorageClass listesi — `reclaim` ve `replicas` buradan yönetilir |
@@ -1003,11 +1033,13 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── .gitkeep
 │       │   │   └── main.yml
 │       │   ├── tasks
+│       │   │   ├── 00_prerequisites.yml       # paketler, iscsid, firewalld
 │       │   │   ├── 00_system_requirements.yml
 │       │   │   ├── 00_wellcome.yml
 │       │   │   ├── 01_configure_hostname.yml
 │       │   │   ├── 02_install_keepalived.yml
 │       │   │   ├── 03_install_k3s.yml
+│       │   │   ├── 03_wait_api_ready.yml      # merkezi "API hazır mı" kapısı
 │       │   │   ├── 04_install_helm.yml
 │       │   │   ├── 05_gateway_api_install.yml
 │       │   │   ├── 06_metallb_install.yml

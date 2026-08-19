@@ -120,7 +120,7 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 #### Approximate Per-Component Resource Cost
 
 The values below are approximate **idle** consumption; real usage grows with workload.
-You can disable optional components in `vars/main.yml` to save resources.
+Optional components (cert-manager, Longhorn, monitoring, Rancher, ArgoCD) are **off by default** in `vars/main.yml`; each one you enable adds the cost below.
 
 | Component | CPU (idle) | RAM (idle) | Note |
 |-----------|-----------|------------|------|
@@ -206,16 +206,35 @@ keepalived_vip: 192.168.1.244
 k3s_version: "v1.32.8+k3s1"  # For initial installation
 k3s_upgrade_version: "v1.32.9+k3s1"  # For upgrade (optional)
 
-# Specify which services to install
+# Specify which services to install (defaults shipped in the repo)
 helm_install: true
 # L7 routing: k3s bundled Traefik + Gateway API (no separate flag)
 metallb_install: true
-cert_manager_install: true
-longhorn_install: true
-grafana_install: true
-rancher_install: true
-argocd_install: true
+cert_manager_install: false
+longhorn_install: false
+grafana_install: false
+rancher_install: false
+argocd_install: false
 ```
+
+**The default install is a bare k3s cluster**: k3s + bundled Traefik + MetalLB
++ Gateway API CRDs. If you want more, set the matching variable to `true`
+**before** running the playbook:
+
+| What you want | What to do |
+|---|---|
+| Reach services at `https://<name>.homelab.local` | `cert_manager_install: true` — the shared Gateway and the `*.homelab.local` wildcard certificate are created by that step; with it off no Gateway exists at all |
+| Persistent/replicated disks (PVC) | `longhorn_install: true` |
+| Prometheus + Grafana + Alertmanager | `grafana_install: true` |
+| Rancher management UI | `rancher_install: true` (Rancher needs cert-manager for its own TLS, enable both) |
+| GitOps / ArgoCD | `argocd_install: true` |
+
+> If you want any of these reachable by hostname, `cert_manager_install` must
+> be `true`; otherwise they install fine but are only reachable through
+> `kubectl port-forward` / NodePort.
+
+To enable something after the cluster is up, set the variable to `true` and
+re-run the playbook with the matching tag (e.g. `--tags grafana`).
 
 ### 3. Install Cluster
 
@@ -239,7 +258,12 @@ On every node the playbook does the following (`00_system_requirements.yml`):
 - Applies the sysctl settings: `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`
 - Installs and configures Chrony (see Step 3)
 
-**firewalld (RHEL family only)**: if firewalld is running, the role opens the following; the step is skipped on Ubuntu/Debian.
+Next, `00_prerequisites.yml` installs the shared packages on every node: `acl`
+(needed for `become` with an unprivileged `ansible_user`), `open-iscsi`/`nfs-common`
+(`iscsi-initiator-utils`/`nfs-utils` on RHEL) and the `iscsid` service — so the
+node is ready if Longhorn is enabled later.
+
+**firewalld (RHEL family only)**: if firewalld is running, the same file opens the following; the step is skipped on Ubuntu/Debian.
 
 | What | Why |
 |---|---|
@@ -248,7 +272,7 @@ On every node the playbook does the following (`00_system_requirements.yml`):
 | `10250/tcp` | kubelet metrics/exec |
 | `10.42.0.0/16`, `10.43.0.0/16` → `trusted` zone | pod and service networks |
 
-> ⚠️ If you change the networks with `--cluster-cidr` / `--service-cidr`, update the trusted CIDR list in `tasks/main.yml` as well.
+> ⚠️ If you change the networks with `--cluster-cidr` / `--service-cidr`, update the trusted CIDR list in `tasks/00_prerequisites.yml` as well.
 
 ### Step 2: Hostname Configuration
 
@@ -297,15 +321,20 @@ Helm is installed as the Kubernetes package manager (if `helm_install: true`).
 
 ### Step 7: Service Installations
 
-The following services are installed based on configuration:
-- **Gateway API**: CRDs are installed and the built-in Traefik's Gateway provider is enabled
-  > ⚠️ The shared Gateway depends on the wildcard certificate: with `cert_manager_install: false` the Gateway and HTTPRoutes are **not created at all**, so no service is reachable by hostname.
-- **MetalLB**: Load balancer is installed
-- **Cert-Manager**: SSL/TLS certificate management
-- **Longhorn**: Distributed block storage
-- **kube-prometheus-stack**: Prometheus + Grafana + Alertmanager
-- **Rancher**: Kubernetes management platform
-- **ArgoCD**: GitOps continuous delivery (CD) — accessed at `argocd.homelab.local` (see [Access ArgoCD](#access-argocd))
+The following services are installed based on configuration (✅ = on by default):
+
+| Service | Default | What it does |
+|---|:---:|---|
+| **Traefik** | ✅ | Ships **bundled** with k3s, the role does not install it and it has no flag of its own |
+| **Gateway API** | ✅ | CRDs are installed and the bundled Traefik's Gateway provider is enabled (runs unconditionally) |
+| **MetalLB** | ✅ | Hands out IPs to LoadBalancer services |
+| **Cert-Manager** | ❌ | SSL/TLS certificate management + the shared Gateway |
+| **Longhorn** | ❌ | Distributed block storage |
+| **kube-prometheus-stack** | ❌ | Prometheus + Grafana + Alertmanager |
+| **Rancher** | ❌ | Kubernetes management UI |
+| **ArgoCD** | ❌ | GitOps continuous delivery (CD) — `argocd.homelab.local` (see [Access ArgoCD](#access-argocd)) |
+
+> ⚠️ The shared Gateway depends on the wildcard certificate: with `cert_manager_install: false` the Gateway and HTTPRoutes are **not created at all**, so no service is reachable by hostname. The Gateway's only listener is HTTPS and requires the `homelab-wildcard-tls` secret, which cert-manager produces.
 
 ## ⚙️ Configuration
 
@@ -335,15 +364,16 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 k3s_version: "v1.32.8+k3s1"
 k3s_upgrade_version: "v1.32.9+k3s1"  # Optional
 
-# Service Installations
+# Service Installations — default: bare k3s (Traefik + MetalLB + Gateway API CRDs)
 helm_install: true
 # L7 routing: k3s bundled Traefik + Gateway API (no separate flag)
 metallb_install: true
-cert_manager_install: true
-longhorn_install: true
-grafana_install: true
-rancher_install: true
-argocd_install: true
+# Owns the Gateway and the wildcard certificate; set true for hostname access
+cert_manager_install: false
+longhorn_install: false
+grafana_install: false
+rancher_install: false
+argocd_install: false
 
 # MetalLB IP pool — multiple ranges/CIDRs can be added
 metallb_ip_pool_name: "first-pool"
@@ -362,7 +392,7 @@ Other variables living in the same file:
 | Variable | What it does |
 |---|---|
 | `k3s_server_args` | k3s server flags in **one place**: initial install, node addition and upgrade all use the same string. If omitted during an upgrade the install script rewrites the systemd unit and flags like `--disable servicelb` / `--tls-san` silently disappear |
-| `k3s_disable_servicelb` | Disables the k3s bundled ServiceLB (klipper) so MetalLB hands out LoadBalancer IPs. Set `false` to use klipper instead of MetalLB |
+| `k3s_disable_servicelb` | Disables the k3s bundled ServiceLB (klipper) so MetalLB hands out LoadBalancer IPs. **Do not set it to `false` while `metallb_install: true`** — two LB controllers would race to assign an IP to the same Service. To use klipper, set `metallb_install` to `false` as well |
 | `k3s_master_taint` / `k3s_master_taint_value` | Protects masters from heavy workloads (see [Master/Worker Pod Distribution](#masterworker-pod-distribution)) |
 | `monitoring_storage_class` | StorageClass for the monitoring PVCs (see [Longhorn StorageClass](#-longhorn-storageclass)) |
 | `longhorn_storage_classes` | List of StorageClasses to generate — `reclaim` and `replicas` are managed here |
@@ -1005,11 +1035,13 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── .gitkeep
 │       │   │   └── main.yml
 │       │   ├── tasks
+│       │   │   ├── 00_prerequisites.yml       # packages, iscsid, firewalld
 │       │   │   ├── 00_system_requirements.yml
 │       │   │   ├── 00_wellcome.yml
 │       │   │   ├── 01_configure_hostname.yml
 │       │   │   ├── 02_install_keepalived.yml
 │       │   │   ├── 03_install_k3s.yml
+│       │   │   ├── 03_wait_api_ready.yml      # central "is the API ready" gate
 │       │   │   ├── 04_install_helm.yml
 │       │   │   ├── 05_gateway_api_install.yml
 │       │   │   ├── 06_metallb_install.yml
