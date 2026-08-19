@@ -29,6 +29,10 @@
 - RHEL firewalld flannel VXLAN'i kesiyor ve MetalLB webhook beklemesi sahte gecis veriyordu ([33f395e](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/33f395eb63c43b26b70705051a6a7a4e00be4db9)) — Karisik cluster'da (Ubuntu master + Rocky worker) MetalLB IPAddressPool apply adimi "failed calling webhook ... context deadline exceeded" ile dusuyor, master oyundan dustugu icin cert-manager/grafana/rancher/argocd hic kurulmuyordu.
 - README'deki inventory ornegi eksikti ve vault bolumu olmayan dosyalari anlatiyordu ([1b72b2e](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/1b72b2e7964479695a6153faeb8620d3a66f07c1)) — Hizli baslangictaki inventory ornegi `all.vars` blogunu hic gostermiyordu. Ornegi kopyalayan kullanicida ansible_user/ansible_ssh_private_key_file tanimsiz kaliyor; bu degerlerin envanterde durmasi gerekiyor cunku gather_facts'ten once, ILK SSH baglantisinda gecerli olmalilar. README'nin Yapilandirma bolumu bunu zaten soyluyordu ama ornek onu yansitmiyordu.
 
+### 🚜 Refactor
+
+- *(k3s_setup)* Main.yml icindeki inline tasklar kendi dosyalarina tasindi ([38992c2](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/38992c2a9ff89caa603cc00e4292034eb76f5b50)) — main.yml artik bastan sona sadece import_tasks; diger tum tasklar gibi bu adimlar da kendine ait yml dosyasinda duruyor.
+
 ### 📚 Documentation
 
 - README'ler tasinan dosyalar ve yeni degiskenlerle guncellendi ([998884f](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/998884fc0cc20ee8f276abb7d90c220d149c864c)) — - Baglanti degiskenlerinin envanterde durduğu belirtildi - cluster_domain ve keepalived_router_id ornek yapilandirmaya eklendi - HTTPRoute / gateway dosya yollari templates/my-charts/*.j2 olarak duzeltildi - Dizin agacindaki keepalived-master/backup.j2 -> keepalived.conf.j2
