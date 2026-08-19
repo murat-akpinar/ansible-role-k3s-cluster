@@ -29,6 +29,8 @@
 - RHEL firewalld flannel VXLAN'i kesiyor ve MetalLB webhook beklemesi sahte gecis veriyordu ([33f395e](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/33f395eb63c43b26b70705051a6a7a4e00be4db9)) — Karisik cluster'da (Ubuntu master + Rocky worker) MetalLB IPAddressPool apply adimi "failed calling webhook ... context deadline exceeded" ile dusuyor, master oyundan dustugu icin cert-manager/grafana/rancher/argocd hic kurulmuyordu.
 - README'deki inventory ornegi eksikti ve vault bolumu olmayan dosyalari anlatiyordu ([1b72b2e](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/1b72b2e7964479695a6153faeb8620d3a66f07c1)) — Hizli baslangictaki inventory ornegi `all.vars` blogunu hic gostermiyordu. Ornegi kopyalayan kullanicida ansible_user/ansible_ssh_private_key_file tanimsiz kaliyor; bu degerlerin envanterde durmasi gerekiyor cunku gather_facts'ten once, ILK SSH baglantisinda gecerli olmalilar. README'nin Yapilandirma bolumu bunu zaten soyluyordu ama ornek onu yansitmiyordu.
 - *(vars)* Varsayilan degerler calisan en kucuk kuruluma gore duzeltildi ([df0c4b3](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/df0c4b3cb8112ccb67b4935b8b256cf3e47b594f))
+- *(vars)* Varsayilan kurulum ciplak k3s cluster'i olacak sekilde ayarlandi ([f8eefdb](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/f8eefdb210b9610f7abbddb7d7e1c0a93135d29d)) — df0c4b3 cert_manager_install'i true yapmisti; varsayilan kurulumun ciplak kalmasi tercih edildi, geri false'a alindi. Varsayilan kurulum artik k3s + gomulu Traefik + MetalLB + Gateway API CRD'leri: TLS'li hostname erisimi ve 3. parti bilesenler (Longhorn/monitoring/Rancher/ArgoCD) opt-in.
+- --tags ile kismi calistirmada user_home_directory tanimsiz kaliyordu ([a678022](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/a6780222254ec7e45f61598293abd2e2fbab1174)) — main.yml'deki bilesen import'larinin tag'leri var (helm, grafana, argocd...) ama _resolve_user.yml import'unun yoktu. "--tags grafana" gibi bir calistirmada o adim atlaniyor, sonraki tasklarin kullandigi user_home_directory tanimsiz kaliyor ve kubeconfig yolu uretilemedigi icin adim dusuyordu.
 
 ### 🚜 Refactor
 
@@ -38,6 +40,7 @@
 
 - README'ler tasinan dosyalar ve yeni degiskenlerle guncellendi ([998884f](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/998884fc0cc20ee8f276abb7d90c220d149c864c)) — - Baglanti degiskenlerinin envanterde durduğu belirtildi - cluster_domain ve keepalived_router_id ornek yapilandirmaya eklendi - HTTPRoute / gateway dosya yollari templates/my-charts/*.j2 olarak duzeltildi - Dizin agacindaki keepalived-master/backup.j2 -> keepalived.conf.j2
 - README'ler gercek dosya agaci, firewalld adimi ve eksik degiskenlerle guncellendi ([8b2c6ce](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/8b2c6ced354218543d204425983340324fe81d17)) — Gateway API gecisi sonrasi README'ler birkac yerde geride kalmisti:
+- README'ler yeni varsayilanlar ve tasinan task dosyalariyla guncellendi ([80930ca](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/80930ca0d49ddc53bbfbfa12b06e8d37e0ea472d)) — Her iki README de tum bilesenleri true gosteren bir vars ornegi veriyordu; repodaki gercek varsayilanlar artik ciplak k3s. Guncellenenler:
 
 ### ⚙️ Miscellaneous Tasks
 
