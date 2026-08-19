@@ -15,14 +15,25 @@ keepalived_interface: ""
 # deger verin (1-255), aksi halde VRRP instance'lari catisir.
 keepalived_router_id: 51
 # ============================================================================
-# Varsayilan kurulum: ciplak k3s cluster'i (Traefik + MetalLB + Gateway API CRD).
-# TLS'li hostname erisimi ve 3. parti bilesenler opt-in; asagidakileri true yapin.
+# VARSAYILAN KURULUM: SAF K3S — hepsi kapali.
 # ============================================================================
-# Traefik k3s ile gomulu gelir, ayrica kurulmaz; Gateway API saglayicisi
-# 05_gateway_api_install.yml tarafindan her kurulumda acilir (L7, Ingress yok).
-helm_install: true
-# LoadBalancer IP'lerini MetalLB dagitir; kapatilirsa Gateway EXTERNAL-IP alamaz.
-metallb_install: true
+# Bu haliyle rol cluster'a k3s disinda hicbir sey kurmaz. Kurulan tek sey k3s'in
+# kendisi ve onunla gomulu gelenlerdir: Traefik, ServiceLB (klipper), CoreDNS,
+# local-path-provisioner, metrics-server.
+#
+# Bagimlilik sirasi (bir bileseni acarken ustundekiler de acik olmali):
+#   helm_install -> gateway_api_install -> cert_manager_install -> digerleri
+# helm_install: helm binary'si + my-charts sablonlari (HTTPRoute/Gateway/values
+# dosyalari) buradan uretilir; asagidaki hicbir bilesen o olmadan kurulamaz.
+helm_install: false
+# Gateway API CRD'leri + gomulu Traefik'in Gateway saglayicisi (L7, Ingress yok).
+# Paylasilan Gateway ve HTTPRoute'lar bunlar olmadan uygulanamaz.
+gateway_api_install: false
+# LoadBalancer IP'lerini MetalLB dagitir. Kapaliyken bu isi k3s'in gomulu
+# ServiceLB'si (klipper) yapar, servisler node IP'lerinden yayinlanir.
+# true yaparsaniz k3s_disable_servicelb'i de true yapin (ikisi ayni Service'e
+# IP atamaya calisir) ve metallb_ip_addresses havuzunu aginiza gore duzenleyin.
+metallb_install: false
 # Paylasilan homelab Gateway'i ve *.{{ cluster_domain }} wildcard sertifikasini
 # cert-manager adimi kurar (Gateway'in tek listener'i bu sertifikaya bagli).
 # false ise Gateway ve HTTPRoute'lar hic kurulmaz -> hicbir servis hostname'den
@@ -40,11 +51,12 @@ k3s_install_url: https://get.k3s.io
 k3s_version: ""  # İlk kurulum için kullanılacak versiyon
 # K3s Upgrade Version (opsiyonel - boş bırakılırsa k3s_version kullanılır)
 k3s_upgrade_version: ""  # Upgrade için kullanılacak versiyon (örnek: "v1.32.9+k3s1")
-# k3s gömülü ServiceLB (klipper) kapatılır; LoadBalancer IP'lerini MetalLB verir.
-# metallb_install: true iken false yapmayın; iki LB controller ayni Service'e
-# IP atamaya calisir. MetalLB yerine klipper kullanacaksaniz metallb_install'i
-# da false yapin.
-k3s_disable_servicelb: true
+# true ise k3s gömülü ServiceLB (klipper) kapatılır. Varsayilan false: MetalLB
+# de kapali oldugu icin LoadBalancer IP'lerini klipper verir; ikisi birden
+# kapaliysa hicbir LB controller kalmaz ve traefik servisi <pending> takilir.
+# metallb_install: true yaparsaniz bunu da true yapin, aksi halde iki LB
+# controller ayni Service'e IP atamaya calisir.
+k3s_disable_servicelb: false
 # ============================================================================
 # Master node-taint (opsiyonel — VARSAYILAN KAPALI)
 # ============================================================================

@@ -37,6 +37,7 @@
 
 - name: "Install Gateway API"
   ansible.builtin.import_tasks: 05_gateway_api_install.yml
+  when: gateway_api_install | default(false)
   tags: ['gateway-api']
 
 - name: "Install Metallb"
