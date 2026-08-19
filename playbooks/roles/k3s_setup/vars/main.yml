@@ -26,8 +26,11 @@ keepalived_router_id: 51
 # helm_install: helm binary'si + my-charts sablonlari (HTTPRoute/Gateway/values
 # dosyalari) buradan uretilir; asagidaki hicbir bilesen o olmadan kurulamaz.
 helm_install: false
-# Gateway API CRD'leri + gomulu Traefik'in Gateway saglayicisi (L7, Ingress yok).
-# Paylasilan Gateway ve HTTPRoute'lar bunlar olmadan uygulanamaz.
+# Gomulu Traefik'in Gateway saglayicisi (L7, Ingress yok) + CRD'lerin pinlenmesi.
+# Gateway API CRD'lerini k3s'in traefik-crd chart'i zaten kuruyor, ama saglayici
+# kapali geldigi icin GatewayClass olusmuyor; kapaliyken Traefik duz Ingress
+# controller olarak calisir. Bu adim CRD'leri gateway_api_version'a sabitler ve
+# HelmChartConfig ile saglayiciyi acar. Gateway/HTTPRoute'lar bu olmadan calismaz.
 gateway_api_install: false
 # LoadBalancer IP'lerini MetalLB dagitir. Kapaliyken bu isi k3s'in gomulu
 # ServiceLB'si (klipper) yapar, servisler node IP'lerinden yayinlanir.

@@ -222,10 +222,11 @@ cluster besides k3s itself. All you get is k3s and what ships **bundled** with
 it — Traefik, ServiceLB (klipper), CoreDNS, local-path-provisioner,
 metrics-server.
 
-> Traefik comes with k3s; the role has no step that installs it. **Gateway API
-> does not come with k3s**: the role installs its CRDs and enables Traefik's
-> Gateway provider, so with `gateway_api_install: false` Traefik runs as a
-> plain Ingress controller.
+> Traefik comes with k3s; the role has no step that installs it. The Gateway
+> API **CRDs also come with k3s** (installed by its traefik-crd chart) — but
+> Traefik's Gateway **provider ships disabled**, so no `GatewayClass` exists
+> and `Gateway`/`HTTPRoute` resources do not work. With
+> `gateway_api_install: false` Traefik runs as a plain Ingress controller.
 
 If you want more, set the matching variable to `true` **before** running the
 playbook:
@@ -233,7 +234,7 @@ playbook:
 | What you want | What to do |
 |---|---|
 | Any component installed via Helm | `helm_install: true` — the helm binary and the `my-charts` templates (Gateway/HTTPRoute/values files) are produced by that step; nothing below can install without it |
-| Use `Gateway` / `HTTPRoute` resources | `gateway_api_install: true` — installs the CRDs and enables the bundled Traefik's Gateway provider |
+| Use `Gateway` / `HTTPRoute` resources | `gateway_api_install: true` — enables the bundled Traefik's Gateway provider (this is where `GatewayClass` appears) and pins the CRDs to `gateway_api_version` |
 | Reach services at `https://<name>.homelab.local` | `cert_manager_install: true` — the shared Gateway and the `*.homelab.local` wildcard certificate are created by that step; with it off no Gateway exists at all |
 | Hand out LoadBalancer IPs from a pool on your network | `metallb_install: true` **+** `k3s_disable_servicelb: true` — leaving both LB controllers on makes klipper and MetalLB race for the same Service |
 | Persistent/replicated disks (PVC) | `longhorn_install: true` |
@@ -343,7 +344,8 @@ The following services are installed based on configuration (✅ = on by default
 |---|:---:|---|
 | **Traefik** | ✅ | Ships **bundled** with k3s, the role does not install it and it has no flag of its own |
 | **ServiceLB (klipper)** | ✅ | Bundled with k3s; gives LoadBalancer services a node IP (turn off with `k3s_disable_servicelb`) |
-| **Gateway API** | ❌ | Installs the CRDs and enables Traefik's Gateway provider — **not** part of k3s, the role adds it |
+| **Gateway API CRDs** | ✅ | Installed by the k3s traefik-crd chart (v1.5.1, standard channel); the role only pins them to `gateway_api_version` |
+| **Traefik Gateway provider** | ❌ | Ships disabled in k3s; enabling it creates the `GatewayClass` and makes `Gateway`/`HTTPRoute` usable |
 | **MetalLB** | ❌ | Hands out LoadBalancer IPs from a pool on your network (instead of klipper) |
 | **Cert-Manager** | ❌ | SSL/TLS certificate management + the shared Gateway |
 | **Longhorn** | ❌ | Distributed block storage |
@@ -384,7 +386,7 @@ k3s_upgrade_version: "v1.32.9+k3s1"  # Optional
 # Service Installations — default: plain k3s, everything off
 # Dependency order: helm_install -> gateway_api_install -> cert_manager_install -> the rest
 helm_install: false
-# Gateway API CRDs + the bundled Traefik's Gateway provider (not part of k3s)
+# The bundled Traefik's Gateway provider (ships disabled in k3s) + CRD version pin
 gateway_api_install: false
 # LoadBalancer IP pool; if you enable it, also set k3s_disable_servicelb: true
 metallb_install: false

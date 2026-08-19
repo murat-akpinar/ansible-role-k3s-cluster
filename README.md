@@ -221,17 +221,18 @@ argocd_install: false
 kurmaz. Gelen tek şey k3s'in kendisi ve onunla **gömülü** olanlardır —
 Traefik, ServiceLB (klipper), CoreDNS, local-path-provisioner, metrics-server.
 
-> Traefik k3s ile gelir, rolün onu kuran bir adımı yoktur. **Gateway API ise
-> k3s ile gelmez**: CRD'lerini ve Traefik'in Gateway sağlayıcısını rol kurar,
-> yani `gateway_api_install: false` iken Traefik düz Ingress controller olarak
-> çalışır.
+> Traefik k3s ile gelir, rolün onu kuran bir adımı yoktur. Gateway API
+> **CRD'leri de** k3s ile gelir (traefik-crd chart'ı kurar) — ama Traefik'in
+> Gateway **sağlayıcısı kapalı** gelir, yani `GatewayClass` oluşmaz ve
+> `Gateway`/`HTTPRoute` kaynakları çalışmaz. `gateway_api_install: false` iken
+> Traefik düz Ingress controller olarak çalışır.
 
 Fazlasını istiyorsanız kurulumdan **önce** ilgili değişkeni `true` yapın:
 
 | Ne istiyorsanız | Ne yapmalısınız |
 |---|---|
 | Helm ile kurulan herhangi bir bileşen | `helm_install: true` — helm binary'si ve `my-charts` şablonları (Gateway/HTTPRoute/values dosyaları) bu adımda üretilir, aşağıdakilerin hiçbiri onsuz kurulamaz |
-| `Gateway` / `HTTPRoute` kaynakları kullanmak | `gateway_api_install: true` — CRD'ler kurulur, gömülü Traefik'in Gateway sağlayıcısı açılır |
+| `Gateway` / `HTTPRoute` kaynakları kullanmak | `gateway_api_install: true` — gömülü Traefik'in Gateway sağlayıcısı açılır (`GatewayClass` bu adımda oluşur) ve CRD'ler `gateway_api_version`'a sabitlenir |
 | Servislere `https://<isim>.homelab.local` ile erişmek | `cert_manager_install: true` — paylaşımlı Gateway ve `*.homelab.local` wildcard sertifikası bu adımda kurulur, kapalıyken Gateway hiç oluşmaz |
 | LoadBalancer IP'lerini ağınızdaki bir havuzdan vermek | `metallb_install: true` **+** `k3s_disable_servicelb: true` — ikisi birden açık kalırsa klipper ile MetalLB aynı Service'e IP atamaya çalışır |
 | Kalıcı/replikalı disk (PVC) | `longhorn_install: true` |
@@ -339,7 +340,8 @@ Yapılandırmaya göre şu servisler kurulur (✅ = varsayılan açık):
 |---|:---:|---|
 | **Traefik** | ✅ | k3s ile **gömülü** gelir, rol ayrıca kurmaz; ayrı bir flag'i de yoktur |
 | **ServiceLB (klipper)** | ✅ | k3s ile gömülü; LoadBalancer servislerine node IP'si verir (`k3s_disable_servicelb` ile kapatılır) |
-| **Gateway API** | ❌ | CRD'ler kurulur, Traefik'in Gateway sağlayıcısı açılır — k3s ile **gelmez**, rolün eklediği bir şeydir |
+| **Gateway API CRD'leri** | ✅ | k3s'in traefik-crd chart'ı kurar (v1.5.1, standard channel); rol yalnızca `gateway_api_version`'a sabitler |
+| **Traefik Gateway sağlayıcısı** | ❌ | k3s'te kapalı gelir; açılınca `GatewayClass` oluşur ve `Gateway`/`HTTPRoute` kullanılabilir hale gelir |
 | **MetalLB** | ❌ | LoadBalancer servislerine ağınızdaki havuzdan IP dağıtır (klipper yerine) |
 | **Cert-Manager** | ❌ | SSL/TLS sertifika yönetimi + paylaşımlı Gateway |
 | **Longhorn** | ❌ | Distributed block storage |
@@ -381,7 +383,7 @@ k3s_upgrade_version: "v1.32.9+k3s1"  # Opsiyonel
 # Servis Kurulumları — varsayılan: saf k3s, hepsi kapalı
 # Bağımlılık sırası: helm_install -> gateway_api_install -> cert_manager_install -> diğerleri
 helm_install: false
-# Gateway API CRD'leri + gömülü Traefik'in Gateway sağlayıcısı (k3s ile gelmez)
+# Gömülü Traefik'in Gateway sağlayıcısı (k3s'te kapalı gelir) + CRD sürüm pini
 gateway_api_install: false
 # LoadBalancer IP havuzu; açarsanız k3s_disable_servicelb'i de true yapın
 metallb_install: false
