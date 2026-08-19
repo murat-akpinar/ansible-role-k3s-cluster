@@ -1,0 +1,61 @@
+---
+# ============================
+# Paket / servis / firewall on hazirligi
+# ============================
+
+- name: "Ensure prerequisite packages are installed (acl + Longhorn storage deps)"
+  ansible.builtin.package:
+    name: "{{ _prereq_packages[ansible_os_family] | default(_prereq_packages['Debian']) }}"
+    state: present
+  become: true
+  vars:
+    _prereq_packages:
+      Debian:                      # Ubuntu / Debian
+        - acl                      # become (unprivileged user) icin; yoksa setfacl hatasi
+        - open-iscsi               # Longhorn zorunlu: iSCSI ile volume attach
+        - nfs-common               # Longhorn RWX (ReadWriteMany) volume'lari icin
+      RedHat:                      # RHEL / Rocky / AlmaLinux
+        - acl
+        - iscsi-initiator-utils    # open-iscsi'nin RHEL karsiligi
+        - nfs-utils                # nfs-common'in RHEL karsiligi
+
+- name: "Ensure iscsid service is enabled and running (Longhorn icin)"
+  ansible.builtin.systemd:
+    name: iscsid
+    enabled: true
+    state: started
+  become: true
+
+- name: "Check if firewalld is running"
+  ansible.builtin.command:
+    cmd: systemctl is-active firewalld
+  register: firewalld_state
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: "Open k3s ports in firewalld"
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 6443/tcp    # kube-apiserver
+    - 8472/udp    # flannel VXLAN (node <-> node pod trafigi)
+    - 10250/tcp   # kubelet (metrics-server, kubectl logs/exec)
+  become: true
+  when: firewalld_state.stdout == 'active'
+
+- name: "Trust pod and service CIDRs in firewalld"
+  ansible.posix.firewalld:
+    source: "{{ item }}"
+    zone: trusted
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 10.42.0.0/16
+    - 10.43.0.0/16
+  become: true
+  when: firewalld_state.stdout == 'active'

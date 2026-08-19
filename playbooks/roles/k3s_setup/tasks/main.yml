@@ -7,71 +7,8 @@
 - name: "System requirements Check"
   ansible.builtin.import_tasks: 00_system_requirements.yml
 
-- name: "Ensure prerequisite packages are installed (acl + Longhorn storage deps)"
-  ansible.builtin.package:
-    # Paket isimleri OS ailesine gore degisir; ansible.builtin.package paket
-    # yoneticisini (apt/dnf/yum) otomatik secer. Bilinmeyen aile Debian'a duser.
-    name: "{{ _prereq_packages[ansible_os_family] | default(_prereq_packages['Debian']) }}"
-    state: present
-  become: true
-  vars:
-    _prereq_packages:
-      Debian:                      # Ubuntu / Debian
-        - acl                      # become (unprivileged user) icin; yoksa setfacl hatasi
-        - open-iscsi               # Longhorn zorunlu: iSCSI ile volume attach
-        - nfs-common               # Longhorn RWX (ReadWriteMany) volume'lari icin
-      RedHat:                      # RHEL / Rocky / AlmaLinux
-        - acl
-        - iscsi-initiator-utils    # open-iscsi'nin RHEL karsiligi
-        - nfs-utils                # nfs-common'in RHEL karsiligi
-
-- name: "Ensure iscsid service is enabled and running (Longhorn icin)"
-  ansible.builtin.systemd:
-    name: iscsid
-    enabled: true
-    state: started
-  become: true
-
-# RHEL ailesinde (Rocky/Alma/RHEL) firewalld varsayilan olarak acik gelir ve
-# flannel'in VXLAN trafigini (UDP 8472) keser. Sonucu sinsi: node'lar Ready
-# gorunur, ama apiserver baska node'daki pod'a ulasamaz -> webhook cagrilari
-# "context deadline exceeded" ile duser (MetalLB IPAddressPool apply hatasi).
-# Ubuntu/Debian'da ufw kapali geldigi icin bu adim yalnizca RHEL'de gerekir.
-- name: "Check if firewalld is running"
-  ansible.builtin.command:
-    cmd: systemctl is-active firewalld
-  register: firewalld_state
-  changed_when: false
-  failed_when: false
-  become: true
-
-- name: "Open k3s ports in firewalld"
-  ansible.posix.firewalld:
-    port: "{{ item }}"
-    permanent: true
-    immediate: true
-    state: enabled
-  loop:
-    - 6443/tcp    # kube-apiserver
-    - 8472/udp    # flannel VXLAN (node <-> node pod trafigi)
-    - 10250/tcp   # kubelet (metrics-server, kubectl logs/exec)
-  become: true
-  when: firewalld_state.stdout == 'active'
-
-# Pod (10.42.0.0/16) ve Service (10.43.0.0/16) agleri k3s varsayilanlaridir;
-# --cluster-cidr / --service-cidr ile degistirilirse burasi da guncellenmeli.
-- name: "Trust pod and service CIDRs in firewalld"
-  ansible.posix.firewalld:
-    source: "{{ item }}"
-    zone: trusted
-    permanent: true
-    immediate: true
-    state: enabled
-  loop:
-    - 10.42.0.0/16
-    - 10.43.0.0/16
-  become: true
-  when: firewalld_state.stdout == 'active'
+- name: "Install prerequisite packages and configure firewalld"
+  ansible.builtin.import_tasks: 00_prerequisites.yml
 
 - name: "Configure Hostname"
   ansible.builtin.import_tasks: 01_configure_hostname.yml
@@ -82,36 +19,8 @@
 - name: "Install k3s"
   ansible.builtin.import_tasks: 03_install_k3s.yml
 
-# Merkezi "API hazir mi" kapisi: k3s kurulumundan sonra, Helm/kubectl kullanan
-# tum rollerden (cert-manager, longhorn, grafana, rancher, argocd...) once calisir.
-# HA/etcd isinma veya apiserver restart penceresinde olusan 503 / connection refused
-# hatalarini burada bir kez bekleyerek onler. Roller artik kendi beklemelerini icermez.
 - name: "Wait for Kubernetes API server to be ready"
-  ansible.builtin.command:
-    cmd: kubectl get --raw=/readyz
-  register: k8s_api_ready
-  until: k8s_api_ready.rc == 0
-  retries: 30
-  delay: 10
-  changed_when: false
-  failed_when: false
-  become: true
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  when:
-    - "'master' in group_names"
-    - inventory_hostname == groups['master'][0]
-
-- name: "Fail if Kubernetes API server did not become ready"
-  ansible.builtin.fail:
-    msg: >-
-      Kubernetes API sunucusu beklenen surede ({{ 30 * 10 }} sn) hazir olmadi
-      (son cikti: {{ k8s_api_ready.stdout | default('') }}{{ k8s_api_ready.stderr | default('') }}).
-      Sonraki kurulum adimlari durduruldu.
-  when:
-    - "'master' in group_names"
-    - inventory_hostname == groups['master'][0]
-    - k8s_api_ready.rc != 0
+  ansible.builtin.import_tasks: 03_wait_api_ready.yml
 
 - name: "Wellcome Message"
   ansible.builtin.import_tasks: 00_wellcome.yml
@@ -122,9 +31,6 @@
   when: helm_install | default(false)
   tags: ['helm']
 
-# L7 yonlendirme: k3s gomulu Traefik + Gateway API (Ingress kullanilmiyor).
-# CRD'ler ve Traefik'in Gateway saglayicisi burada acilir; paylasimli Gateway
-# sertifikaya bagli oldugu icin cert-manager adiminda uygulanir.
 - name: "Install Gateway API"
   ansible.builtin.import_tasks: 05_gateway_api_install.yml
   tags: ['gateway-api']
