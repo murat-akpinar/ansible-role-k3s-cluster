@@ -11,6 +11,7 @@
 - Ingress kaynaklari Gateway API'ye tasindi ([24dce96](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/24dce967c9f83f5e29820ed8b55c00380ae0680a)) — k3s gomulu Traefik'in Gateway saglayicisi acildi; 4 Ingress kaynagi HTTPRoute'a cevrildi ve host basina sertifikalar tek wildcard sertifikada birlestirildi.
 - Bilesen surumleri guncellendi ve tek yerden yonetiliyor ([7933c07](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/7933c07a756bd8b246cfa5577af1dcde1e58fc7e)) — cert-manager v1.13.1 (2023) -> v1.21.1, Rancher v2.8.2 -> v2.15.0. Digerleri "" idi (her kurulumda en son); bugunun surumlerine sabitlendi.
 - *(k3s_setup)* Varsayilan kurulum saf k3s oldu, Gateway API de flag'e baglandi ([54dc102](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/54dc1028966f0c163977d3b6b027a6aeac049374)) — Rol varsayilan haliyle cluster'a k3s disinda hicbir sey kurmuyor. Gelen tek sey k3s ve onunla gomulu olanlar: Traefik, ServiceLB (klipper), CoreDNS, local-path-provisioner, metrics-server.
+- *(k3s)* CIS sikilastirmasi, surum pinleme ve rol yapisi duzenlemesi ([ebf116d](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/ebf116ddb6af2923f832712815139b8f1c6519a2)) — Calisma agacinda biriken bulgu kapatmalari (todo.md madde numaralari).
 
 ### 🐛 Bug Fixes
 
