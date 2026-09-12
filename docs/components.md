@@ -1,0 +1,131 @@
+# Bileşenler
+
+Her bölüm: rolün ne yaptığı → ilgili dosyalar → bekleme stratejisi → bilinen tuzaklar.
+Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
+
+## k3s (her zaman)
+
+- **Dosyalar:** `tasks/03_install_k3s.yml`, `03_wait_api_ready.yml`, `vars/main.yml` (`k3s_*`).
+- Gömülü gelenler: Traefik (Ingress + Gateway sağlayıcısı kapalı), ServiceLB/klipper,
+  CoreDNS, local-path-provisioner, metrics-server. Rol saf modda bunlara dokunmaz.
+- Server flag'leri **tek string**: `k3s_server_args`. Install script her çalıştırmada systemd
+  unit'ini yeniden yazdığı için eksik flag = kalıcı kayıp (cd7de00).
+- İlk master `--cluster-init` (tek master'da da), ek master `server --server <URL>`,
+  worker `agent`. Token `/var/lib/rancher/k3s/server/node-token`.
+- Bekleme: node-token dosyası (`wait_for`), ek master'da `/etc/rancher/k3s/k3s.yaml`,
+  sonra merkezi `kubectl get --raw=/readyz` (30×10 sn).
+- kubeconfig: `--write-kubeconfig-mode 644`; `~/.kube/config` symlink; `.bashrc` KUBECONFIG.
+- Tuzaklar: `k3s_version: ""` sürüm kayması (todo A4); taint `true` iken worker'sız
+  cluster'da tolere etmeyen pod'lar Pending; `--disable servicelb` yalnızca yeni unit'te etkili.
+
+## Keepalived (master, yalnızca `master_count >= 3`)
+
+- **Dosyalar:** `tasks/02_install_keepalived.yml`, `templates/keepalived.conf.j2`.
+- `state`: master[0] MASTER, diğerleri BACKUP; `priority = 100 + N - index`;
+  `virtual_router_id = keepalived_router_id`; `auth_pass` vault'tan; `interface` otomatik
+  (`ansible_default_ipv4.interface`) ya da `keepalived_interface`.
+- `vrrp_script chk_k3s`: `/usr/bin/pidof k3s`, weight -20, fall/rise 2 → k3s ölünce VIP devreder.
+- `enable_script_security` + `script_user keepalived_script` (rol kullanıcıyı oluşturur ve
+  `/usr/bin/pidof`'un sahibini değiştirir — todo C5: gereksiz).
+- Tuzaklar: multicast VRRP'yi kesen ağlarda `unicast_peer` yok; firewalld'de VRRP açılmıyor
+  (todo A3); `nopreempt` yok, master-1 dönünce VIP geri zıplar.
+
+## Helm (`helm_install`)
+
+- **Dosyalar:** `tasks/04_install_helm.yml`, `files/my-charts/`, `templates/my-charts/`.
+- get-helm-3 scripti (`main` branch, sürümsüz) → `/usr/local/bin/helm`. Tüm master'lara kurulur,
+  yalnızca master[0] kullanır.
+- `files/my-charts/` → `~/my-charts/` kopya; domain içeren 6 manifest `.j2`'den render:
+  gateway/gateway.yml, gateway/wildcard-certificate.yml, {argocd,grafana,longhorn,rancher}/httproute.yml.
+- Her chart adımı aynı kalıp: repo list → var mı → add → update → `helm upgrade --install
+  --version X -f values` (5 retry × 30 sn) → pod bekle → ek manifest apply. (todo B3: `--repo` ile kısalır.)
+- Values seçimi: `master_count >= 3` → `values-ha.yml`, aksi `values-single-master.yml`.
+  HA values'ları master taint'ini **tolere etmez** (worker'a yerleşir), `podAntiAffinity: preferred`.
+
+## Gateway API + Traefik (`gateway_api_install`)
+
+- **Dosyalar:** `tasks/05_gateway_api_install.yml`, `files/traefik-gateway-config.yml`,
+  `templates/my-charts/gateway/*.j2`, `vars: gateway_api_version`.
+- CRD'ler zaten k3s'in traefik-crd chart'ıyla gelir; rol `standard-install.yaml`'ı
+  `--server-side --force-conflicts` ile uygular (httproutes CRD 460 KB, client-side apply sığmaz).
+- `HelmChartConfig traefik` (`/var/lib/rancher/k3s/server/manifests/`): `providers.kubernetesGateway.enabled: true`,
+  `gateway.enabled: false` (chart'ın HTTP:8000 Gateway'i yerine bizimki). helm-controller yeniden
+  kurar, restart gerekmez. `GatewayClass traefik` Accepted olana kadar 20×15 sn.
+- Paylaşılan Gateway `kube-system/homelab` (cert-manager adımında oluşur): tek listener
+  `websecure` **port 8443** (Traefik entryPoint portu; Service dışarıya 443), hostname
+  `*.{{ cluster_domain }}`, TLS Terminate, secret `homelab-wildcard-tls`, `allowedRoutes: All`.
+- HTTPRoute kalıbı: `parentRefs: {name: homelab, namespace: kube-system, sectionName: websecure}`,
+  hostname `<svc>.{{ cluster_domain }}`, backend Service:port.
+- Tuzaklar: HTTP listener yok → `http://` boş (todo C6); `.local` mDNS çakışması (todo C3);
+  Gateway API sürümü Traefik'in derlendiği sürümle eşleşmeli.
+
+## MetalLB (`metallb_install`)
+
+- **Dosyalar:** `tasks/06_metallb_install.yml`, `templates/metallb-config.yml.j2`,
+  `files/my-charts/metallb/values-*.yml`.
+- `k3s_disable_servicelb: true` zorunlu; ikisi aynı Service'e IP atamaya çalışır.
+- Bekleme: `kubectl wait deployment/metallb-controller Available` (webhook için pod Running yetmez),
+  IPAddressPool apply 6×10 sn retry (caBundle yayılımı).
+- `speaker` DaemonSet master taint'ini tolere eder (master'daki LB servisleri için), controller etmez.
+- L2 modu: tek node anons eder, failover ~saniyeler.
+
+## cert-manager (`cert_manager_install`)
+
+- **Dosyalar:** `tasks/07_cert_manager_install.yml`, `files/my-charts/cert-manager/*`,
+  `templates/my-charts/gateway/wildcard-certificate.yml.j2`.
+- `--set crds.enabled=true`; HA: controller 2, webhook 3, cainjector 2.
+- `ClusterIssuer selfsigned-issuer` → `Certificate homelab-wildcard` (kube-system, 8760h,
+  renewBefore 2160h, `*.domain` + `domain`) → secret `homelab-wildcard-tls` → Gateway apply →
+  `Programmed` bekle. Bu adım Gateway'in sahibi olduğu için HTTPRoute'lar buna bağımlı.
+- Tuzak: self-signed → her istemcide uyarı; CA zinciri ile tek sefer güven (todo C2).
+
+## Longhorn (`longhorn_install`)
+
+- **Dosyalar:** `tasks/08_longhorn_install.yml`, `templates/longhorn-storageclass.yml.j2`,
+  `files/my-charts/longhorn/values-*.yml`, `vars: longhorn_storage_classes`.
+- Önkoşul: open-iscsi/iscsid, nfs-common (`00_prerequisites.yml`). Bileşenler master taint'ini
+  tolere etmez → **worker-only storage**; worker yoksa Longhorn çalışmaz.
+- HA: `defaultClassReplicaCount 3`, CSI replicaCount 3; single: 1.
+- 6 StorageClass (`longhorn-{retain,delete}-{1,2,3}`) + chart'ın default `longhorn` class'ı;
+  `local-path` default annotation'ı kaldırılır.
+- Tuzaklar: multipathd, `longhornctl check preflight` (todo C8); drain sırasında volume
+  rebuild bekleme scriptleri dash'te çalışmıyor (todo A5).
+
+## Monitoring / kube-prometheus-stack (`grafana_install`)
+
+- **Dosyalar:** `tasks/09_grafana_install.yml`, `templates/kube-prometheus-stack-values.yml.j2`
+  (storageClass, kaynaklar, HA replikalar, affinity), `files/my-charts/grafana/*-single-master.yml`
+  (replicas 1), `*-master-only.yml` (nodeAffinity master DoesNotExist), `vars: monitoring_storage_class`.
+- Values sırası: temel `.j2` → (single ise) `-single-master` → `-master-only`; sonraki öncekini ezer.
+- Prometheus 10Gi/30d, Alertmanager 2Gi, Grafana 10Gi; Grafana `adminPassword: admin`.
+- `kube-state-metrics` subchart ayarları **subchart anahtarı altında** (`kube-state-metrics:`),
+  `kubeStateMetrics:` altına yazılırsa yok sayılır (0fe9ffa).
+- Bekleme: Grafana/Prometheus pod Running, PVC Bound (10×30 sn).
+- Tuzaklar: HA'da `podAntiAffinity: required` + replicas 2 → en az 2 worker; k3s'te
+  controller-manager/scheduler/proxy/etcd hedefleri DOWN → sahte alarm (todo C1).
+
+## Rancher (`rancher_install`)
+
+- **Dosyalar:** `tasks/10_rancher_install.yml`, `templates/rancher-deployment.yml.j2`, `vars: rancher_version`.
+- Chart değil: Namespace + SA (cluster-admin) + Deployment (2 replika, podAntiAffinity preferred,
+  `imagePullPolicy: Always`) + ClusterIP Service. Probe yok.
+- Bootstrap parolası `cattle-system/bootstrap-secret` (20×10 sn bekler).
+- Tuzaklar: Rancher'ın k8s sürüm penceresi dar, minor atlanamaz (todo C10).
+
+## ArgoCD (`argocd_install`)
+
+- **Dosyalar:** `tasks/11_argocd_install.yml`, `files/my-charts/argocd/values-*.yml`,
+  `templates/my-charts/argocd/httproute.yml.j2`.
+- `configs.params."server.insecure": "true"` — TLS Gateway'de biter, backend HTTP.
+- HA: server/controller/repoServer/applicationSet 2 replika; redis tek instance (redis-ha kapalı).
+- Bekleme: server, application-controller, repo-server pod'ları Running (15×30 sn).
+- İlk parola `argocd-initial-admin-secret` (silinebilir; rol `failed_when: false`).
+
+## Sistem hazırlığı (her node)
+
+- `00_system_requirements.yml`: CPU/RAM uyarı, swap kapalı (+fstab), `overlay`/`br_netfilter`
+  (+`/etc/modules-load.d/k3s.conf`), sysctl bridge-nf-call-*/ip_forward (`/etc/sysctl.d/99-k3s.conf`),
+  chrony (`chrony.j2`, handler ile restart).
+- `00_prerequisites.yml`: acl (become_user için), iSCSI/NFS, firewalld aktifse portlar + CIDR trusted.
+- `01_configure_hostname.yml`: hostname ≠ inventory_hostname ise değiştir + reboot.
+- `00_wellcome.yml`: MOTD (`wellcome.j2`: rol, topoloji, bileşen kutuları, sürümler).

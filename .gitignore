@@ -8,3 +8,5 @@ inventory/group_vars/all/vault.yml
 minio/
 .rules
 todo.md
+# Referans materyali (indirilir, asla commit'lenmez): sh docs/fetch-reference-sources.sh
+.tmp/
