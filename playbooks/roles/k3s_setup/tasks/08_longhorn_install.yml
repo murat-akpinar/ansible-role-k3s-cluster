@@ -61,12 +61,6 @@
   when: 
     - "'master' in group_names"
 
-- name: Count the number of master nodes
-  set_fact:
-    master_count: "{{ groups['master'] | length | int }}"
-  when: "'master' in group_names"
-  run_once: true
-
 - name: Set longhorn values file for HA (3+ masters)
   set_fact:
     longhorn_values_file: "{{ user_home_directory }}/my-charts/longhorn/values-ha.yml"

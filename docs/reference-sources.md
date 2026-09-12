@@ -4,11 +4,11 @@
 `.tmp/` git'te hiçbir zaman izlenmez; `sh docs/fetch-reference-sources.sh` ile yeniden
 indirilir (~4,5 MB, 160+ dosya, 1-2 dakika). Aşağıdaki yollar `.tmp/` köküne görelidir.
 
-Sürüm pinleri `playbooks/roles/k3s_setup/vars/main.yml` ile aynı tutulur. Bir chart
+Sürüm pinleri `playbooks/roles/k3s_setup/defaults/main.yml` ile aynı tutulur. Bir chart
 sürümü değişince buradaki `values-*.yaml` satırını ve `fetch-reference-sources.sh`'deki
 tag'i güncelle.
 
-| Bileşen | Pin (vars/main.yml) | Kaynak tag/branch |
+| Bileşen | Pin (defaults/main.yml) | Kaynak tag/branch |
 |---|---|---|
 | k3s | `k3s_version: ""` (latest) | k3s-io/docs `main` |
 | MetalLB | chart 0.16.1 | metallb/metallb `v0.16.1` |
@@ -45,9 +45,9 @@ tag'i güncelle.
 | `install.sh` | get.k3s.io scripti: `INSTALL_K3S_VERSION`, `INSTALL_K3S_EXEC`, `K3S_URL/K3S_TOKEN`, `INSTALL_K3S_SKIP_DOWNLOAD` vb. tüm env değişkenleri. |
 | `cli-server.md` | **Tüm server flag'leri** (`--tls-san`, `--disable`, `--node-taint`, `--write-kubeconfig-*`, `--etcd-*`, `--cluster-init`). |
 | `cli-agent.md` | Agent flag'leri. |
-| `cli-etcd-snapshot.md`, `datastore-backup-restore.md` | Snapshot alma/geri yükleme (todo C4). |
+| `cli-etcd-snapshot.md`, `datastore-backup-restore.md` | Snapshot alma/geri yükleme; `--name` önektir, on-demand snapshot'ların retention'ı yoktur (`upgrade.yml` play 1). |
 | `datastore-ha-embedded.md` | 3+ server HA kurulum akışı, join sırası. |
-| `installation-requirements.md` | **Port tablosu** (2379-2380, 6443, 8472, 10250...), OS/donanım gereksinimleri (todo A3). |
+| `installation-requirements.md` | **Port tablosu** (2379-2380, 6443, 8472, 10250...) ve kaynak sütunu ("All nodes"/"Servers"), OS/donanım gereksinimleri. |
 | `installation-configuration.md` | config.yaml ile flag verme, env değişkenleri. |
 | `networking-basic-options.md`, `networking-services.md` | Flannel backend'leri, ServiceLB (klipper), Traefik HelmChartConfig, CoreDNS. |
 | `upgrades-manual.md`, `upgrades-automated.md` | Install script ile upgrade; **system-upgrade-controller Plan** (todo B6). |
@@ -59,13 +59,14 @@ tag'i güncelle.
 ## kubernetes/
 | Dosya | Ne için |
 |---|---|
-| `version-skew-policy.md` | kubelet apiserver'dan yeni olamaz (todo A4/A7). |
+| `version-skew-policy.md` | "kubelet must not be newer than kube-apiserver" — `upgrade.yml`'de master play'inin worker play'inden önce gelmesinin ve `_resolve_k3s_version`'ın sebebi. |
 | `taint-and-toleration.md`, `assign-pod-node.md` | Master taint, nodeAffinity/podAntiAffinity (values dosyaları). |
 | `safely-drain-node.md`, `configure-pdb.md`, `kubectl-drain.md` | Drain semantiği, PDB ile etkileşim (update_cluster). |
 | `storage-classes.md` | StorageClass alanları, default class annotation'ı. |
 | `gateway.md` | Gateway API'nin Kubernetes tarafı özeti. |
 | `kubectl-wait.md`, `kubectl-apply.md`, `server-side-apply.md`, `jsonpath.md` | `kubectl wait --for=condition`, `--server-side`, jsonpath ifadeleri. |
 | `service.md` | Service tipleri / LoadBalancer. |
+| `admission-controllers.md` | `EventRateLimit` yapılandırma biçimi ve `AdmissionConfiguration` dosyası (`files/k3s-psa.yaml`). |
 
 ## helm/
 | Dosya | Ne için |

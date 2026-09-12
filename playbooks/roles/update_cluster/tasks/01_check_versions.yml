@@ -47,7 +47,7 @@
 
 - name: Fail if target version not specified
   fail:
-    msg: "❌ TARGET VERSION NOT SPECIFIED! Please set k3s_upgrade_version or k3s_version in playbooks/roles/k3s_setup/vars/main.yml (Example: k3s_upgrade_version: \"v1.32.9+k3s1\")"
+    msg: "❌ TARGET VERSION NOT SPECIFIED! Please set k3s_upgrade_version or k3s_version in playbooks/roles/k3s_setup/defaults/main.yml (Example: k3s_upgrade_version: \"v1.32.9+k3s1\")"
   when:
     - "'master' in group_names or 'worker' in group_names"
     - (k3s_target_version | default('') | trim) == ''

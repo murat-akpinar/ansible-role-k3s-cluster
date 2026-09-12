@@ -1,42 +1,53 @@
 ---
 # Main tasks for adding extra nodes to existing K3s cluster
-
-# user_home_directory tek kaynaktan (k3s_setup/tasks/_resolve_user.yml) gelir.
-- name: "Resolve ansible_user home directory"
+#
+# On hazirligin tamami k3s_setup'tan geliyor, bu rol kopya tutmuyor: kopya
+# eklenen node'u ilk kurulumdan farkli birakiyordu (firewalld/swap/sysctl/
+# kernel modulu hic calismiyordu -> RHEL worker'da flannel VXLAN kesik).
+# add_node.yml `hosts: all` oldugu icin bu adimlar cluster'daki ESKI node'larda
+# da calisir; 00_prerequisites'in trusted zone kurali boylece yeni node'un
+# IP'sini eski node'lara da ekler (kaynak kisitli node-arasi portlar).
+# public: true -> k3s_setup'in defaults/vars degiskenleri (k3s_version,
+# k3s_install_url, k3s_agent_token, keepalived_vip, k3s_server_args) bu rolun
+# geri kalan gorevlerinde de gorunur. Bu blok ILK SIRADA kalmali; eskiden ayni
+# isi add_node.yml'deki vars_files yapiyordu ve group_vars'i eziyordu.
+- name: "Resolve user home and cluster facts (and load k3s_setup config)"
   ansible.builtin.include_role:
     name: k3s_setup
-    tasks_from: _resolve_user
+    tasks_from: _facts
+    public: true
 
-- name: "Ensure prerequisite packages are installed (acl + Longhorn storage deps)"
-  ansible.builtin.package:
-    # Paket isimleri OS ailesine gore degisir; ansible.builtin.package paket
-    # yoneticisini (apt/dnf/yum) otomatik secer. Bilinmeyen aile Debian'a duser.
-    name: "{{ _prereq_packages[ansible_os_family] | default(_prereq_packages['Debian']) }}"
-    state: present
-  become: true
-  vars:
-    _prereq_packages:
-      Debian:                      # Ubuntu / Debian
-        - acl                      # become (unprivileged user) icin; yoksa setfacl hatasi
-        - open-iscsi               # Longhorn zorunlu: iSCSI ile volume attach
-        - nfs-common               # Longhorn RWX (ReadWriteMany) volume'lari icin
-      RedHat:                      # RHEL / Rocky / AlmaLinux
-        - acl
-        - iscsi-initiator-utils    # open-iscsi'nin RHEL karsiligi
-        - nfs-utils                # nfs-common'in RHEL karsiligi
+# Eklenen node cluster'dan yeni bir kubelet almasin: k3s_version bossa
+# cluster'da calisan surume pinlenir.
+- name: "Resolve the k3s version to install"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: _resolve_k3s_version
 
-- name: "Ensure iscsid service is enabled and running (Longhorn icin)"
-  ansible.builtin.systemd:
-    name: iscsid
-    enabled: true
-    state: started
-  become: true
+- name: "System requirements Check (swap, kernel modules, sysctl, NTP)"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: 00_system_requirements
 
-- name: "Configure System Requirements (Hostname and NTP)"
-  ansible.builtin.import_tasks: 00_system_requirements.yml
+- name: "Install prerequisite packages and configure firewalld"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: 00_prerequisites
+
+- name: "Configure Hostname"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: 01_configure_hostname
 
 - name: "Check if node is already part of cluster"
   ansible.builtin.import_tasks: 01_check_existing_node.yml
+
+# Ayar dosyasi ve sikilastirma politikalari k3s baslamadan once yerinde olmali;
+# kaynak k3s_setup'ta, kopya tutmuyoruz.
+- name: "Write k3s config file and hardening policies"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: 03_k3s_config
 
 - name: "Add Master Node to Cluster"
   ansible.builtin.import_tasks: 02_add_master_node.yml
@@ -53,3 +64,8 @@
   ansible.builtin.import_tasks: 03_add_worker_node.yml
   when: "'worker' in group_names"
 
+# Yeni master'in kubeconfig'i ve PKI dosya izinleri; kaynak k3s_setup'ta.
+- name: "Distribute kubeconfig and apply post-install hardening"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: 03_k3s_post_install

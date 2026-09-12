@@ -1,0 +1,92 @@
+---
+# ============================================================================
+# k3s kurulumundan SONRA calisan adimlar: kubeconfig dagitimi + CIS maddeleri
+# ============================================================================
+# API hazir olduktan sonra calisir (03_wait_api_ready). Uc rol de cagirir, boylece
+# sonradan eklenen bir master da kubeconfig'ini ve dosya izinlerini alir.
+# CIS: 1.1.20 (PKI dosya izinleri), 5.1.5 (default ServiceAccount token automount).
+
+# --- kubeconfig -------------------------------------------------------------
+# k3s.yaml artik 0600/root (sikilastirma acikken): makinedeki her kullanici
+# cluster-admin olmasin diye. ansible_user'in kendi 0600 kopyasini aliyoruz;
+# symlink olsaydi 0600 kaynagi okuyamazdi.
+- name: "Create .kube directory for ansible_user"
+  ansible.builtin.file:
+    path: "{{ user_home_directory }}/.kube"
+    state: directory
+    mode: '0700'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
+  when: "'master' in group_names"
+
+# follow: false -> hedefte eski surumlerden kalan symlink varsa onu takip etmez,
+# duz dosyayla degistirir.
+- name: "Install kubeconfig for ansible_user"
+  ansible.builtin.copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    remote_src: true
+    follow: false
+    dest: "{{ user_home_directory }}/.kube/config"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+  become: true
+  when: "'master' in group_names"
+
+- name: "Ensure .bashrc exports KUBECONFIG"
+  ansible.builtin.lineinfile:
+    path: "{{ user_home_directory }}/.bashrc"
+    line: 'export KUBECONFIG="{{ user_home_directory }}/.kube/config"'
+    state: present
+  become: true
+  when: "'master' in group_names"
+
+# --- CIS 1.1.20: PKI sertifika dosyalari 600 ---------------------------------
+# k3s bunlari 644 yaziyor. Sertifika yenilenince (365 gunde bir, restart'ta)
+# mod geri donebilir; her calismada yeniden uyguluyoruz.
+- name: "Hardening | Find k3s PKI certificate files"
+  ansible.builtin.find:
+    paths: /var/lib/rancher/k3s/server/tls
+    patterns: '*.crt'
+    recurse: true
+  register: k3s_pki_certs
+  become: true
+  when:
+    - "'master' in group_names"
+    - k3s_hardening | default(true) | bool
+
+- name: "Hardening | Restrict k3s PKI certificate file permissions"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: '0600'
+  loop: "{{ k3s_pki_certs.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  become: true
+  when:
+    - "'master' in group_names"
+    - k3s_hardening | default(true) | bool
+
+# --- CIS 5.1.5: default ServiceAccount token'i pod'lara otomatik baglanmasin ---
+# Bir pod'un API token'ina ihtiyaci varsa kendi ServiceAccount'unu tanimlamali.
+# kube-system BILEREK disarida: gomulu bilesenler default SA'yi kullaniyor.
+- name: "Hardening | Disable ServiceAccount token automount on default accounts"
+  ansible.builtin.command: >
+    kubectl patch serviceaccount default --namespace {{ item }}
+    --patch {{ '{"automountServiceAccountToken": false}' | quote }}
+  loop:
+    - default
+    - kube-public
+    - kube-node-lease
+  register: sa_automount_patch
+  changed_when: "'no change' not in sa_automount_patch.stdout"
+  # failed_when: false YOK: sessizce uygulanmayan bir guvenlik ayari, hic
+  # uygulanmamasindan daha kotudur. Uc namespace de her k8s cluster'inda vardir.
+  become: true
+  become_user: "{{ ansible_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  when:
+    - inventory_hostname == groups['master'][0]
+    - k3s_hardening | default(true) | bool

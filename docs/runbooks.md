@@ -8,7 +8,7 @@ Tüm komutlar repo kökünden; `ansible.cfg` envanteri zaten gösteriyor ama aç
 1. Collection'lar: `ansible-galaxy collection install -r collections/requirements.yml`
 2. Envanter: `inventory/cluster_inventory.yml` — `master`/`worker` hostları, `ansible_host`,
    `all.vars` altında `ansible_user` ve key. **İlk master, `master` grubunda ilk yazılandır.**
-3. Ayarlar: `playbooks/roles/k3s_setup/vars/main.yml` — `keepalived_vip`, `cluster_domain`,
+3. Ayarlar: `playbooks/roles/k3s_setup/defaults/main.yml` — `keepalived_vip`, `cluster_domain`,
    `metallb_ip_addresses`, `k3s_version` (pinle), `*_install` bayrakları (bkz. variables.md).
    MetalLB açılacaksa `k3s_disable_servicelb: true`.
 4. Vault (isteğe bağlı ama önerilir):
@@ -38,50 +38,61 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitor
 ```
 
 Tag'ler: `helm`, `gateway-api`, `metallb`, `cert-manager`, `longhorn`, `grafana`/`monitoring`,
-`rancher`, `argocd`. `_resolve_user` `always` olduğu için kısmi çalıştırma güvenli; ama
+`rancher`, `argocd`. `_facts` `always` olduğu için kısmi çalıştırma güvenli; ama
 `03_wait_api_ready` tag'siz, API kapalıysa ilk helm komutu retry'a düşer.
 Tüm helm adımları `helm upgrade --install` — tekrar çalıştırmak values/sürüm değişikliğini uygular.
 
 ## 3. Node ekleme
 
 1. Envantere hostu ekle (master veya worker grubuna).
-2. **`k3s_version`'ı cluster'ın mevcut sürümüne pinle** (`ssh master-1 k3s --version`);
-   boş bırakırsan yeni node "latest" alır ve cluster'dan yeni olabilir.
+2. `k3s_version` boş kalabilir: `_resolve_k3s_version.yml` master[0]'daki çalışan sürümü
+   okuyup yeni node'a onu pinler. Elle pinleyeceksen cluster'ın sürümünü ver, daha
+   yenisini değil (kubelet apiserver'dan yeni olamaz).
 3. `ansible-playbook -i inventory/cluster_inventory.yml add_node.yml`
-4. Zaten katılmış node'lar (`systemctl is-active k3s|k3s-agent` aktif) atlanır; playbook
-   tüm envantere karşı çalıştırılabilir.
+4. Zaten katılmış node'lar (`systemctl is-active k3s|k3s-agent` aktif) join adımlarında
+   atlanır; playbook tüm envantere karşı çalıştırılmalıdır (`hosts: all`): eski node'ların
+   firewalld `trusted` zone'una yeni node'un IP'si bu sayede eklenir, yoksa node-arası
+   trafik (VXLAN/kubelet/etcd) yeni node'a kesik kalır.
+5. Eklenen node ilk kurulumla aynı ön hazırlığı alır (swap, kernel modülleri, sysctl,
+   chrony, paketler, firewalld, hostname) — hepsi k3s_setup'tan `include_role` ile.
 
 Tek master → HA dönüşümü: ilk master `--cluster-init` ile kurulmuş olmalı (rol bunu
 yapar; elle kurulduysa `02_add_master_node.yml` etcd dizini yoksa fail eder). 2. master
 ilk master IP'si üzerinden katılır; 3. master eklendiğinde `master_count` 3 olur,
 keepalived **tüm** master'larda yapılandırılır ve VIP kalkar. Sonraki node'lar VIP'e katılır.
 
+> ⚠️ 2 → 3 master geçişi şu an tam çalışmıyor: `add_node.yml` join adımını
+> keepalived'den **önce** koşuyor, `master_count` zaten 3 olduğu için 3. master
+> henüz var olmayan VIP'e bağlanmaya çalışır (`connection refused` — bkz.
+> [troubleshooting](troubleshooting.md)). Geçici çözüm: 3. master'ı eklerken
+> `-e k3s_api_endpoint=<ilk master IP>` verin.
+
 ## 4. Upgrade
 
-1. `k3s_upgrade_version: "v1.3X.Y+k3s1"` (vars/main.yml). Bir seferde bir minor.
-2. Elle snapshot (rol almıyor — todo C4):
-   ```sh
-   ssh master-1 sudo k3s etcd-snapshot save --name pre-upgrade-$(date +%Y%m%d)
-   ssh master-1 sudo k3s etcd-snapshot ls
-   ```
-3. `ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml`
-   - Her node sırayla (`serial: 1`): sürüm karşılaştırması → drain → install script ile
-     yeniden kurulum (`k3s_server_args` aynen) → uncordon → `upgrade_wait_for_pods` sn.
+1. `k3s_upgrade_version: "v1.3X.Y+k3s1"` (defaults/main.yml). Bir seferde bir minor.
+2. `ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml`
+   - Play 1: `k3s etcd-snapshot save --name pre-upgrade` (master[0], otomatik) ve son 5
+     pre-upgrade snapshot'ı bırakan `prune`. Snapshot alınamazsa upgrade orada durur —
+     yedeksiz upgrade istemiyoruz. Listelemek için `sudo k3s etcd-snapshot ls`.
+   - Play 2 (master'lar) → Play 3 (worker'lar), her biri `serial: 1`: sürüm karşılaştırması
+     → drain → install script ile yeniden kurulum (flag'ler `/etc/rancher/k3s/config.yaml`'dan,
+     upgrade öncesi `03_k3s_config` ile tazelenir) → uncordon → `upgrade_wait_for_pods` sn.
+     Master'lar her zaman önce: kubelet apiserver'dan yeni olamaz.
    - Sürümü hedefe eşit/yüksek node'lar `SKIP`. `upgrade_force: true` ile zorlanır.
-   - Sonda play 2: takılı cordon temizliği, (rebalance — todo A1), node/pod özeti.
-4. `verify.yml` çalıştır; `kubectl get nodes` ile tüm `VERSION` sütunu aynı olmalı.
-5. Geri alma: `k3s etcd-snapshot restore` (bkz. `.tmp/k3s/datastore-backup-restore.md`);
+   - Sonda play 4: takılı cordon temizliği, (rebalance — todo A1), node/pod özeti.
+3. `verify.yml` çalıştır; `kubectl get nodes` ile tüm `VERSION` sütunu aynı olmalı.
+4. Geri alma: `k3s etcd-snapshot restore` (bkz. `.tmp/k3s/datastore-backup-restore.md`);
    binary'yi eski sürümle yeniden kur (`INSTALL_K3S_VERSION=eski`).
 
 ## 5. Domain / VIP / IP havuzu değişikliği
 
 | Değişen | Düzenle | Sonra çalıştır |
 |---|---|---|
-| `cluster_domain` | vars/main.yml | `--tags helm,cert-manager,longhorn,monitoring,rancher,argocd` (manifestler yeniden render + apply; wildcard cert yeni dnsNames ile yeniden kesilir; istemci /etc/hosts güncelle) |
-| `metallb_ip_addresses` | vars/main.yml | `--tags metallb` (IPAddressPool apply); mevcut LB IP'leri değişmez, servisi yeniden oluştur |
-| `keepalived_vip` | vars/main.yml | Kurulu cluster'da **değiştirme**: `--tls-san` ve tüm `K3S_URL`'ler buna bağlı; yeniden kurulum gerekir |
+| `cluster_domain` | defaults/main.yml | `--tags helm,cert-manager,longhorn,monitoring,rancher,argocd` (manifestler yeniden render + apply; wildcard cert yeni dnsNames ile yeniden kesilir; istemci /etc/hosts güncelle) |
+| `metallb_ip_addresses` | defaults/main.yml | `--tags metallb` (IPAddressPool apply); mevcut LB IP'leri değişmez, servisi yeniden oluştur |
+| `keepalived_vip` | defaults/main.yml | Kurulu cluster'da **değiştirme**: `--tls-san` ve tüm `K3S_URL`'ler buna bağlı; yeniden kurulum gerekir |
 | `keepalived_auth_pass` | vault.yml | `k3s_setup.yml` tam çalıştır (keepalived adımının tag'i yok); ya da `ansible master -m template -a "src=... dest=/etc/keepalived/keepalived.conf"` + restart |
-| `k3s_disable_servicelb` / `k3s_master_taint` | vars/main.yml | Yalnızca yeni kurulan/upgrade edilen node'da etki eder (install script unit'i yeniden yazar); mevcut cluster için `upgrade.yml` `upgrade_force: true` |
+| `k3s_disable_servicelb` / `k3s_master_taint` | defaults/main.yml | Yalnızca yeni kurulan/upgrade edilen node'da etki eder (install script unit'i yeniden yazar); mevcut cluster için `upgrade.yml` `upgrade_force: true` |
 
 ## 6. Chart sürümü yükseltme
 

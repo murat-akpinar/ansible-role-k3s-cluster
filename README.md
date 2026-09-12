@@ -120,7 +120,7 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 #### Bileşen Başına Yaklaşık Kaynak Maliyeti
 
 Aşağıdaki değerler **boştaki (idle)** yaklaşık tüketimdir; gerçek kullanım iş yüküne göre artar.
-Varsayılan kurulum saf k3s'tir: aşağıdakilerden yalnızca k3s satırları ve gömülü Traefik gelir. Diğer bileşenlerin hepsi `vars/main.yml`'de **kapalıdır**; açtıkça aşağıdaki maliyeti eklersiniz.
+Varsayılan kurulum saf k3s'tir: aşağıdakilerden yalnızca k3s satırları ve gömülü Traefik gelir. Diğer bileşenlerin hepsi `defaults/main.yml`'de **kapalıdır**; açtıkça aşağıdaki maliyeti eklersiniz.
 
 | Bileşen | CPU (idle) | RAM (idle) | Not |
 |---------|-----------|------------|-----|
@@ -167,7 +167,7 @@ Repodaki giriş playbook'ları (hepsi `-i inventory/cluster_inventory.yml` ile �
 
 ```yaml
 all:
-  # Bağlantı ayarları BURADA durur, vars/main.yml'de değil: bu değerler
+  # Bağlantı ayarları BURADA durur, defaults/main.yml'de değil: bu değerler
   # gather_facts'ten önce, yani ilk SSH bağlantısında da geçerli olur ve
   # rol paylaşılabilir kalır.
   vars:
@@ -196,14 +196,16 @@ all:
 
 ### 2. Yapılandırma Değişkenlerini Ayarlayın
 
-`playbooks/roles/k3s_setup/vars/main.yml` dosyasını düzenleyin:
+`playbooks/roles/k3s_setup/defaults/main.yml` dosyasını düzenleyin (ya da aynı
+anahtarları `inventory/group_vars/all/main.yml` içine yazın — orası rol
+defaults'unu ezer ve `git pull` ile gelen güncellemelerden etkilenmez):
 
 ```yaml
 # Keepalived VIP (tüm master node'lar bu IP üzerinden bağlanır)
 keepalived_vip: 192.168.1.244
 
 # K3s Versiyonu
-k3s_version: "v1.32.8+k3s1"  # İlk kurulum için
+k3s_version: "v1.32.8+k3s1"  # İlk kurulum için (boş = cluster'da çalışan sürüme pinlenir)
 k3s_upgrade_version: "v1.32.9+k3s1"  # Upgrade için (opsiyonel)
 
 # Hangi servisleri kurmak istediğinizi belirtin (repodaki varsayılanlar)
@@ -276,14 +278,18 @@ Ardından `00_prerequisites.yml` her node'da ortak paketleri kurar: `acl`
 (RHEL'de `iscsi-initiator-utils`/`nfs-utils`) ve `iscsid` servisi — Longhorn
 sonradan açılırsa hazır olsun diye.
 
-**firewalld (yalnızca RHEL ailesi)**: firewalld çalışıyorsa aynı dosya şunları açar; Ubuntu/Debian'da bu adım atlanır.
+**firewalld (yalnızca RHEL ailesi)**: firewalld çalışıyorsa aynı dosya aşağıdakileri uygular. Ubuntu/Debian'da firewalld kurulu gelmez; rol **kurmaz** (hiç filtresi olmayan bir host'ta firewalld'i açmak önce MetalLB/Traefik LoadBalancer trafiğini ve NodePort'ları keser) ve yerine tek bir `[WARN]` satırı basar.
 
 | Ne | Neden |
 |---|---|
-| `6443/tcp` | kube-apiserver |
-| `8472/udp` | flannel VXLAN — **kapalıysa** node'lar Ready görünür ama apiserver başka node'daki pod'a ulaşamaz |
-| `10250/tcp` | kubelet metrics/exec |
+| `6443/tcp` (tüm kaynaklara açık) | kube-apiserver — `kubectl` ve worker join buradan geçer |
+| Node IP'leri (`ansible_host`) → `trusted` zone | Node-arası trafiğin tamamı **yalnızca node'lardan**: `8472/udp` (flannel VXLAN), `10250/tcp` (kubelet), `2379-2380/tcp` (etcd, HA), VRRP (IP protokol 112, keepalived) |
 | `10.42.0.0/16`, `10.43.0.0/16` → `trusted` zone | pod ve service ağları |
+| Herkese açık `8472/udp` + `10250/tcp` kuralı | **kapatılır** (`state: disabled`) — eski sürüm bunları tüm kaynaklara açıyordu, firewalld'in permanent kuralı kendiliğinden gitmez |
+
+> ⚠️ VXLAN kimlik doğrulaması yapmaz: `8472/udp` herkese açıkken aynı L2 ağdaki **herhangi bir makine** pod ağına (10.42.0.0/16) paket enjekte edebilir, pod trafiğini dinleyebilir. k3s dokümanı da portu "should not be exposed to the world" diyor — bu yüzden kaynak kısıtı.
+
+> ⚠️ Node IP'si olarak envanterdeki `ansible_host` kullanılır (join URL'leri de onu kullanır). Çok NIC'li bir host'ta flannel ya da keepalived başka bir arabirimden konuşuyorsa o arabirimin IP'sini `ansible_host` yapın; aksi halde node-arası trafik kesilir.
 
 > ⚠️ `--cluster-cidr` / `--service-cidr` ile ağları değiştirirseniz `tasks/00_prerequisites.yml` içindeki trusted CIDR listesini de güncelleyin.
 
@@ -308,7 +314,7 @@ Keepalived, HA cluster'larda VIP yönetimi için kullanılır:
 - **3+ Master**: Keepalived kurulur, yapılandırılır ve başlatılır
 - **1-2 Master**: Keepalived kurulur ama yapılandırılmaz (gelecek için hazır)
 
-VRRP arayüzü `keepalived_interface` boş bırakılırsa `ansible_default_ipv4.interface` üzerinden otomatik algılanır; yanlış arayüz seçilirse `vars/main.yml`'de sabit değer verin (`eth0`, `ens18` vb.).
+VRRP arayüzü `keepalived_interface` boş bırakılırsa `ansible_default_ipv4.interface` üzerinden otomatik algılanır; yanlış arayüz seçilirse `defaults/main.yml`'de sabit değer verin (`eth0`, `ens18` vb.).
 
 ### Adım 5: K3s Kurulumu
 
@@ -355,7 +361,14 @@ Yapılandırmaya göre şu servisler kurulur (✅ = varsayılan açık):
 
 ### Ana Yapılandırma Dosyası
 
-`playbooks/roles/k3s_setup/vars/main.yml` dosyasında tüm yapılandırma değişkenleri bulunur:
+`playbooks/roles/k3s_setup/defaults/main.yml` dosyasında tüm yapılandırma değişkenleri bulunur.
+
+**Öncelik:** rol `defaults/`'u en alttadır; üstteki her yol onu ezer:
+`-e anahtar=deger` > `inventory/host_vars/` > `inventory/group_vars/all/main.yml`
+> `defaults/main.yml`. Kalıcı değişiklikleri `group_vars/all/main.yml` içinde
+tutmak en temizi (repoyla birlikte gelen örnek dosyanın tamamı yorumludur).
+Tek istisna `k3s_server_args`: `vars/main.yml`'de durur ve bilerek ezilemez.
+
 
 ```yaml
 # NOT: Bağlantı değişkenleri (`ansible_user`, `ansible_ssh_private_key_file`)
@@ -374,9 +387,13 @@ keepalived_interface: ""
 # Aynı L2 ağda ikinci bir cluster varsa farklı bir VRRP router ID verin (1-255)
 keepalived_router_id: 51
 # Parola Vault'tan gelir; tanımlı değilse varsayılana düşer (bkz. Güvenlik bölümü)
+# keepalived yalnızca ilk 8 karakteri kullanır; VRRP'yi asıl koruyan şey firewalld'de
+# kaynak kısıtı (node IP'leri trusted zone)
 keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
 
 # K3s Versiyonları
+# Boş bırakılırsa cluster'da çalışan sürüme pinlenir (_resolve_k3s_version.yml);
+# tamamen boş bir cluster'da en son sürüm kurulur.
 k3s_version: "v1.32.8+k3s1"
 k3s_upgrade_version: "v1.32.9+k3s1"  # Opsiyonel
 
@@ -410,7 +427,9 @@ Ayrıca bu dosyada yer alan diğer değişkenler:
 
 | Değişken | Ne işe yarar |
 |---|---|
-| `k3s_server_args` | k3s server flag'leri **tek yerde**: ilk kurulum, node ekleme ve upgrade aynı string'i kullanır. Upgrade sırasında eksik verilirse install script systemd unit'i yeniden yazar ve `--disable servicelb` / `--tls-san` sessizce kaybolur |
+| `k3s_hardening` | Varsayılan `true`. k3s'in CIS sıkılaştırmalarını açar: etcd'de secret şifreleme, API audit log, Pod Security Admission (baseline), `protect-kernel-defaults` ve kubelet flag'leri. Ayrıntı: [k3s Sıkılaştırma](#k3s-sıkılaştırma-hardening) |
+| `k3s_agent_token` | Worker'ların cluster'a katılırken kullandığı token. Boş bırakılırsa k3s bunu **server token'ına** eşitler; o zaman her worker, cluster'a yeni bir server ekleyebilecek değerde bir secret taşır. Vault'tan verin (`vault_k3s_agent_token`) |
+| `k3s_server_args` | **Boş bırakın.** k3s server/agent flag'leri artık komut satırında değil, k3s'in kendi ayar dosyasında: `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`. Install script systemd unit'ini her çalıştırmada yeniden yazar ama bu dosyaya dokunmaz, böylece flag'ler upgrade'de kaybolmaz. Burada bir flag verirseniz komut satırı kazanır ve config'teki liste ayarlarını (audit, PSA) tümüyle ezer |
 | `k3s_disable_servicelb` | `true` ise k3s gömülü ServiceLB (klipper) kapatılır. Varsayılan `false`: MetalLB de kapalı olduğu için LoadBalancer IP'lerini klipper verir. **İkisini birden kapatmayın** — hiçbir LB controller kalmaz ve `traefik` servisi `<pending>` takılır. `metallb_install: true` yaparsanız bunu da `true` yapın |
 | `k3s_master_taint` / `k3s_master_taint_value` | Master'ları ağır iş yüklerinden korur (bkz. [Master/Worker Pod Dağılımı](#masterworker-pod-dağılımı)) |
 | `monitoring_storage_class` | Monitoring PVC'lerinin StorageClass'ı (bkz. [Longhorn StorageClass](#-longhorn-storageclass)) |
@@ -432,7 +451,7 @@ Kurulum, **master sayısına göre otomatik olarak** values dosyalarını seçer
 
 ### SSH Private Key
 
-SSH private key yolu **`vars/main.yml` içinde sabit tanımlanmaz** (kişisel/ortam-bağımlı yol repoya commit edilmemelidir). Üç yöntemden birini kullanın:
+SSH private key yolu **`defaults/main.yml` içinde sabit tanımlanmaz** (kişisel/ortam-bağımlı yol repoya commit edilmemelidir). Üç yöntemden birini kullanın:
 
 ```bash
 # 1) Komut satırı (önerilen)
@@ -452,6 +471,33 @@ Host 192.168.1.*
   IdentityFile ~/.ssh/homelab
 ```
 
+### k3s Sıkılaştırma (Hardening)
+
+`k3s_hardening: true` (varsayılan) ile rol, k3s'in kapalı gelen CIS sıkılaştırmalarını açar.
+Ayarların tamamı k3s'in kendi yapılandırma dosyasına yazılır
+(`templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`, mod `0600`); dosyayı
+`tasks/03_k3s_config.yml` k3s kurulumundan hemen önce oluşturur ve node ekleme ile upgrade
+rolleri de aynı task'ı çağırır.
+
+| Ayar | Ne yapar |
+|---|---|
+| `secrets-encryption` | Secret'lar etcd'ye AES ile şifreli yazılır. Bu olmadan etcd snapshot'ını veya diski ele geçiren herkes bütün parolaları düz metin okur |
+| Audit log | `/var/lib/rancher/k3s/server/logs/audit.log` (`level: Metadata`, 10 × 100 MB döngü). Kimin hangi Secret'ı okuduğu / hangi RBAC'i değiştirdiği kaydedilir |
+| Pod Security Admission | Varsayılan `baseline`: `privileged` pod, `hostPath`, `hostPID`/`hostNetwork` reddedilir. `restricted` seviyesi uyarı olarak raporlanır. Ayrıcalık isteyen bileşenler (Longhorn, MetalLB speaker, node-exporter, Rancher) muaf namespace listesinde |
+| `agent-token` | Worker'lar server token'ı yerine yalnızca agent ekleyebilen ayrı bir token ile katılır (`vault_k3s_agent_token` dolduruldu ise) |
+| `protect-kernel-defaults` + kubelet flag'leri | Kernel parametreleri beklenen değerlerde değilse kubelet başlamaz; ayrıca `pod-max-pids`, TLS cipher listesi ve streaming timeout. Gerekli sysctl'leri aynı task yazar (`/etc/sysctl.d/99-k3s-hardening.conf`) |
+| kubeconfig `0600` | `/etc/rancher/k3s/k3s.yaml` cluster-admin kimlik bilgisidir; `0644` iken makinedeki her kullanıcı cluster-admin olur (bkz. [kubeconfig Erişimi](#kubeconfig-erişimi)) |
+| PKI dosya izinleri | `/var/lib/rancher/k3s/server/tls/*.crt` dosyaları `0600`'e çekilir (CIS 1.1.20). k3s bunları `0644` yazıyor |
+| ServiceAccount token automount | `default`, `kube-public` ve `kube-node-lease` namespace'lerindeki `default` ServiceAccount'a token otomatik bağlanmaz (CIS 5.1.5). API'ye erişmesi gereken iş yükü kendi ServiceAccount'unu tanımlamalı. `kube-system` bilerek dışarıda |
+
+> **Mevcut bir cluster'da**: ayar dosyası değişse bile çalışan k3s onu kendiliğinden yeniden
+> okumaz. Playbook bunu ekranda hatırlatır ama **kendisi yeniden başlatmaz** — HA'da bütün
+> master'ları aynı anda yeniden başlatmak API kesintisi demektir. Master'ları tek tek,
+> aralarında `kubectl get nodes` ile bekleyerek yeniden başlatın. `upgrade.yml` zaten yeniden
+> kurduğu için orada ek bir şey yapmanız gerekmez.
+>
+> **Kapatmak için**: `k3s_hardening: false`. O zaman yalnızca temel server ayarları yazılır.
+
 ### Ansible Vault ile Secret Yönetimi
 
 Hassas değerler (örn. `keepalived_auth_pass`) düz metin olarak commit edilmemelidir. Bu role, değerleri Ansible Vault üzerinden okuyabilir:
@@ -460,7 +506,7 @@ Hassas değerler (örn. `keepalived_auth_pass`) düz metin olarak commit edilmem
 # 1) Örnek şablonu kopyalayın
 cp inventory/group_vars/all/vault.yml.example inventory/group_vars/all/vault.yml
 
-# 2) Değerleri doldurun (vault_keepalived_auth_pass vb.) ve şifreleyin
+# 2) Değerleri doldurun (vault_keepalived_auth_pass, vault_k3s_agent_token) ve şifreleyin
 ansible-vault encrypt inventory/group_vars/all/vault.yml
 
 # 3) Playbook'u vault parolasıyla çalıştırın
@@ -469,7 +515,7 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --ask-vault-pa
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --vault-password-file ~/.vault_pass
 ```
 
-`vars/main.yml` içindeki tanım Vault değişkenini önceler, tanımlı değilse varsayılana düşer:
+`defaults/main.yml` içindeki tanım Vault değişkenini önceler, tanımlı değilse varsayılana düşer:
 
 ```yaml
 keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
@@ -479,7 +525,7 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 
 ### kubeconfig Erişimi
 
-K3s, kubeconfig dosyasını (`/etc/rancher/k3s/k3s.yaml`) `--write-kubeconfig-mode 644` ile oluşturur; böylece master node'daki `ansible_user` kullanıcısı `~/.kube/config` symlink'i üzerinden `kubectl` çalıştırabilir. Kullanıcının UID'i ve home dizini `getent passwd {{ ansible_user }}` ile çözülür (sabit UID 1000 varsayımı yoktur).
+Sıkılaştırma açıkken k3s, kubeconfig dosyasını (`/etc/rancher/k3s/k3s.yaml`) `0600` ile ve root'a ait olarak oluşturur. `0644` olsaydı makinedeki **her** kullanıcı cluster-admin olurdu. Master node'daki `ansible_user` kullanıcısı kendi kopyasını `~/.kube/config` altında `0600` izniyle alır; symlink değil kopya, çünkü symlink 0600 kaynağı okuyamazdı. Kullanıcının home dizini `getent passwd {{ ansible_user }}` ile çözülür (sabit UID 1000 varsayımı yoktur). Root olmayan başka bir kullanıcıya erişim vermek için kubeconfig'i o kullanıcıya da kopyalayın; `k3s_hardening: false` ile eski `0644` davranışına dönersiniz.
 
 ## 💻 Kullanım Örnekleri
 
@@ -575,9 +621,17 @@ Cluster'ınızı **kesintisiz** bir şekilde güncellemek için rolling update s
 
 ### Upgrade Süreci
 
+0. **Etcd Snapshot**: Upgrade'den hemen önce master[0]'da `k3s etcd-snapshot save --name
+   pre-upgrade` alınır ve son 5 pre-upgrade snapshot'ı bırakacak şekilde `prune` edilir
+   (on-demand snapshot'ların otomatik retention'ı yoktur). Snapshot alınamazsa upgrade
+   başlamaz. k3s'in kendi zamanlanmış snapshot'ı 12 saatte bir çalışır; upgrade'in hemen
+   öncesinde biri olduğu garanti değildir.
 1. **Versiyon Kontrolü**: Tüm node'ların mevcut K3s versiyonları kontrol edilir
 2. **Downgrade Önleme**: Mevcut versiyon hedef versiyondan yüksekse upgrade atlanır
 3. **Master Node'ları Güncelleme** (Sırayla):
+   - Master'lar ve worker'lar **ayrı play'lerde**: master play'i bitmeden hiçbir worker
+     yükselmez. Kubernetes skew politikası kubelet'in apiserver'dan yeni olmasına izin
+     vermez (`.tmp/kubernetes/version-skew-policy.md`)
    - Master node'lar **tek tek** (`serial: 1`) güncellenir
    - Her master node için:
      - Node **drain** edilir (pod'lar diğer node'lara taşınır)
@@ -593,7 +647,7 @@ Cluster'ınızı **kesintisiz** bir şekilde güncellemek için rolling update s
 
 ### Upgrade Çalıştırma
 
-**1. Versiyon Belirleme**: `playbooks/roles/k3s_setup/vars/main.yml` dosyasında:
+**1. Versiyon Belirleme**: `playbooks/roles/k3s_setup/defaults/main.yml` dosyasında:
 
 ```yaml
 # İlk kurulum versiyonu
@@ -612,7 +666,7 @@ ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
 
 ### Upgrade Yapılandırması
 
-`playbooks/roles/update_cluster/vars/main.yml` dosyasında ayarlanabilir parametreler:
+`playbooks/roles/update_cluster/defaults/main.yml` dosyasında ayarlanabilir parametreler:
 
 ```yaml
 upgrade_drain_timeout: 600          # Drain timeout (saniye) - PVC-heavy workload'lar için artırıldı
@@ -623,7 +677,7 @@ upgrade_force: false                 # Versiyon eşleşse bile zorla upgrade (ö
 
 ### Önemli Notlar
 
-⚠️ **Backup**: Upgrade öncesi önemli verilerinizi yedekleyin  
+⚠️ **Backup**: Playbook upgrade'den önce etcd snapshot'ı alır (`k3s etcd-snapshot ls` ile görülür); uygulama verilerinizi (PV'ler) ayrıca yedekleyin  
 ⚠️ **Test**: Production'a uygulamadan önce test ortamında deneyin  
 ⚠️ **Versiyon Uyumluluğu**: K3s versiyonları arasında uyumluluk kontrolü yapın  
 ⚠️ **Etcd**: HA kurulumlarda etcd uyumluluğu önemlidir, master node'ları önce güncelleyin  
@@ -698,7 +752,7 @@ ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
 
 ### Önemli Notlar
 
-⚠️ **Versiyon Uyumluluğu**: Yeni node'ların versiyonu mevcut cluster versiyonu ile uyumlu olmalıdır. Versiyon `playbooks/roles/k3s_setup/vars/main.yml` dosyasındaki `k3s_version` değişkeninden alınır.
+⚠️ **Versiyon Uyumluluğu**: Versiyon `playbooks/roles/k3s_setup/defaults/main.yml` dosyasındaki `k3s_version` değişkeninden alınır. **Boş bırakabilirsiniz**: rol o zaman ilk master'da çalışan sürümü okuyup yeni node'a onu pinler (`_resolve_k3s_version.yml`), böylece yeni node cluster'dan daha yeni bir kubelet almaz. Elle doldururken cluster'ın sürümünü verin, daha yenisini değil.
 
 ⚠️ **Hostname Değişikliği**: Eğer node'un hostname'i inventory'deki isimle eşleşmiyorsa, hostname değiştirilir ve sistem reboot edilir.
 
@@ -844,7 +898,7 @@ kubectl get gateway -n kube-system homelab
 
 ### Bileşen Sürümleri
 
-Tümü `playbooks/roles/k3s_setup/vars/main.yml` içinde. `""` = her kurulumda en son sürüm.
+Tümü `playbooks/roles/k3s_setup/defaults/main.yml` içinde. `""` = her kurulumda en son sürüm.
 
 | Bileşen | Değişken | Sürüm |
 |---|---|---|
@@ -883,7 +937,7 @@ Monitoring (Prometheus/Alertmanager/Grafana) PVC'lerinin StorageClass'ı `monito
 
 - **Longhorn kuruluysa** (`longhorn_install: true`) → varsayılan `longhorn-retain-2` (HA için 2 replica)
 - **Longhorn kapalıysa** (`longhorn_install: false`) → otomatik `local-path` (k3s gömülü, replikasyonsuz, node-yerel)
-- İstersen `vars/main.yml`'de elle sabitleyebilirsin (or: `longhorn-retain-1`, ya da başka bir StorageClass)
+- İstersen `defaults/main.yml`'de elle sabitleyebilirsin (or: `longhorn-retain-1`, ya da başka bir StorageClass)
 
 > Yani `longhorn_install: false` + `grafana_install: true` ile **Longhorn olmadan da monitoring** kurulabilir.
 
@@ -975,8 +1029,9 @@ systemctl is-active firewalld
 firewall-cmd --list-ports
 firewall-cmd --zone=trusted --list-sources
 
+# trusted zone TÜM node IP'lerini ve pod/service ağlarını içermeli
 # Eksikse elle (rol bunu Adım 1'de otomatik yapar)
-firewall-cmd --permanent --add-port=8472/udp
+firewall-cmd --permanent --zone=trusted --add-source=<diğer node IP>
 firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16
 firewall-cmd --reload
 ```
@@ -1018,7 +1073,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │   └── roles
 │       ├── extra_node_cluster
 │       │   ├── tasks
-│       │   │   ├── 00_system_requirements.yml
 │       │   │   ├── 01_check_existing_node.yml
 │       │   │   ├── 02_add_master_node.yml
 │       │   │   ├── 03_add_worker_node.yml
@@ -1044,6 +1098,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   └── metallb
 │       │   │   │       ├── values-ha.yml
 │       │   │   │       └── values-single-master.yml
+│       │   │   ├── k3s-audit-policy.yaml        # k3s sıkılaştırma politikaları
+│       │   │   ├── k3s-psa.yaml
 │       │   │   └── traefik-gateway-config.yml
 │       │   ├── handlers
 │       │   │   ├── .gitkeep
@@ -1058,6 +1114,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── 01_configure_hostname.yml
 │       │   │   ├── 02_install_keepalived.yml
 │       │   │   ├── 03_install_k3s.yml
+│       │   │   ├── 03_k3s_config.yml           # k3s config.yaml + sıkılaştırma dosyaları
+│       │   │   ├── 03_k3s_post_install.yml
 │       │   │   ├── 03_wait_api_ready.yml      # merkezi "API hazır mı" kapısı
 │       │   │   ├── 04_install_helm.yml
 │       │   │   ├── 05_gateway_api_install.yml
@@ -1068,7 +1126,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── 10_rancher_install.yml
 │       │   │   ├── 11_argocd_install.yml
 │       │   │   ├── 99_result.yml
-│       │   │   ├── _resolve_user.yml        # ansible_user -> home dizini çözümü
+│       │   │   ├── _resolve_k3s_version.yml
+│       │   │   ├── _facts.yml               # home dizini + master_count/k3s_api_endpoint
 │       │   │   └── main.yml
 │       │   ├── templates                    # cluster_domain vb. ile üretilenler
 │       │   │   ├── my-charts
@@ -1084,6 +1143,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   └── rancher
 │       │   │   │       └── httproute.yml.j2
 │       │   │   ├── chrony.j2
+│       │   │   ├── k3s-config.yaml.j2
 │       │   │   ├── keepalived.conf.j2
 │       │   │   ├── kube-prometheus-stack-values.yml.j2
 │       │   │   ├── longhorn-storageclass.yml.j2

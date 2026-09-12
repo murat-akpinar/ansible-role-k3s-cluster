@@ -14,16 +14,6 @@
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
 
-- name: Count existing master nodes
-  set_fact:
-    existing_master_count: "{{ groups['master'] | length | int }}"
-  run_once: true
-
-- name: Get first master IP address
-  set_fact:
-    first_master_ip: "{{ hostvars[groups['master'][0]]['ansible_host'] | default(groups['master'][0]) }}"
-  run_once: true
-
 - name: Check if first master was started with --cluster-init
   ansible.builtin.shell:
     cmd: |
@@ -38,7 +28,7 @@
   failed_when: false
   when: 
     - "'master' in group_names"
-    - (existing_master_count | int) == 1
+    - (master_count | int) == 1
   become: true
   delegate_to: "{{ groups['master'][0] }}"
   run_once: true
@@ -59,47 +49,27 @@
       even for single master setups to allow future HA conversion.
   when:
     - "'master' in group_names"
-    - (existing_master_count | int) == 1
+    - (master_count | int) == 1
     - cluster_init_check.stdout is defined
     - cluster_init_check.stdout == "no-cluster-init"
   run_once: true
 
-- name: Set K3s version environment variable
-  set_fact:
-    k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"
-  run_once: true
-
-- name: Install K3s master node (HA mode - 3+ masters, Keepalived already configured)
-  shell: |
+# Katilma adresi tek yerden: `k3s_api_endpoint` (_facts.yml) 3+ master'da VIP,
+# altinda ilk master'in IP'si. Eskiden bu task iki kopyaydi.
+- name: Install K3s master node
+  ansible.builtin.shell: |
     export K3S_TOKEN="{{ k3s_token }}"
-    export K3S_URL="https://{{ keepalived_vip }}:6443"
+    export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
     export INSTALL_K3S_EXEC="server --server $K3S_URL {{ k3s_server_args }}"
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
     {% endif %}
     curl -sfL {{ k3s_install_url }} | sh -
-  when: 
+  when:
     - "'master' in group_names"
     - not node_already_joined | default(false)
-    - (existing_master_count | int) >= 3
   become: true
-  register: join_master_ha
-
-- name: Install K3s master node (Single master or 2 masters - convert to HA, use first master IP)
-  shell: |
-    export K3S_TOKEN="{{ k3s_token }}"
-    export K3S_URL="https://{{ first_master_ip }}:6443"
-    export INSTALL_K3S_EXEC="server --server $K3S_URL {{ k3s_server_args }}"
-    {% if k3s_version_env | default('') != '' %}
-    export {{ k3s_version_env }}
-    {% endif %}
-    curl -sfL {{ k3s_install_url }} | sh -
-  when: 
-    - "'master' in group_names"
-    - not node_already_joined | default(false)
-    - (existing_master_count | int) < 3
-  become: true
-  register: join_master_single
+  register: join_master
 
 - name: Ensure K3s is enabled and running on master node
   ansible.builtin.systemd:

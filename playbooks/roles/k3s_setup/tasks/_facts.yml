@@ -1,0 +1,32 @@
+---
+# ============================================================================
+# Rol icin TEK gercek kaynagi: kullanici ev dizini + cluster topolojisi.
+# ============================================================================
+# Uc rol de ilk adimda bunu calistirir (k3s_setup'ta `tags: always`), boylece
+# master_count / first_master_ip / k3s_api_endpoint her dosyada ayni sekilde
+# uretilir. Eskiden master_count 6 dosyada, first_master_ip 3 dosyada ayri ayri
+# hesaplaniyordu ve HA/single kararini her dosya kendi kopyaladigi kosulla
+# veriyordu; ayni "getent passwd" blogu da 15+ dosyada kopyaliydi.
+# set_fact'ler host boyunca (sonraki tum import'larda) gecerli kalir.
+# Eski `uid_user` degiskeni kaldirildi: degeri her zaman ansible_user'in kendisiydi.
+
+- name: Resolve ansible_user account from passwd database
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ ansible_user }}"
+
+- name: Set user_home_directory fact
+  ansible.builtin.set_fact:
+    user_home_directory: "{{ ansible_facts.getent_passwd[ansible_user][4] }}"
+
+- name: Set cluster topology facts
+  ansible.builtin.set_fact:
+    master_count: "{{ groups['master'] | length | int }}"
+    first_master_ip: "{{ hostvars[groups['master'][0]]['ansible_host'] | default(groups['master'][0]) }}"
+
+# Cluster'a katilan her node'un (ek master ve worker) konustugu API adresi.
+# HA esigi TEK yerde: 3+ master -> Keepalived VIP'i, altinda ilk master'in IP'si
+# (o modda VIP diye bir sey yok, keepalived yapilandirilmiyor).
+- name: Set the API endpoint that joining nodes talk to
+  ansible.builtin.set_fact:
+    k3s_api_endpoint: "{{ keepalived_vip if (master_count | int) >= 3 else first_master_ip }}"

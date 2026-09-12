@@ -1,8 +1,14 @@
 ---
 # Upgrade Worker Nodes with Rolling Update Strategy
+#
+# TEK blok: HA ve single-master yolu arasindaki tek fark agent'in konustugu
+# adresti (`k3s_api_endpoint`, _facts.yml). Eskiden bu dosya 310 satirlik iki
+# birebir kopyadan olusuyordu; register adlari disinda hicbir farklari yoktu.
 
-- name: Get K3s token from first master (for workers to join)
-  shell: cat /var/lib/rancher/k3s/server/node-token
+# Worker'lar SERVER token'i ile degil agent token'i ile katilir (bkz.
+# k3s_setup/tasks/03_install_k3s.yml).
+- name: Get K3s agent token from first master (for workers to join)
+  shell: cat /var/lib/rancher/k3s/server/agent-token
   register: k3s_token_raw
   become: true
   changed_when: false
@@ -14,12 +20,7 @@
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
 
-- name: Count master nodes
-  set_fact:
-    master_count: "{{ groups['master'] | length | int }}"
-  run_once: true
-
-- name: Upgrade worker node (HA mode)
+- name: Upgrade worker node
   block:
     - name: Check pods on worker node before drain
       ansible.builtin.shell:
@@ -28,10 +29,6 @@
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       delegate_to: "{{ groups['master'][0] }}"
       register: pods_count_before
       changed_when: false
@@ -43,10 +40,6 @@
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       delegate_to: "{{ groups['master'][0] }}"
       register: pvc_pods_before
       changed_when: false
@@ -59,10 +52,6 @@
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       delegate_to: "{{ groups['master'][0] }}"
       register: longhorn_pods_before
       changed_when: false
@@ -74,10 +63,6 @@
           Worker node {{ inventory_hostname }} status before drain:
           - Total pods: {{ pods_count_before.stdout | trim }}
           - PVC pods: {{ pvc_pods_before.stdout | default('None') }}
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
 
     - name: Drain worker node
       ansible.builtin.command:
@@ -86,10 +71,6 @@
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       delegate_to: "{{ groups['master'][0] }}"
       register: drain_worker_result
       failed_when: false
@@ -102,10 +83,6 @@
           STDOUT: {{ drain_worker_result.stdout | default('None') }}
           STDERR: {{ drain_worker_result.stderr | default('None') }}
           Return code: {{ drain_worker_result.rc }}
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
 
     - name: Check pods that could not be evicted
       ansible.builtin.shell:
@@ -115,9 +92,6 @@
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
         - drain_worker_result.rc != 0
       delegate_to: "{{ groups['master'][0] }}"
       register: remaining_pods
@@ -130,9 +104,6 @@
           Pods that could not be evicted from {{ inventory_hostname }}:
           {{ remaining_pods.stdout | default('None') }}
       when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
         - drain_worker_result.rc != 0
         - remaining_pods.stdout is defined
 
@@ -140,58 +111,40 @@
       ansible.builtin.debug:
         msg: "Drain completed successfully for {{ inventory_hostname }}"
       when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
         - drain_worker_result.rc == 0
 
     - name: Warn if drain had issues (may continue with force)
       ansible.builtin.debug:
         msg: "Drain had issues for {{ inventory_hostname }}, but continuing with upgrade (some pods may not have been evicted)"
       when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
         - drain_worker_result.rc != 0
 
-    - name: Upgrade K3s agent on worker (HA mode)
+    - name: Upgrade K3s agent on worker
       shell: |
-        export K3S_URL="https://{{ keepalived_vip }}:6443"
+        export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
         export K3S_TOKEN="{{ k3s_token }}"
         export INSTALL_K3S_VERSION={{ k3s_target_version }}
         curl -sfL {{ k3s_install_url }} | sh -s - agent
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       become: true
-      register: upgrade_worker_ha
+      register: upgrade_worker
 
-    - name: Wait for K3s agent service to be running (HA mode)
+    - name: Wait for K3s agent service to be running
       ansible.builtin.command:
         cmd: systemctl is-active k3s-agent
       register: k3s_agent_status
       until: k3s_agent_status.rc == 0
       retries: 12
       delay: 5
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       become: true
       changed_when: false
 
-    - name: Wait for worker node to be Ready in cluster (HA mode)
+    - name: Wait for worker node to be Ready in cluster
       ansible.builtin.shell:
         cmd: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q True
       register: worker_ready_check
       until: worker_ready_check.rc == 0
       retries: 12
       delay: 5
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       become: true
       become_user: "{{ ansible_user }}"
       environment:
@@ -219,9 +172,6 @@
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
         - longhorn_pods_before.stdout is defined
         - longhorn_pods_before.stdout != ""
       delegate_to: "{{ groups['master'][0] }}"
@@ -250,10 +200,6 @@
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       delegate_to: "{{ groups['master'][0] }}"
       register: longhorn_volume_recovery
       changed_when: false
@@ -283,10 +229,6 @@
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       delegate_to: "{{ groups['master'][0] }}"
       register: critical_pods_recovery
       changed_when: false
@@ -300,346 +242,21 @@
           - Volumes: {{ longhorn_volume_recovery.stdout | default('Checking volumes...') }}
           - Critical Pods: {{ critical_pods_recovery.stdout | default('Checking critical pods...') }}
       when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
         - longhorn_recovery.stdout is defined
 
-    - name: Uncordon worker node (HA mode)
+    - name: Uncordon worker node
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
       become: true
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
       delegate_to: "{{ groups['master'][0] }}"
 
-    - name: Wait for pods to stabilize after worker upgrade (HA mode)
+    - name: Wait for pods to stabilize after worker upgrade
       ansible.builtin.pause:
         seconds: "{{ upgrade_wait_for_pods }}"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) >= 3
 
   when: 
     - "'worker' in group_names"
     - upgrade_needed | default(true)
-    - (master_count | int) >= 3
-
-- name: Upgrade worker node (Single Master mode)
-  block:
-    - name: Check pods on worker node before drain (Single Master)
-      ansible.builtin.shell:
-        cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} -o wide --no-headers | wc -l
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      delegate_to: "{{ groups['master'][0] }}"
-      register: pods_count_before_single
-      changed_when: false
-
-    - name: Check PVC pods on worker node before drain (Single Master)
-      ansible.builtin.shell:
-        cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.metadata.namespace}{\"/\"}{.metadata.name}{\" \"}{range .spec.volumes[*]}{.persistentVolumeClaim.claimName}{\" \"}{end}{\"\\n\"}{end}' | grep -v '^$' || echo "No PVC pods"
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      delegate_to: "{{ groups['master'][0] }}"
-      register: pvc_pods_before_single
-      changed_when: false
-      failed_when: false
-
-    - name: Check Longhorn pods on worker node before drain (Single Master)
-      ansible.builtin.shell:
-        cmd: kubectl get pods -n longhorn-system --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.metadata.name}{\"\\n\"}{end}' || echo ""
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      delegate_to: "{{ groups['master'][0] }}"
-      register: longhorn_pods_before_single
-      changed_when: false
-      failed_when: false
-
-    - name: Display worker node status before drain (Single Master)
-      ansible.builtin.debug:
-        msg: |
-          Worker node {{ inventory_hostname }} status before drain:
-          - Total pods: {{ pods_count_before_single.stdout | trim }}
-          - PVC pods: {{ pvc_pods_before_single.stdout | default('None') }}
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-
-    - name: Drain worker node
-      ansible.builtin.command:
-        cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --grace-period={{ upgrade_drain_grace_period | default(60) }} --force
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      delegate_to: "{{ groups['master'][0] }}"
-      register: drain_worker_result_single
-      failed_when: false
-      changed_when: drain_worker_result_single.rc == 0
-
-    - name: Display drain output for debugging (Single Master)
-      ansible.builtin.debug:
-        msg: |
-          Drain output for {{ inventory_hostname }}:
-          STDOUT: {{ drain_worker_result_single.stdout | default('None') }}
-          STDERR: {{ drain_worker_result_single.stderr | default('None') }}
-          Return code: {{ drain_worker_result_single.rc }}
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-
-    - name: Check pods that could not be evicted (Single Master)
-      ansible.builtin.shell:
-        cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} --no-headers 2>/dev/null | awk '{print $1"/"$2}' || echo "No pods remaining"
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-        - drain_worker_result_single.rc != 0
-      delegate_to: "{{ groups['master'][0] }}"
-      register: remaining_pods_single
-      changed_when: false
-      failed_when: false
-
-    - name: Display pods that could not be evicted (Single Master)
-      ansible.builtin.debug:
-        msg: |
-          Pods that could not be evicted from {{ inventory_hostname }}:
-          {{ remaining_pods_single.stdout | default('None') }}
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-        - drain_worker_result_single.rc != 0
-        - remaining_pods_single.stdout is defined
-
-    - name: Check if drain was successful (Single Master)
-      ansible.builtin.debug:
-        msg: "Drain completed successfully for {{ inventory_hostname }}"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-        - drain_worker_result_single.rc == 0
-
-    - name: Warn if drain had issues (Single Master, may continue with force)
-      ansible.builtin.debug:
-        msg: "Drain had issues for {{ inventory_hostname }}, but continuing with upgrade (some pods may not have been evicted)"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-        - drain_worker_result_single.rc != 0
-
-    - name: Upgrade K3s agent on worker (Single Master mode)
-      shell: |
-        export K3S_URL="https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443"
-        export K3S_TOKEN="{{ k3s_token }}"
-        export INSTALL_K3S_VERSION={{ k3s_target_version }}
-        curl -sfL {{ k3s_install_url }} | sh -
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      become: true
-      register: upgrade_worker_single
-
-    - name: Wait for K3s agent service to be running (Single Master mode)
-      ansible.builtin.command:
-        cmd: systemctl is-active k3s-agent
-      register: k3s_agent_status_single
-      until: k3s_agent_status_single.rc == 0
-      retries: 12
-      delay: 5
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      become: true
-      changed_when: false
-
-    - name: Wait for worker node to be Ready in cluster (Single Master mode)
-      ansible.builtin.shell:
-        cmd: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q True
-      register: worker_ready_check_single
-      until: worker_ready_check_single.rc == 0
-      retries: 12
-      delay: 5
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      delegate_to: "{{ groups['master'][0] }}"
-      changed_when: false
-      failed_when: false
-
-    - name: Wait for Longhorn pods to recover after upgrade (Single Master)
-      ansible.builtin.shell:
-        cmd: |
-          # Wait for Longhorn to recover replica pods (max 2 minutes)
-          for i in {1..12}; do
-            failed_replicas=$(kubectl get pods -n longhorn-system --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' | grep -c "Failed" || echo "0")
-            if [ "$failed_replicas" -eq "0" ]; then
-              echo "Longhorn pods recovered"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "Warning: Some Longhorn pods may still be recovering"
-          exit 0
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-        - longhorn_pods_before_single.stdout is defined
-        - longhorn_pods_before_single.stdout != ""
-      delegate_to: "{{ groups['master'][0] }}"
-      register: longhorn_recovery_single
-      changed_when: false
-      failed_when: false
-
-    - name: Wait for Longhorn volumes to rebuild after upgrade (Single Master)
-      ansible.builtin.shell:
-        cmd: |
-          # Wait for Longhorn volumes to rebuild (max 5 minutes)
-          # Check if any volumes are in "rebuilding" or "degraded" state
-          for i in {1..30}; do
-            # Get volumes that are rebuilding or degraded
-            rebuilding_volumes=$(kubectl get volumes -n longhorn-system -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.state}{" "}{.status.robustness}{"\n"}{end}' | grep -E "(rebuilding|degraded)" | wc -l || echo "0")
-            if [ "$rebuilding_volumes" -eq "0" ]; then
-              echo "All Longhorn volumes are healthy"
-              exit 0
-            fi
-            echo "Waiting for $rebuilding_volumes volume(s) to rebuild... (attempt $i/30)"
-            sleep 10
-          done
-          echo "Warning: Some Longhorn volumes may still be rebuilding"
-          exit 0
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      delegate_to: "{{ groups['master'][0] }}"
-      register: longhorn_volume_recovery_single
-      changed_when: false
-      failed_when: false
-
-    - name: Wait for critical pods to be ready after upgrade (Single Master)
-      ansible.builtin.shell:
-        cmd: |
-          # Wait for critical pods (Grafana, Prometheus, Alertmanager) to be ready (max 3 minutes)
-          critical_namespaces=("monitoring")
-          for namespace in "${critical_namespaces[@]}"; do
-            for i in {1..18}; do
-              # Check if all pods in monitoring namespace are ready
-              not_ready=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.phase}{" "}{range .status.conditions[*]}{.type}{"="}{.status}{" "}{end}{"\n"}{end}' | grep -v "Running=True" | grep -v "Succeeded=True" | wc -l || echo "0")
-              if [ "$not_ready" -eq "0" ]; then
-                echo "All pods in namespace $namespace are ready"
-                break
-              fi
-              if [ "$i" -eq 18 ]; then
-                echo "Warning: Some pods in namespace $namespace may still be starting"
-              fi
-              sleep 10
-            done
-          done
-          exit 0
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      delegate_to: "{{ groups['master'][0] }}"
-      register: critical_pods_recovery_single
-      changed_when: false
-      failed_when: false
-
-    - name: Display Longhorn recovery status (Single Master)
-      ansible.builtin.debug:
-        msg: |
-          Longhorn recovery status for {{ inventory_hostname }}:
-          - Pods: {{ longhorn_recovery_single.stdout | default('No Longhorn pods found before drain') }}
-          - Volumes: {{ longhorn_volume_recovery_single.stdout | default('Checking volumes...') }}
-          - Critical Pods: {{ critical_pods_recovery_single.stdout | default('Checking critical pods...') }}
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-        - longhorn_recovery_single.stdout is defined
-
-    - name: Uncordon worker node (Single Master mode)
-      ansible.builtin.command:
-        cmd: kubectl uncordon {{ inventory_hostname }}
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-      delegate_to: "{{ groups['master'][0] }}"
-
-    - name: Wait for pods to stabilize after worker upgrade (Single Master mode)
-      ansible.builtin.pause:
-        seconds: "{{ upgrade_wait_for_pods }}"
-      when: 
-        - "'worker' in group_names"
-        - upgrade_needed | default(true)
-        - (master_count | int) < 3
-
-  when: 
-    - "'worker' in group_names"
-    - upgrade_needed | default(true)
-    - (master_count | int) < 3
-

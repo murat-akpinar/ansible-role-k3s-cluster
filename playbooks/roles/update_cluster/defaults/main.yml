@@ -1,5 +1,5 @@
 # K3s Upgrade Configuration
-# Note: Target version is determined from k3s_setup/vars/main.yml:
+# Note: Target version is determined from k3s_setup/defaults/main.yml:
 #   - If k3s_upgrade_version is set, it will be used for upgrade
 #   - If k3s_upgrade_version is empty, k3s_version will be used
 # Upgrade will only happen if current version < target version

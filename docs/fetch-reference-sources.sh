@@ -2,7 +2,7 @@
 # Referans materyalini repo kokundeki .tmp/ altina indirir.
 # Kullanim:  sh docs/fetch-reference-sources.sh
 # .tmp/ git'te ASLA izlenmez (.gitignore); indeks: docs/reference-sources.md
-# Surum pinleri playbooks/roles/k3s_setup/vars/main.yml ile ayni tutulmali.
+# Surum pinleri playbooks/roles/k3s_setup/defaults/main.yml ile ayni tutulmali.
 set -u
 cd "$(dirname "$0")/.." && mkdir -p .tmp && cd .tmp || exit 1
 fail=0
@@ -53,6 +53,7 @@ get kubernetes/kubectl-drain.md                $KW/docs/reference/kubectl/genera
 get kubernetes/kubectl-apply.md                $KW/docs/reference/kubectl/generated/kubectl_apply/_index.md
 get kubernetes/server-side-apply.md            $KW/docs/reference/using-api/server-side-apply.md
 get kubernetes/jsonpath.md                     $KW/docs/reference/kubectl/jsonpath.md
+get kubernetes/admission-controllers.md        $KW/docs/reference/access-authn-authz/admission-controllers.md
 
 # ---------------- Helm (helm/helm-www main) ----------------
 H=$GH/helm/helm-www/main/docs

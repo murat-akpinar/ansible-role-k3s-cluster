@@ -1,22 +1,63 @@
 ---
-- hosts: all
+# Upgrade sirasi Kubernetes skew politikasina baglidir: kubelet apiserver'dan
+# YENI OLAMAZ. Bu yuzden master'lar ayri bir play'de ve worker'lardan once
+# yukselir. Eskiden tek `hosts: all` play'i vardi ve sira envanterdeki grup
+# dizilisine kaliyordu: `worker` grubu `master`'dan once yazilirsa worker'lar
+# master'lardan once yukseliyordu.
+
+# k3s'in otomatik snapshot'i 12 saatte bir calisir (5 adet saklanir); upgrade'in
+# hemen oncesinde bir snapshot oldugu garanti degil.
+- name: Pre-upgrade etcd snapshot
+  hosts: master
   become: true
-  serial: 1  # Rolling update: upgrade nodes one by one
-  vars_files:
-    - playbooks/roles/k3s_setup/vars/main.yml
+  gather_facts: false
+  tasks:
+    - name: "Save an on-demand etcd snapshot before the upgrade"
+      # --name yalnizca ONEK'tir; k3s dosya adina node adi + zaman damgasi ekler.
+      ansible.builtin.command: k3s etcd-snapshot save --name pre-upgrade
+      register: pre_upgrade_snapshot
+      changed_when: pre_upgrade_snapshot.rc == 0
+      run_once: true
+      delegate_to: "{{ groups['master'][0] }}"
+
+    # On-demand snapshot'larin retention'i YOKTUR (cli-etcd-snapshot.md): her
+    # upgrade bir dosya daha birakir. Bu bir temizlik adimi: yukaridaki snapshot
+    # alinabildiyse upgrade devam etmeli, prune'un hatasi (or. k3s surumunde
+    # flag adi farkliysa) upgrade'i bloklamasin. changed raporlanmiyor: cikti ve
+    # exit code silme olup olmadigini soylemiyor.
+    - name: "Keep only the last 5 pre-upgrade snapshots"
+      ansible.builtin.command: k3s etcd-snapshot prune --name pre-upgrade --snapshot-retention 5
+      changed_when: false
+      failed_when: false
+      run_once: true
+      delegate_to: "{{ groups['master'][0] }}"
+
+- name: Upgrade master nodes
+  hosts: master
+  become: true
+  serial: 1  # Rolling update: master'lar tek tek
+  roles:
+    - update_cluster
+
+- name: Upgrade worker nodes
+  hosts: worker
+  become: true
+  serial: 1  # Rolling update: worker'lar tek tek, master'lar bittikten SONRA
   roles:
     - update_cluster
 
 # Ayri play: `serial` yok, yani tum node'lar upgrade edildikten SONRA calisir.
-- hosts: master
+- name: Post-upgrade cleanup and verification
+  hosts: master
   become: true
-  vars_files:
-    - playbooks/roles/k3s_setup/vars/main.yml
   tasks:
-    - name: "Resolve ansible_user home directory"
+    # public: true -> k3s_setup ayarlari (defaults/main.yml) bu play'in
+    # gorevlerinde de gorunur; rol defaults onceligiyle, group_vars ezebilir.
+    - name: "Resolve user home and cluster facts (and load k3s_setup config)"
       ansible.builtin.include_role:
         name: k3s_setup
-        tasks_from: _resolve_user
+        tasks_from: _facts
+        public: true
 
     - name: "Cleanup Stuck Nodes (Uncordon SchedulingDisabled nodes)"
       ansible.builtin.import_role:
@@ -32,4 +73,3 @@
       ansible.builtin.import_role:
         name: update_cluster
         tasks_from: 04_verify_cluster.yml
-

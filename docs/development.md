@@ -23,7 +23,7 @@
   olduğunu listeler. `.tmp/` git'te asla izlenmez; script ve indeks `docs/` altında.
 - `ansible/modules/*.txt` yerel `ansible-doc` çıktısıdır (core 2.21.3); modül parametresi
   sorusunda web yerine buraya bak.
-- Chart sürümü pinlenince: `vars/main.yml` + `docs/fetch-reference-sources.sh` tag'i + `docs/reference-sources.md` tablosu birlikte değişir.
+- Chart sürümü pinlenince: `defaults/main.yml` + `docs/fetch-reference-sources.sh` tag'i + `docs/reference-sources.md` tablosu birlikte değişir.
 
 ## Yerel kontroller (CI yok — todo B7)
 
@@ -42,7 +42,7 @@ ile karşılaştır ya da master[0]'da `helm template ... -f values | less`.
 
 ## Yeni bileşen ekleme kalıbı
 
-1. `vars/main.yml`: `<x>_install: false`, `helm_repo_<x>`, `<x>_chart_version` (yorumla pin tarihi).
+1. `defaults/main.yml`: `<x>_install: false`, `helm_repo_<x>`, `<x>_chart_version` (yorumla pin tarihi).
 2. `tasks/NN_<x>_install.yml`: helm kalıbı (06_metallb örneği), `when: inventory_hostname == groups['master'][0]`,
    `become_user: "{{ ansible_user }}"` + `KUBECONFIG: "{{ user_home_directory }}/.kube/config"`,
    `kubectl wait` ile bekleme, HTTPRoute apply (`cert_manager_install` şartıyla).

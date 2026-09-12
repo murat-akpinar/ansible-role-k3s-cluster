@@ -1,0 +1,179 @@
+# ============================================================================
+# k3s_setup rolunun AYARLARI — kullanicinin degistirecegi her sey burada.
+# ============================================================================
+# Rol defaults'u oncelik sirasinda EN ALTTADIR: buradaki her deger envanterden,
+# inventory/group_vars/all/main.yml'den, host_vars'tan ya da -e ile ezilebilir.
+# Repoyu klonlayip kullaniyorsaniz bu dosyayi dogrudan duzenleyebilirsiniz;
+# rolu paylasiyor/guncelliyorsaniz ayarlarinizi group_vars'a yazin.
+# Ezilemeyen (turetilmis/sabit) degerler vars/main.yml'de.
+#
+# ansible_user / ansible_ssh_private_key_file inventory/cluster_inventory.yml'de.
+# VRRP paylasilan parolasi. Deger inventory/group_vars/all/vault.yml icindeki
+# vault_keepalived_auth_pass'ten gelir (bkz. README "Ansible Vault ile Secret
+# Yonetimi"); tanimli degilse asagidaki varsayilana duser. DEGISTIRIN.
+# keepalived.conf(5): yalnizca ILK 8 KARAKTER kullanilir, daha uzunu bosuna.
+# VRRPv2 PASS auth ayrica duz metin ve replay'e acik; VRRP'yi gercekten koruyan
+# sey 00_prerequisites.yml'nin kaynak kisiti (yalnizca node IP'lerinden kabul).
+keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
+keepalived_vip: 192.168.1.244
+# Gateway/HTTPRoute/wildcard sertifika ve ozet ekranindaki URL'ler bu tek
+# degiskenden uretilir. Degistirince hepsi birlikte degisir.
+cluster_domain: homelab.local
+# Keepalived VRRP interface'i. Bos birakilirsa otomatik algilanir (ansible_default_ipv4.interface).
+# Farkli dagitimlarda eth0, ens3, ens18 vb. olabilir; otomatik algilama yanlis arabirimi
+# secerse asagiya sabit deger yazarak override edebilirsiniz (or: "eth0").
+keepalived_interface: ""
+# VRRP router ID. Ayni L2 agda birden fazla cluster varsa her birine farkli bir
+# deger verin (1-255), aksi halde VRRP instance'lari catisir.
+keepalived_router_id: 51
+# ============================================================================
+# VARSAYILAN KURULUM: SAF K3S — hepsi kapali.
+# ============================================================================
+# Bu haliyle rol cluster'a k3s disinda hicbir sey kurmaz. Kurulan tek sey k3s'in
+# kendisi ve onunla gomulu gelenlerdir: Traefik, ServiceLB (klipper), CoreDNS,
+# local-path-provisioner, metrics-server.
+#
+# Bagimlilik sirasi (bir bileseni acarken ustundekiler de acik olmali):
+#   helm_install -> gateway_api_install -> cert_manager_install -> digerleri
+# helm_install: helm binary'si + my-charts sablonlari (HTTPRoute/Gateway/values
+# dosyalari) buradan uretilir; asagidaki hicbir bilesen o olmadan kurulamaz.
+helm_install: false
+# Gomulu Traefik'in Gateway saglayicisi (L7, Ingress yok) + CRD'lerin pinlenmesi.
+# Gateway API CRD'lerini k3s'in traefik-crd chart'i zaten kuruyor, ama saglayici
+# kapali geldigi icin GatewayClass olusmuyor; kapaliyken Traefik duz Ingress
+# controller olarak calisir. Bu adim CRD'leri gateway_api_version'a sabitler ve
+# HelmChartConfig ile saglayiciyi acar. Gateway/HTTPRoute'lar bu olmadan calismaz.
+gateway_api_install: false
+# LoadBalancer IP'lerini MetalLB dagitir. Kapaliyken bu isi k3s'in gomulu
+# ServiceLB'si (klipper) yapar, servisler node IP'lerinden yayinlanir.
+# true yaparsaniz k3s_disable_servicelb'i de true yapin (ikisi ayni Service'e
+# IP atamaya calisir) ve metallb_ip_addresses havuzunu aginiza gore duzenleyin.
+metallb_install: false
+# Paylasilan homelab Gateway'i ve *.{{ cluster_domain }} wildcard sertifikasini
+# cert-manager adimi kurar (Gateway'in tek listener'i bu sertifikaya bagli).
+# false ise Gateway ve HTTPRoute'lar hic kurulmaz -> hicbir servis hostname'den
+# erisilemez; servislere NodePort/port-forward ile ulasilir. Grafana, Rancher,
+# ArgoCD veya Longhorn UI'sini hostname ile acacaksaniz bunu true yapin.
+cert_manager_install: false
+longhorn_install: false
+grafana_install: false
+rancher_install: false
+argocd_install: false
+
+# External URLs and Download Links
+k3s_install_url: https://get.k3s.io
+# K3s Version (bos birakilirsa: cluster zaten kuruluysa CALISAN surume pinlenir
+# (_resolve_k3s_version.yml), tamamen bos bir cluster'da en son surum kurulur).
+# Elle pinlerken cluster'in surumunu ver, daha yenisini DEGIL: yeni node'un
+# kubelet'i apiserver'dan yeni olamaz. Ornek: "v1.29.5+k3s1"
+k3s_version: ""  # İlk kurulum için kullanılacak versiyon
+# K3s Upgrade Version (opsiyonel - boş bırakılırsa k3s_version kullanılır)
+k3s_upgrade_version: ""  # Upgrade için kullanılacak versiyon (örnek: "v1.32.9+k3s1")
+# true ise k3s gömülü ServiceLB (klipper) kapatılır. Varsayilan false: MetalLB
+# de kapali oldugu icin LoadBalancer IP'lerini klipper verir; ikisi birden
+# kapaliysa hicbir LB controller kalmaz ve traefik servisi <pending> takilir.
+# metallb_install: true yaparsaniz bunu da true yapin, aksi halde iki LB
+# controller ayni Service'e IP atamaya calisir.
+k3s_disable_servicelb: false
+# ============================================================================
+# Master node-taint (opsiyonel — VARSAYILAN KAPALI)
+# ============================================================================
+# k3s_master_taint: true/false ile ac/kapat. true ise k3s server kurulurken
+# --node-taint {{ k3s_master_taint_value }} olarak uygulanir; etcd master'larini
+# agir is yuklerinden korur. Taint string'ini degistirmek istersen sadece
+# k3s_master_taint_value'i duzenle.
+# DIKKAT:
+#  - Yalnizca worker node varken acin (true); worker yoksa tolere etmeyen pod'lar Pending kalir.
+#  - Yalnizca YENI kurulan/kaydolan node'larda etkilidir; mevcut node'lari elle taint'leyin:
+#      kubectl taint nodes <master> node-role.kubernetes.io/master=system:NoSchedule
+#  - Master'da kalmasi gerekenler taint'i tolere eder: metallb speaker (DaemonSet),
+#    longhorn ve monitoring node-exporter. rancher/argocd/cert-manager BILEREK
+#    tolere etmez, worker'lara yerlesirler.
+k3s_master_taint: true
+k3s_master_taint_value: "node-role.kubernetes.io/master=system:NoSchedule"
+
+# ============================================================================
+# Guvenlik / sikilastirma (hardening)
+# ============================================================================
+# true: k3s CIS sikilastirmalari acilir — secrets-encryption, audit log, Pod
+# Security Admission (baseline), protect-kernel-defaults ve kubelet flag'leri.
+# Hepsi templates/k3s-config.yaml.j2 -> /etc/rancher/k3s/config.yaml uzerinden;
+# protect-kernel-defaults'un istedigi sysctl'leri de ayni task yazar
+# (03_k3s_config.yml -> /etc/sysctl.d/99-k3s-hardening.conf).
+# false: yalnizca temel server anahtarlari yazilir (tls-san, kubeconfig modu,
+# disable, node-taint), hicbir CIS flag'i verilmez.
+# MEVCUT cluster'a acarken: ayar dosyasi degisince k3s'i yeniden baslatmak
+# gerekir (03_k3s_config.yml bunu ekranda hatirlatir); HA'da tek tek.
+k3s_hardening: true
+# Worker'larin cluster'a katilirken kullandigi token. Bos birakilirsa k3s agent
+# token'ini SERVER token'ina esitler: o zaman her worker, yeni bir server
+# ekleyebilecek (yani cluster-admin degerinde) bir secret tasir. Doldurmak icin
+# inventory/group_vars/all/vault.yml icine vault_k3s_agent_token yazin.
+# Not: mevcut cluster'da bu degeri sonradan vermek server'larin yeniden
+# baslatilmasini ve worker'larin yeni token ile guncellenmesini gerektirir.
+k3s_agent_token: "{{ vault_k3s_agent_token | default('') }}"
+
+# Helm Repository URLs
+helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+helm_repo_metallb: https://metallb.github.io/metallb
+helm_repo_cert_manager: https://charts.jetstack.io
+helm_repo_longhorn: https://charts.longhorn.io
+helm_repo_prometheus: https://prometheus-community.github.io/helm-charts
+helm_repo_grafana: https://grafana.github.io/helm-charts
+helm_repo_argo: https://argoproj.github.io/argo-helm
+
+# Internal Service URLs
+prometheus_data_url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+
+# ============================================================================
+# Chart Surumleri  (2026-08-16 itibariyla son kararli; "" = her zaman en son)
+# helm repo update && helm search repo jetstack/cert-manager --versions | head -3
+# ============================================================================
+metallb_chart_version: "0.16.1"
+cert_manager_chart_version: "v1.21.1"
+longhorn_chart_version: "1.12.1"
+kube_prometheus_stack_chart_version: "88.3.0"   # -> Prometheus Operator v0.93.0
+argocd_chart_version: "10.3.3"                  # -> ArgoCD v3.5.1
+
+# Rancher chart ile degil duz Deployment ile kuruluyor.
+# UYARI: Rancher minor atlamaya izin vermez (2.8 -> 2.15 DB migrasyonunu bozar).
+# Bu deger sifirdan kurulum icindir; mevcut Rancher'i minor minor yukseltin.
+rancher_version: "v2.15.0"
+
+# ============================================================================
+# Monitoring (Prometheus/Alertmanager/Grafana) PVC StorageClass
+# ============================================================================
+# Monitoring tek basina Longhorn'a bagimli olmasin diye storageClass degisken.
+# Varsayilan: Longhorn kuruluysa replikali "longhorn-retain-2", degilse k3s
+# gomulu "local-path" (replikasyonsuz, node-yerel). Istersen elle sabitleyebilirsin
+# (or: "longhorn-retain-1" tek master icin, ya da baska bir StorageClass).
+monitoring_storage_class: "{{ 'longhorn-retain-2' if (longhorn_install | default(false)) else 'local-path' }}"
+
+# ============================================================================
+# MetalLB IP Adres Havuzu (LoadBalancer servisleri icin)
+# ============================================================================
+# Birden fazla aralik/CIDR ekleyebilirsiniz (or: "192.168.1.240-192.168.1.250"
+# veya "192.168.1.0/24"). metallb-config.yml bu degerlerden uretilir.
+metallb_ip_pool_name: "first-pool"
+metallb_ip_addresses:
+  - "192.168.1.242-192.168.1.242"
+
+# ============================================================================
+# Longhorn StorageClass'lari
+# ============================================================================
+# Her giris bir StorageClass uretir. reclaim: Retain|Delete, replicas: replica sayisi.
+# Liste tamamen ozellestirilebilir; replica sayilarini buradan yonetin.
+longhorn_storage_classes:
+  - { name: "longhorn-retain-1", reclaim: "Retain", replicas: 1 }
+  - { name: "longhorn-retain-2", reclaim: "Retain", replicas: 2 }
+  - { name: "longhorn-retain-3", reclaim: "Retain", replicas: 3 }
+  - { name: "longhorn-delete-1", reclaim: "Delete", replicas: 1 }
+  - { name: "longhorn-delete-2", reclaim: "Delete", replicas: 2 }
+  - { name: "longhorn-delete-3", reclaim: "Delete", replicas: 3 }
+
+# Gateway API CRD surumu. Traefik'in derlendigi surumle eslesmeli
+# (Traefik 3.7.x -> v1.5.1); kontrol: traefik go.mod | grep gateway-api
+gateway_api_version: "v1.5.1"
+
+# NTP Configuration
+ntp_server: time.google.com

@@ -1,0 +1,62 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+# ---------------------------------------------------------------------------
+# k3s ayar dosyasi — server ve agent flag'lerinin TEK kaynagi.
+# Neden CLI degil de bu dosya:
+#   - install script (get.k3s.io) systemd unit'ini 0755 yazar; `--agent-token`
+#     gibi bir secret oraya konulursa dunya-okunur olur. Bu dosya 0600.
+#   - install script bu dosyaya dokunmaz: upgrade sirasinda flag'ler kaybolmaz.
+# DIKKAT: buradaki bir anahtari ayrica CLI'da verme. CLI kazanir ve
+# `kube-apiserver-arg` gibi liste flag'lerinde buradaki listenin TAMAMINI ezer.
+# ---------------------------------------------------------------------------
+---
+{% if 'master' in group_names %}
+# --- server ---------------------------------------------------------------
+tls-san:
+  - "{{ keepalived_vip }}"
+# 0600: /etc/rancher/k3s/k3s.yaml cluster-admin kimlik bilgisidir; 0644 iken
+# makinedeki HER kullanici cluster-admin olur. ansible_user kendi 0600 kopyasini
+# ~/.kube/config'de alir (03_k3s_post_install.yml).
+write-kubeconfig-mode: "{{ '0600' if (k3s_hardening | default(true) | bool) else '0644' }}"
+{% if k3s_disable_servicelb | default(false) | bool %}
+disable:
+  - servicelb
+{% endif %}
+{% if k3s_master_taint | default(false) | bool %}
+node-taint:
+  - "{{ k3s_master_taint_value }}"
+{% endif %}
+{% if k3s_hardening | default(true) | bool %}
+{% if (k3s_agent_token | default('')) != '' %}
+# Worker'lar bu token ile katilir; bu token ile server EKLENEMEZ. Bos birakilirsa
+# k3s agent token'ini server token'ina esitler ve worker'lar cluster-admin
+# degerinde bir token tasir.
+agent-token: "{{ k3s_agent_token }}"
+{% endif %}
+# Secret'lar etcd'de AES ile sifreli tutulur (etcd snapshot'i / diski sizarsa).
+secrets-encryption: true
+kube-apiserver-arg:
+  # Pod Security Admission politikasi (dosya: 03_k3s_config.yml)
+  - "admission-control-config-file=/var/lib/rancher/k3s/server/psa.yaml"
+  # Audit log (CIS 1.2.22-25). Disk tavani: 10 x 100 MB = ~1 GB / server.
+  - "audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log"
+  - "audit-policy-file=/var/lib/rancher/k3s/server/audit.yaml"
+  - "audit-log-maxage=30"
+  - "audit-log-maxbackup=10"
+  - "audit-log-maxsize=100"
+  # Suresi uzatilmis legacy SA token'larini kabul etme (CIS)
+  - "service-account-extend-token-expiration=false"
+kube-controller-manager-arg:
+  - "terminated-pod-gc-threshold=100"
+{% endif %}
+{% endif %}
+{% if k3s_hardening | default(true) | bool %}
+# --- agent (master'larda da kubelet var, her node'a yazilir) ----------------
+# protect-kernel-defaults: kernel parametreleri kubelet'in bekledigi degerlerde
+# degilse kubelet HIC BASLAMAZ. Gerekli sysctl'ler 00_system_requirements.yml'de.
+protect-kernel-defaults: true
+kubelet-arg:
+  - "streaming-connection-idle-timeout=5m"
+  - "pod-max-pids=4096"
+  - "tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+{% endif %}

@@ -29,8 +29,16 @@ Sık kullanılan upstream dosyalar:
 ```
 k3s_setup.yml  add_node.yml  upgrade.yml  verify.yml     giriş playbook'ları
 inventory/cluster_inventory.yml                          bağlantı değişkenleri (all.vars) + hostlar
-playbooks/roles/k3s_setup/vars/main.yml                  TÜM ayarlar (rol vars = yüksek öncelik)
+inventory/group_vars/all/main.yml                        kullanıcı override'ı (örnek, tamamı yorumlu)
+playbooks/roles/k3s_setup/defaults/main.yml              TÜM ayarlar (rol defaults = en düşük öncelik)
+playbooks/roles/k3s_setup/vars/main.yml                  yalnızca k3s_server_args (bilerek ezilemez)
+playbooks/roles/k3s_setup/tasks/_load_config.yml         boş görev listesi; ayarları rol dışına taşır
 playbooks/roles/k3s_setup/tasks/main.yml                 sıralı import_tasks; NN_<adım>.yml
+playbooks/roles/k3s_setup/templates/k3s-config.yaml.j2   k3s server/agent flag'leri + hardening
+playbooks/roles/k3s_setup/tasks/_facts.yml              user_home_directory + master_count + k3s_api_endpoint
+playbooks/roles/k3s_setup/tasks/_resolve_k3s_version.yml k3s_version bossa cluster surumune pinler (+ k3s_version_env)
+playbooks/roles/k3s_setup/tasks/03_k3s_config.yml        k3s'ten ONCE: config.yaml + audit/psa + sysctl
+playbooks/roles/k3s_setup/tasks/03_k3s_post_install.yml  API hazir olunca: kubeconfig kopyasi + CIS 1.1.20/5.1.5
 playbooks/roles/k3s_setup/{files,templates}/my-charts/   chart values ve HTTPRoute/Gateway manifestleri
 playbooks/roles/extra_node_cluster/                      node ekleme (k3s_setup'tan include_role kullanır)
 playbooks/roles/update_cluster/                          rolling upgrade
@@ -52,11 +60,25 @@ sh docs/fetch-reference-sources.sh                   # referans materyalini indi
 
 - Commit mesajı `tip(kapsam): mesaj`, Türkçe, **aksansız**; task adları İngilizce, task
   yorumları aksansız Türkçe. docs/ ve README aksanlı Türkçe.
-- Server flag'leri yalnızca `k3s_server_args`'ta; ilk master her yerde `groups['master'][0]`
-  (asla `master-1` sabiti); HA/single kararı yalnızca `master_count >= 3`.
+- Server/agent flag'leri yalnızca `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`
+  (`03_k3s_config.yml`, üç rol de çağırır). `k3s_server_args` **boş kalır**: aynı anahtar CLI'da da
+  verilirse CLI kazanır ve `kube-apiserver-arg` gibi liste flag'lerinde config'teki listeyi tümüyle
+  ezer. İlk master her yerde `groups['master'][0]` (asla `master-1` sabiti).
+- HA/single kararı **tek yerde**: `_facts.yml` `master_count >= 3` ise
+  `k3s_api_endpoint = keepalived_vip`, değilse `first_master_ip`. Kurulum / node ekleme /
+  upgrade dosyalarında ayrı HA-single blokları yok; `master_count`'u hiçbir dosya
+  yeniden hesaplamaz.
+- `upgrade.yml` play sırası değişmez: etcd snapshot → **master'lar** (`serial: 1`) →
+  worker'lar (`serial: 1`) → cleanup/verify. kubelet apiserver'dan yeni olamaz; tek
+  `hosts: all` play'i sırayı envantere bırakır.
+- Ayarlar `k3s_setup/defaults/main.yml`'de (en düşük öncelik); `group_vars`/`host_vars`/`-e`
+  ezebilir. `vars/` yalnızca `k3s_server_args` için. Rol dışı playbook'lar `vars_files`
+  **kullanmaz** (group_vars'ı ezerdi): `verify.yml` → `import_role tasks_from: _load_config`,
+  `extra_node_cluster`/`update_cluster` → ilk görevdeki `include_role: _facts` +
+  `public: true` (ilk sırada kalmalı).
 - kubectl/helm task'ları: master[0], `become_user: "{{ ansible_user }}"`,
-  `KUBECONFIG: "{{ user_home_directory }}/.kube/config"`; `user_home_directory` `_resolve_user.yml`'den.
-- Chart sürümü değişirse `vars/main.yml` + `docs/fetch-reference-sources.sh` tag'i + `docs/reference-sources.md` birlikte güncellenir.
+  `KUBECONFIG: "{{ user_home_directory }}/.kube/config"`; `user_home_directory` `_facts.yml`'den.
+- Chart sürümü değişirse `defaults/main.yml` + `docs/fetch-reference-sources.sh` tag'i + `docs/reference-sources.md` birlikte güncellenir.
 - `.tmp/` ve `todo.md` git'te ASLA izlenmez (commit/push etme); indirme scripti ve indeks `docs/` altında.
 - Bir bulgu kapanınca `todo.md`'de `[x]` ve commit gövdesinde madde numarası.
 - `helm`/`ansible-lint`/`yamllint` yerelde yok; `kubectl`, `ansible-doc`, `git-cliff` var. ansible-core 2.21.3.

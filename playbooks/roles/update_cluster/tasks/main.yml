@@ -1,14 +1,26 @@
 ---
 # Main tasks for K3s cluster upgrade
 
-# user_home_directory tek kaynaktan (k3s_setup/tasks/_resolve_user.yml) gelir.
-- name: "Resolve ansible_user home directory"
+# user_home_directory / master_count / k3s_api_endpoint tek kaynaktan
+# (k3s_setup/tasks/_facts.yml) gelir.
+# public: true -> k3s_setup defaults/vars (k3s_version, k3s_upgrade_version,
+# k3s_install_url, keepalived_vip, k3s_server_args) bu rolun gorevlerinde de
+# gorunur; ILK SIRADA kalmali. Eskiden upgrade.yml'deki vars_files yapiyordu.
+- name: "Resolve user home and cluster facts (and load k3s_setup config)"
   ansible.builtin.include_role:
     name: k3s_setup
-    tasks_from: _resolve_user
+    tasks_from: _facts
+    public: true
 
 - name: "Check Current K3s Versions"
   ansible.builtin.import_tasks: 01_check_versions.yml
+
+# Upgrade sirasinda install script systemd unit'ini yeniden yazar; ayarlar
+# config.yaml'dan geldigi icin kaybolmaz, yine de dosyayi guncel tutuyoruz.
+- name: "Write k3s config file and hardening policies"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: 03_k3s_config
 
 - name: "Upgrade Master Nodes (Rolling Update)"
   ansible.builtin.import_tasks: 02_upgrade_masters.yml
@@ -17,6 +29,13 @@
 - name: "Upgrade Worker Nodes (Rolling Update)"
   ansible.builtin.import_tasks: 03_upgrade_workers.yml
   when: "'worker' in group_names"
+
+# Sertifika yenilenmesi PKI dosya izinlerini geri alabilir; kubeconfig modu da
+# upgrade'den sonra yeniden uygulanir.
+- name: "Distribute kubeconfig and apply post-install hardening"
+  ansible.builtin.include_role:
+    name: k3s_setup
+    tasks_from: 03_k3s_post_install
 
 # Cleanup / rebalance / verify calisir calismaz degil, TUM node'lar upgrade
 # edildikten sonra calismali. `serial: 1` yuzunden bu play her seferinde tek

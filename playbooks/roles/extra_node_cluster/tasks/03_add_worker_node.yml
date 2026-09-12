@@ -1,8 +1,11 @@
 ---
 # Add Worker Node to existing K3s cluster
 
-- name: Get K3s token from first master (for workers to join)
-  shell: cat /var/lib/rancher/k3s/server/node-token
+# Worker'lar SERVER token'i ile degil agent token'i ile katilir (bkz.
+# k3s_setup/tasks/03_install_k3s.yml). Dosya her zaman vardir; k3s_agent_token
+# bos ise server token'ina link'tir.
+- name: Get K3s agent token from first master (for workers to join)
+  shell: cat /var/lib/rancher/k3s/server/agent-token
   register: k3s_token_raw
   become: true
   changed_when: false
@@ -25,48 +28,23 @@
     - "'worker' in group_names"
     - k3s_token is not defined or k3s_token | default('') == ''
 
-- name: Count existing master nodes
-  set_fact:
-    existing_master_count: "{{ groups['master'] | length | int }}"
-  run_once: true
-
-- name: Set K3s version environment variable
-  set_fact:
-    k3s_version_env: "{{ 'INSTALL_K3S_VERSION=' + k3s_version if (k3s_version | default('') != '') else '' }}"
-  when: "'worker' in group_names"
-  run_once: true
-
-- name: Install K3s agent on worker node (HA mode)
-  shell: |
-    export K3S_URL="https://{{ keepalived_vip }}:6443"
+# Katilma adresi tek yerden: `k3s_api_endpoint` (_facts.yml) 3+ master'da VIP,
+# altinda ilk master'in IP'si. Eskiden bu task iki kopyaydi.
+- name: Install K3s agent on worker node
+  ansible.builtin.shell: |
+    export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
     export K3S_TOKEN="{{ k3s_token | default('') }}"
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
     {% endif %}
     curl -sfL {{ k3s_install_url }} | sh -s - agent
-  when: 
+  when:
     - "'worker' in group_names"
     - not node_already_joined | default(false)
-    - (existing_master_count | int) >= 3
     - k3s_token is defined
     - k3s_token | default('') != ''
   become: true
-  register: join_worker_ha
-
-- name: Install K3s agent on worker node (Single master)
-  shell: |
-    {% if k3s_version_env | default('') != '' %}
-    export {{ k3s_version_env }}
-    {% endif %}
-    curl -sfL {{ k3s_install_url }} | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] | default(groups['master'][0]) }}:6443 K3S_TOKEN={{ k3s_token | default('') }} sh -
-  when: 
-    - "'worker' in group_names"
-    - not node_already_joined | default(false)
-    - (existing_master_count | int) < 3
-    - k3s_token is defined
-    - k3s_token | default('') != ''
-  become: true
-  register: join_worker_single
+  register: join_worker
 
 - name: Ensure K3s agent is enabled and running on worker node
   ansible.builtin.systemd:

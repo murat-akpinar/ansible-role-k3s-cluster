@@ -1,0 +1,43 @@
+---
+# ============================
+# k3s surumunu tek kaynaktan belirle (kurulum / node ekleme)
+# ============================
+# k3s_version bos ("latest") ise cluster'da CALISAN surumu oku ve tum node'lara
+# onu pinle. Aksi halde aylar sonra `add_node.yml` ile eklenen node cluster'dan
+# daha yeni bir kubelet alir; Kubernetes skew politikasi kubelet'in
+# apiserver'dan yeni olmasina izin vermez (node NotReady / register hatasi).
+# Kullanici k3s_version'i doldurduysa hicbir sey yapilmaz: pin kullanicinin.
+# Ilk kurulumda (cluster henuz yok) bu dosya no-op'tur; o run'da tum node'lar
+# dakikalar icinde ayni "latest" surumu kurar.
+
+- name: "Read the k3s version running on the first master"
+  ansible.builtin.command: k3s --version
+  register: _k3s_running_version
+  changed_when: false
+  failed_when: false
+  become: true
+  delegate_to: "{{ groups['master'][0] }}"
+  run_once: true
+  when: (k3s_version | default('')) == ''
+
+# "k3s version v1.32.8+k3s1 (hash)" -> v1.32.8+k3s1
+- name: "Pin k3s_version to the version already running in the cluster"
+  ansible.builtin.set_fact:
+    k3s_version: "{{ _k3s_running_version.stdout_lines[0].split()[2] }}"
+  when:
+    - (k3s_version | default('')) == ''
+    - (_k3s_running_version.rc | default(1)) == 0
+    - "'k3s version v' in (_k3s_running_version.stdout | default(''))"
+
+- name: "Report the resolved k3s version"
+  ansible.builtin.debug:
+    msg: >-
+      k3s version: {{ k3s_version if (k3s_version | default('')) else 'latest (cluster bos, pin yok)' }}
+  run_once: true
+
+# Kurulum satirlarinin kullandigi env oneki. Pin yukarida cozuldukten SONRA
+# uretilir; k3s_version bos kalirsa (bos cluster) bos string olur ve
+# install.sh en son surumu kurar.
+- name: Derive the INSTALL_K3S_VERSION environment prefix
+  ansible.builtin.set_fact:
+    k3s_version_env: "{{ ('INSTALL_K3S_VERSION=' ~ k3s_version) if (k3s_version | default('')) else '' }}"

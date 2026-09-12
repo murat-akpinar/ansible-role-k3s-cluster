@@ -1,12 +1,17 @@
 # Main tasks for k3s setup
 ---
 
-# tags: always — user_home_directory'yi kubectl/helm kullanan her adim istiyor.
-# Tag'siz olsaydi "--tags grafana" gibi kismi calistirmalarda atlanir ve
-# sonraki adimlar undefined variable ile duserdi.
-- name: "Resolve ansible_user home directory"
-  ansible.builtin.import_tasks: _resolve_user.yml
+# tags: always — user_home_directory'yi kubectl/helm kullanan her adim,
+# master_count / k3s_api_endpoint'i de kurulum adimlari istiyor. Tag'siz
+# olsaydi "--tags grafana" gibi kismi calistirmalarda atlanir ve sonraki
+# adimlar undefined variable ile duserdi.
+- name: "Resolve user home and cluster facts"
+  ansible.builtin.import_tasks: _facts.yml
   tags: always
+
+# k3s_version bossa cluster'da calisan surume pinlenir (surum kaymasi).
+- name: "Resolve the k3s version to install"
+  ansible.builtin.import_tasks: _resolve_k3s_version.yml
 
 - name: "System requirements Check"
   ansible.builtin.import_tasks: 00_system_requirements.yml
@@ -20,11 +25,18 @@
 - name: "Install and Configure keepalived"
   ansible.builtin.import_tasks: 02_install_keepalived.yml
 
+# k3s'ten ONCE: audit/PSA dosyalari ve config.yaml acilista okunur.
+- name: "Write k3s config file and hardening policies"
+  ansible.builtin.import_tasks: 03_k3s_config.yml
+
 - name: "Install k3s"
   ansible.builtin.import_tasks: 03_install_k3s.yml
 
 - name: "Wait for Kubernetes API server to be ready"
   ansible.builtin.import_tasks: 03_wait_api_ready.yml
+
+- name: "Distribute kubeconfig and apply post-install hardening"
+  ansible.builtin.import_tasks: 03_k3s_post_install.yml
 
 - name: "Wellcome Message"
   ansible.builtin.import_tasks: 00_wellcome.yml

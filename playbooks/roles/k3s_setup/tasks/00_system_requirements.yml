@@ -68,6 +68,9 @@
     - { name: net.bridge.bridge-nf-call-iptables, value: "1" }
     - { name: net.bridge.bridge-nf-call-ip6tables, value: "1" }
     - { name: net.ipv4.ip_forward, value: "1" }
+  # protect-kernel-defaults'un istedigi sysctl'ler burada DEGIL, 03_k3s_config.yml'de:
+  # upgrade.yml bu dosyayi hic calistirmiyor, ayar dosyasiyla on kosulu ayirmak
+  # eski bir cluster'i upgrade'de kubelet baslamaz hale getirirdi.
   failed_when: false
 
 # ============================

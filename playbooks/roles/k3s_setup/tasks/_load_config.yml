@@ -1,0 +1,7 @@
+---
+# BOS gorev listesi — bilerek. Tek isi, import_role/include_role ile
+# cagrildiginda k3s_setup'in defaults/ ve vars/ degiskenlerini cagiran play'in
+# kapsamina getirmek: rol disinda calisan playbook'lar (verify.yml) ayarlari
+# boyle okur, eskiden bunun icin vars_files kullaniliyordu.
+# Oncelik degismez: defaults en altta kalir, group_vars/host_vars/-e yine ezer.
+[]

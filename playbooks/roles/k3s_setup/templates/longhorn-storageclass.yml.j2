@@ -1,4 +1,4 @@
-# Bu dosya Ansible tarafindan vars/main.yml'deki longhorn_storage_classes listesinden uretilir.
+# Bu dosya Ansible tarafindan defaults/main.yml'deki longhorn_storage_classes listesinden uretilir.
 # Elle duzenlemeyin; StorageClass'lari / replica sayilarini degiskenden yonetin.
 {% for sc in longhorn_storage_classes %}
 apiVersion: storage.k8s.io/v1

@@ -5,17 +5,32 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 
 ## k3s (her zaman)
 
-- **Dosyalar:** `tasks/03_install_k3s.yml`, `03_wait_api_ready.yml`, `vars/main.yml` (`k3s_*`).
+- **Dosyalar:** `tasks/03_install_k3s.yml`, `03_wait_api_ready.yml`, `defaults/main.yml` (`k3s_*`).
 - Gömülü gelenler: Traefik (Ingress + Gateway sağlayıcısı kapalı), ServiceLB/klipper,
   CoreDNS, local-path-provisioner, metrics-server. Rol saf modda bunlara dokunmaz.
-- Server flag'leri **tek string**: `k3s_server_args`. Install script her çalıştırmada systemd
-  unit'ini yeniden yazdığı için eksik flag = kalıcı kayıp (cd7de00).
+- Server/agent flag'leri **tek dosya**: `templates/k3s-config.yaml.j2` →
+  `/etc/rancher/k3s/config.yaml` (0600), `tasks/03_k3s_config.yml` yazar ve üç rol de
+  çağırır. Install script systemd unit'ini her çalıştırmada yeniden yazar ama bu dosyaya
+  dokunmaz, o yüzden flag'ler upgrade'de kaybolmaz (eski yöntem `k3s_server_args` idi, cd7de00).
+- `k3s_hardening: true` (varsayılan) ile CIS sıkılaştırması: etcd'de `secrets-encryption`,
+  API audit log (`files/k3s-audit-policy.yaml` → `server/audit.yaml`, `server/logs/` 0700),
+  Pod Security Admission baseline (`files/k3s-psa.yaml` → `server/psa.yaml`, muaf namespace'ler
+  içinde), `protect-kernel-defaults` + kubelet flag'leri (gerekli sysctl'leri aynı task yazar:
+  `99-k3s-hardening.conf`; ayrı dosyada olsaydı `upgrade.yml` onu çalıştırmadığı için eski bir
+  cluster upgrade'de kubelet'i başlatamazdı). Çalışan bir cluster'da ayar dosyası
+  değişirse k3s **yeniden başlatılmalı**; task bunu ekranda hatırlatır, kendisi restart etmez.
 - İlk master `--cluster-init` (tek master'da da), ek master `server --server <URL>`,
-  worker `agent`. Token `/var/lib/rancher/k3s/server/node-token`.
+  worker `agent`. **Server** join'leri `/var/lib/rancher/k3s/server/node-token`,
+  **worker** join'leri `/var/lib/rancher/k3s/server/agent-token` kullanır; ikincisi
+  `k3s_agent_token` boşken birincisine symlink'tir (yani davranış aynı, ama vault'a
+  `vault_k3s_agent_token` koyunca worker'lar server ekleyemeyen bir token'a geçer).
 - Bekleme: node-token dosyası (`wait_for`), ek master'da `/etc/rancher/k3s/k3s.yaml`,
   sonra merkezi `kubectl get --raw=/readyz` (30×10 sn).
-- kubeconfig: `--write-kubeconfig-mode 644`; `~/.kube/config` symlink; `.bashrc` KUBECONFIG.
-- Tuzaklar: `k3s_version: ""` sürüm kayması (todo A4); taint `true` iken worker'sız
+- kubeconfig: config.yaml `write-kubeconfig-mode: "0600"` (sıkılaştırma kapalıysa `0644`);
+  `~/.kube/config` **kopya** (symlink değil, kaynak 0600), `03_k3s_post_install.yml`; `.bashrc` KUBECONFIG.
+- Sürüm: `k3s_version` boşsa `_resolve_k3s_version.yml` master[0]'daki çalışan sürümü okur
+  ve tüm node'lara pinler (kurulum ve node ekleme); boş cluster'da latest kurulur.
+- Tuzaklar: taint `true` iken worker'sız
   cluster'da tolere etmeyen pod'lar Pending; `--disable servicelb` yalnızca yeni unit'te etkili.
 
 ## Keepalived (master, yalnızca `master_count >= 3`)
@@ -27,8 +42,11 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - `vrrp_script chk_k3s`: `/usr/bin/pidof k3s`, weight -20, fall/rise 2 → k3s ölünce VIP devreder.
 - `enable_script_security` + `script_user keepalived_script` (rol kullanıcıyı oluşturur ve
   `/usr/bin/pidof`'un sahibini değiştirir — todo C5: gereksiz).
-- Tuzaklar: multicast VRRP'yi kesen ağlarda `unicast_peer` yok; firewalld'de VRRP açılmıyor
-  (todo A3); `nopreempt` yok, master-1 dönünce VIP geri zıplar.
+- VRRP firewalld'de node IP'leri `trusted` zone'da olduğu için açıktır (`00_prerequisites.yml`),
+  yani yalnızca cluster node'larından kabul edilir. `auth_pass`'ın ilk 8 karakteri kullanılır
+  (`keepalived.conf(5)`) ve VRRPv2 PASS auth düz metindir — asıl koruma bu kaynak kısıtıdır.
+- Tuzaklar: multicast VRRP'yi kesen ağlarda `unicast_peer` yok; `nopreempt` yok, master-1
+  dönünce VIP geri zıplar.
 
 ## Helm (`helm_install`)
 
@@ -126,6 +144,11 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - `00_system_requirements.yml`: CPU/RAM uyarı, swap kapalı (+fstab), `overlay`/`br_netfilter`
   (+`/etc/modules-load.d/k3s.conf`), sysctl bridge-nf-call-*/ip_forward (`/etc/sysctl.d/99-k3s.conf`),
   chrony (`chrony.j2`, handler ile restart).
-- `00_prerequisites.yml`: acl (become_user için), iSCSI/NFS, firewalld aktifse portlar + CIDR trusted.
+- `00_prerequisites.yml`: acl (become_user için), iSCSI/NFS, firewalld aktifse `6443/tcp`
+  herkese; node IP'leri (`ansible_host`) ve pod/service CIDR'ları `trusted` zone — node-arası
+  `8472/udp`, `10250/tcp`, `2379-2380/tcp` ve VRRP böylece yalnızca node'lardan gelir. Eski
+  "herkese açık `8472/udp` + `10250/tcp`" kuralı `state: disabled` ile kapatılır. firewalld
+  yoksa (Ubuntu/Debian) tek `[WARN]` satırı; rol firewalld kurmaz (LoadBalancer/NodePort
+  trafiğini kesmemek için).
 - `01_configure_hostname.yml`: hostname ≠ inventory_hostname ise değiştir + reboot.
 - `00_wellcome.yml`: MOTD (`wellcome.j2`: rol, topoloji, bileşen kutuları, sürümler).

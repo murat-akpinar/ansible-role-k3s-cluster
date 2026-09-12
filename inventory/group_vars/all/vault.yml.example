@@ -5,4 +5,12 @@
 # Sifrelenmis vault.yml .gitignore ile commit'ten haric tutulur.
 
 # Keepalived VRRP paylasilan parolasi (vars/main.yml'deki varsayilani ezer)
-vault_keepalived_auth_pass: "degistir-beni"
+# En fazla 8 karakter kullanilir (keepalived.conf(5): "Only the first eight (8)
+# characters are used"); daha uzunu bosuna.
+vault_keepalived_auth_pass: "degistir"
+
+# Worker'larin cluster'a katilirken kullandigi token (k3s --agent-token).
+# Bos/tanimsiz birakilirsa k3s agent token'ini SERVER token'ina esitler ve her
+# worker, cluster'a yeni bir server ekleyebilecek degerde bir secret tasir.
+# Uzun ve rastgele olsun:  openssl rand -hex 32
+vault_k3s_agent_token: "degistir-beni-rastgele-uzun-bir-deger"

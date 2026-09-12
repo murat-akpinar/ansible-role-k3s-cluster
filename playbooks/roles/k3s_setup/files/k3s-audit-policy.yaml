@@ -1,0 +1,10 @@
+---
+# API server audit politikasi (CIS 1.2.22-25). k3s bu dosyayi kendiliginden
+# olusturmaz; /var/lib/rancher/k3s/server/audit.yaml olarak yazilir ve
+# kube-apiserver-arg audit-policy-file ile verilir.
+# level: Metadata = kim/ne zaman/hangi kaynak kaydedilir, istek/yanit govdesi
+# kaydedilmez (govde Secret icerebilir ve log'u sisirir).
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+  - level: Metadata

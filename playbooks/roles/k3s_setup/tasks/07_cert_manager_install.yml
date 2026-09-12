@@ -61,12 +61,6 @@
   when: 
     - "'master' in group_names"
 
-- name: Count the number of master nodes
-  set_fact:
-    master_count: "{{ groups['master'] | length | int }}"
-  when: "'master' in group_names"
-  run_once: true
-
 - name: Set cert-manager values file for HA (3+ masters)
   set_fact:
     cert_manager_values_file: "{{ user_home_directory }}/my-charts/cert-manager/values-ha.yml"

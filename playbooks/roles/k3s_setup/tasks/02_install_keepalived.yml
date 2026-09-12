@@ -3,15 +3,6 @@
 # Install Keepalived
 # ============================
 
-- name: "Count the number of master nodes"
-  set_fact:
-    master_count: "{{ groups['master'] | length | int }}"
-  run_once: true
-
-- name: "Ensure master_count is defined on all nodes"
-  set_fact:
-    master_count: "{{ master_count | default(0) }}"
-
 - name: "Set Keepalived VRRP interface (override edilmemisse otomatik algila)"
   set_fact:
     keepalived_network: "{{ keepalived_interface if (keepalived_interface | default('') | length > 0) else ansible_default_ipv4.interface }}"

@@ -1,0 +1,34 @@
+---
+# Cluster ayarlari icin OVERRIDE dosyasi.
+#
+# Butun ayarlarin tam listesi ve aciklamalari rolun defaults'unda:
+#   playbooks/roles/k3s_setup/defaults/main.yml     (kurulum + bilesenler)
+#   playbooks/roles/update_cluster/defaults/main.yml (upgrade zaman asimlari)
+# Buraya yazdiginiz her anahtar oradaki varsayilani ezer; group_vars rol
+# defaults'unun USTUNDEDIR. Tersi degil: rolu guncelleyince (git pull) burasi
+# oldugu gibi kalir, o yuzden kendi degerlerinizi burada tutmak daha guvenli.
+# Ezmek istemediginiz satirlari yorumda birakin.
+#
+# Sirlar buraya DEGIL, vault.yml'e (bkz. vault.yml.example).
+
+# --- Sik degistirilenler ---------------------------------------------------
+# keepalived_vip: 192.168.1.244      # 3+ master'da API VIP'i (tek master'da kullanilmaz)
+# keepalived_interface: ""           # bos = ansible_default_ipv4.interface'ten otomatik
+# keepalived_router_id: 51           # ayni L2 agdaki her cluster icin farkli (1-255)
+# cluster_domain: homelab.local      # Gateway/HTTPRoute/wildcard sertifika hostname'leri
+# k3s_version: ""                    # bos = mevcut cluster surumune pinlenir, yoksa en son
+# k3s_hardening: true                # CIS sikilastirmalari (audit, PSA, secrets-encryption)
+# k3s_master_taint: true             # master'lari is yukune kapat (worker varken acin)
+
+# --- Opsiyonel bilesenler (varsayilan: hepsi kapali, saf k3s) --------------
+# helm_install: false                # digerlerinin on kosulu
+# gateway_api_install: false
+# metallb_install: false             # acarsaniz k3s_disable_servicelb: true yapin
+# cert_manager_install: false
+# longhorn_install: false
+# grafana_install: false
+# rancher_install: false
+# argocd_install: false
+# k3s_disable_servicelb: false
+# metallb_ip_addresses:
+#   - "192.168.1.242-192.168.1.242"

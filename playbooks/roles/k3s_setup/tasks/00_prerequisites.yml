@@ -34,16 +34,13 @@
   failed_when: false
   become: true
 
-- name: "Open k3s ports in firewalld"
+# Tum kaynaklara acik kalan TEK port: kubectl / worker join bunu kullaniyor.
+- name: "Open the kube-apiserver port in firewalld"
   ansible.posix.firewalld:
-    port: "{{ item }}"
+    port: 6443/tcp
     permanent: true
     immediate: true
     state: enabled
-  loop:
-    - 6443/tcp    # kube-apiserver
-    - 8472/udp    # flannel VXLAN (node <-> node pod trafigi)
-    - 10250/tcp   # kubelet (metrics-server, kubectl logs/exec)
   become: true
   when: firewalld_state.stdout == 'active'
 
@@ -59,3 +56,55 @@
     - 10.43.0.0/16
   become: true
   when: firewalld_state.stdout == 'active'
+
+# Node'lar birbirine zaten tam guveniyor (join token, kubelet). Tek kural
+# node-arasi ne varsa kaynaktan kisitliyor: 8472/udp (VXLAN), 10250/tcp
+# (kubelet), 2379-2380/tcp (etcd peer/client, HA) ve VRRP (IP protokol 112,
+# keepalived). Port port listelemek yerine kaynak kisiti: liste buyudukce
+# (wireguard 51820, spegel 5001) kural degismiyor.
+# Node IP'si = ansible_host (join URL'leri de bunu kullaniyor,
+# 03_add_worker_node.yml). flannel ya da keepalived baska bir arabirimden
+# konusuyorsa o arabirimin IP'si buraya girmeli: k3s icin node-ip,
+# keepalived icin keepalived_interface ile hizalayin.
+- name: "Trust cluster node IPs in firewalld"
+  ansible.posix.firewalld:
+    source: "{{ hostvars[item].ansible_host | default(item) }}"
+    zone: trusted
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ groups['all'] }}"
+  become: true
+  when: firewalld_state.stdout == 'active'
+
+# k3s port tablosu (.tmp/k3s/installation-requirements.md) node-arasi portlarin
+# kaynagini "All nodes" / "Servers" olarak veriyor, "any" degil: 8472/udp VXLAN
+# kimlik dogrulamasiz, herkese acikken ayni L2'deki her makine pod agina paket
+# enjekte edebilir (k3s dokumani da "should not be exposed to the world" diyor).
+# Bu iki port artik yukaridaki trusted zone kuralindan geliyor; onceki surumde
+# acilmis permanent kural kendiliginden gitmedigi icin aciktan kapatiyoruz.
+- name: "Close node-to-node ports previously opened to any source"
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: disabled
+  loop:
+    - 8472/udp    # flannel VXLAN
+    - 10250/tcp   # kubelet
+  become: true
+  when: firewalld_state.stdout == 'active'
+
+# Ubuntu/Debian'da firewalld kurulu gelmiyor. Buraya firewalld kurmak
+# (ya da ufw kurallari yazmak) hicbir filtresi olmayan bir host'ta once
+# MetalLB/Traefik LoadBalancer trafigini (80/443) ve NodePort'lari keser;
+# karari kullaniciya birakiyoruz.
+- name: "Warn that no host firewall is filtering the node-to-node ports"
+  ansible.builtin.debug:
+    msg: >-
+      [WARN] firewalld is not active on {{ inventory_hostname }} —
+      8472/udp (flannel VXLAN), 10250/tcp (kubelet) and 2379-2380/tcp (etcd)
+      are reachable from the whole LAN. Restrict them at your network firewall,
+      or allow only the other cluster node IPs with the host firewall you use
+      (ufw/nftables).
+  when: firewalld_state.stdout != 'active'

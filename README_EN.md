@@ -120,7 +120,7 @@ sed -i 's/^no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="ech
 #### Approximate Per-Component Resource Cost
 
 The values below are approximate **idle** consumption; real usage grows with workload.
-The default install is plain k3s: only the k3s rows and the bundled Traefik below apply. Every other component is **off** in `vars/main.yml`; each one you enable adds the cost below.
+The default install is plain k3s: only the k3s rows and the bundled Traefik below apply. Every other component is **off** in `defaults/main.yml`; each one you enable adds the cost below.
 
 | Component | CPU (idle) | RAM (idle) | Note |
 |-----------|-----------|------------|------|
@@ -167,7 +167,7 @@ Edit the `inventory/cluster_inventory.yml` file according to your environment:
 
 ```yaml
 all:
-  # Connection settings live HERE, not in vars/main.yml: these values apply
+  # Connection settings live HERE, not in defaults/main.yml: these values apply
   # before gather_facts — i.e. on the very first SSH connection — and keep the
   # role shareable.
   vars:
@@ -196,14 +196,16 @@ all:
 
 ### 2. Configure Variables
 
-Edit the `playbooks/roles/k3s_setup/vars/main.yml` file:
+Edit `playbooks/roles/k3s_setup/defaults/main.yml` (or put the same keys in
+`inventory/group_vars/all/main.yml`, which overrides the role defaults and
+survives a `git pull`):
 
 ```yaml
 # Keepalived VIP (all master nodes connect through this IP)
 keepalived_vip: 192.168.1.244
 
 # K3s Version
-k3s_version: "v1.32.8+k3s1"  # For initial installation
+k3s_version: "v1.32.8+k3s1"  # For initial installation (empty = pin to the running cluster version)
 k3s_upgrade_version: "v1.32.9+k3s1"  # For upgrade (optional)
 
 # Specify which services to install (defaults shipped in the repo)
@@ -280,14 +282,18 @@ Next, `00_prerequisites.yml` installs the shared packages on every node: `acl`
 (`iscsi-initiator-utils`/`nfs-utils` on RHEL) and the `iscsid` service — so the
 node is ready if Longhorn is enabled later.
 
-**firewalld (RHEL family only)**: if firewalld is running, the same file opens the following; the step is skipped on Ubuntu/Debian.
+**firewalld (RHEL family only)**: if firewalld is running, the same file applies the rules below. Ubuntu/Debian does not ship firewalld and the role does **not** install it (turning a firewall on where there was none would first cut MetalLB/Traefik LoadBalancer traffic and NodePorts); it prints a single `[WARN]` line instead.
 
 | What | Why |
 |---|---|
-| `6443/tcp` | kube-apiserver |
-| `8472/udp` | flannel VXLAN — **if blocked**, nodes look Ready but the apiserver cannot reach pods on other nodes |
-| `10250/tcp` | kubelet metrics/exec |
+| `6443/tcp` (open to any source) | kube-apiserver — `kubectl` and worker joins go through it |
+| Node IPs (`ansible_host`) → `trusted` zone | All node-to-node traffic, **from the nodes only**: `8472/udp` (flannel VXLAN), `10250/tcp` (kubelet), `2379-2380/tcp` (etcd, HA), VRRP (IP protocol 112, keepalived) |
 | `10.42.0.0/16`, `10.43.0.0/16` → `trusted` zone | pod and service networks |
+| The any-source `8472/udp` + `10250/tcp` rule | **removed** (`state: disabled`) — earlier versions opened them to every source, and a firewalld permanent rule does not disappear on its own |
+
+> ⚠️ VXLAN is unauthenticated: with `8472/udp` open to the world, **any machine on the same L2 network** can inject packets into the pod network (10.42.0.0/16) and sniff pod traffic. The k3s docs say the port "should not be exposed to the world" — hence the source restriction.
+
+> ⚠️ The node IP is the inventory's `ansible_host` (join URLs use it too). On a multi-NIC host, if flannel or keepalived speaks from a different interface, make that interface's IP the `ansible_host`; otherwise node-to-node traffic is cut.
 
 > ⚠️ If you change the networks with `--cluster-cidr` / `--service-cidr`, update the trusted CIDR list in `tasks/00_prerequisites.yml` as well.
 
@@ -312,7 +318,7 @@ Keepalived is used for VIP management in HA clusters:
 - **3+ Masters**: Keepalived is installed, configured, and started
 - **1-2 Masters**: Keepalived is installed but not configured (ready for future use)
 
-If `keepalived_interface` is left empty the VRRP interface is auto-detected from `ansible_default_ipv4.interface`; if the wrong interface is picked, set a fixed value in `vars/main.yml` (`eth0`, `ens18`, etc.).
+If `keepalived_interface` is left empty the VRRP interface is auto-detected from `ansible_default_ipv4.interface`; if the wrong interface is picked, set a fixed value in `defaults/main.yml` (`eth0`, `ens18`, etc.).
 
 ### Step 5: K3s Installation
 
@@ -359,7 +365,14 @@ The following services are installed based on configuration (✅ = on by default
 
 ### Main Configuration File
 
-All configuration variables are found in `playbooks/roles/k3s_setup/vars/main.yml`:
+All configuration variables are found in `playbooks/roles/k3s_setup/defaults/main.yml`.
+
+**Precedence:** role `defaults/` sits at the bottom; everything above overrides it:
+`-e key=value` > `inventory/host_vars/` > `inventory/group_vars/all/main.yml`
+> `defaults/main.yml`. Keep permanent changes in `group_vars/all/main.yml` (the
+example shipped with the repo is fully commented out). The one exception is
+`k3s_server_args`: it lives in `vars/main.yml` and is deliberately not overridable.
+
 
 ```yaml
 # NOTE: connection variables (`ansible_user`, `ansible_ssh_private_key_file`)
@@ -377,9 +390,13 @@ keepalived_interface: ""
 # Give a different VRRP router ID (1-255) if a second cluster shares the L2 network
 keepalived_router_id: 51
 # Password is read from Vault; falls back to the default if undefined (see Security section)
+# keepalived only uses the first 8 characters; what really protects VRRP is the firewalld
+# source restriction (node IPs in the trusted zone)
 keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
 
 # K3s Versions
+# If left empty, the role pins to the version already running in the cluster
+# (_resolve_k3s_version.yml); on a completely empty cluster the latest is installed.
 k3s_version: "v1.32.8+k3s1"
 k3s_upgrade_version: "v1.32.9+k3s1"  # Optional
 
@@ -413,7 +430,9 @@ Other variables living in the same file:
 
 | Variable | What it does |
 |---|---|
-| `k3s_server_args` | k3s server flags in **one place**: initial install, node addition and upgrade all use the same string. If omitted during an upgrade the install script rewrites the systemd unit and flags like `--disable servicelb` / `--tls-san` silently disappear |
+| `k3s_hardening` | Defaults to `true`. Enables the k3s CIS hardening options that ship disabled: secret encryption at rest in etcd, API audit log, Pod Security Admission (baseline), `protect-kernel-defaults` and kubelet flags. Details: [k3s Hardening](#k3s-hardening) |
+| `k3s_agent_token` | The token workers use to join the cluster. When left empty k3s makes it equal to the **server token**, so every worker carries a secret valuable enough to add a new server to the cluster. Provide it from Vault (`vault_k3s_agent_token`) |
+| `k3s_server_args` | **Leave it empty.** k3s server/agent flags no longer live on the command line but in the k3s configuration file: `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`. The install script rewrites the systemd unit on every run but never touches this file, so flags survive an upgrade. A flag set here wins over the file and wipes out the list settings (audit, PSA) it contains |
 | `k3s_disable_servicelb` | When `true`, disables the k3s bundled ServiceLB (klipper). Defaults to `false`: MetalLB is off too, so klipper hands out LoadBalancer IPs. **Do not turn both off** — no LB controller would be left and the `traefik` service stays `<pending>`. If you set `metallb_install: true`, set this to `true` as well |
 | `k3s_master_taint` / `k3s_master_taint_value` | Protects masters from heavy workloads (see [Master/Worker Pod Distribution](#masterworker-pod-distribution)) |
 | `monitoring_storage_class` | StorageClass for the monitoring PVCs (see [Longhorn StorageClass](#-longhorn-storageclass)) |
@@ -435,7 +454,7 @@ Installation **automatically selects** values files based on master count:
 
 ### SSH Private Key
 
-The SSH private key path is **not hardcoded in `vars/main.yml`** (personal/environment-specific paths should not be committed). Use one of three methods:
+The SSH private key path is **not hardcoded in `defaults/main.yml`** (personal/environment-specific paths should not be committed). Use one of three methods:
 
 ```bash
 # 1) Command line (recommended)
@@ -455,6 +474,32 @@ Host 192.168.1.*
   IdentityFile ~/.ssh/homelab
 ```
 
+### k3s Hardening
+
+With `k3s_hardening: true` (the default) the role enables the CIS hardening options that k3s
+ships disabled. Everything is written into the k3s configuration file itself
+(`templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`, mode `0600`); the file is
+created by `tasks/03_k3s_config.yml` just before k3s is installed, and the node-addition and
+upgrade roles call the same task.
+
+| Setting | What it does |
+|---|---|
+| `secrets-encryption` | Secrets are written to etcd encrypted with AES. Without it, anyone who gets the etcd snapshot or the disk reads every password in plaintext |
+| Audit log | `/var/lib/rancher/k3s/server/logs/audit.log` (`level: Metadata`, 10 × 100 MB rotation). Records who read which Secret and who changed which RBAC rule |
+| Pod Security Admission | Defaults to `baseline`: `privileged` pods, `hostPath`, `hostPID`/`hostNetwork` are rejected. The `restricted` level is reported as a warning only. Components that genuinely need privileges (Longhorn, MetalLB speaker, node-exporter, Rancher) are in the exempt namespace list |
+| `agent-token` | Workers join with a separate token that can only add agents, instead of the server token (when `vault_k3s_agent_token` is set) |
+| `protect-kernel-defaults` + kubelet flags | The kubelet refuses to start if kernel parameters differ from the expected values; plus `pod-max-pids`, a TLS cipher list and a streaming timeout. The required sysctls are written by the same task (`/etc/sysctl.d/99-k3s-hardening.conf`) |
+| kubeconfig `0600` | `/etc/rancher/k3s/k3s.yaml` is a cluster-admin credential; at `0644` every user on the machine is cluster-admin (see [kubeconfig Access](#kubeconfig-access)) |
+| PKI file permissions | `/var/lib/rancher/k3s/server/tls/*.crt` files are set to `0600` (CIS 1.1.20). k3s writes them `0644` |
+| ServiceAccount token automount | The `default` ServiceAccount in the `default`, `kube-public` and `kube-node-lease` namespaces no longer mounts a token automatically (CIS 5.1.5). A workload that needs API access must declare its own ServiceAccount. `kube-system` is deliberately left out |
+
+> **On an existing cluster**: a running k3s does not re-read the configuration file on its own.
+> The playbook reminds you on screen but **does not restart anything by itself** — restarting
+> every master at once in HA means an API outage. Restart masters one at a time, waiting with
+> `kubectl get nodes` in between. `upgrade.yml` reinstalls anyway, so nothing extra is needed there.
+>
+> **To turn it off**: `k3s_hardening: false`. Only the basic server settings are then written.
+
 ### Secret Management with Ansible Vault
 
 Sensitive values (e.g. `keepalived_auth_pass`) should not be committed in plaintext. This role can read values via Ansible Vault:
@@ -463,7 +508,7 @@ Sensitive values (e.g. `keepalived_auth_pass`) should not be committed in plaint
 # 1) Copy the example template
 cp inventory/group_vars/all/vault.yml.example inventory/group_vars/all/vault.yml
 
-# 2) Fill in the values (vault_keepalived_auth_pass, etc.) and encrypt
+# 2) Fill in the values (vault_keepalived_auth_pass, vault_k3s_agent_token) and encrypt
 ansible-vault encrypt inventory/group_vars/all/vault.yml
 
 # 3) Run the playbook with the vault password
@@ -472,7 +517,7 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --ask-vault-pa
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --vault-password-file ~/.vault_pass
 ```
 
-The definition in `vars/main.yml` prefers the Vault variable and falls back to the default if undefined:
+The definition in `defaults/main.yml` prefers the Vault variable and falls back to the default if undefined:
 
 ```yaml
 keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }}"
@@ -482,7 +527,7 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 
 ### kubeconfig Access
 
-K3s creates the kubeconfig file (`/etc/rancher/k3s/k3s.yaml`) with `--write-kubeconfig-mode 644`, so the `ansible_user` on the master node can run `kubectl` via the `~/.kube/config` symlink. The user's UID and home directory are resolved with `getent passwd {{ ansible_user }}` (there is no hardcoded UID 1000 assumption).
+With hardening on, k3s creates the kubeconfig file (`/etc/rancher/k3s/k3s.yaml`) as root with mode `0600`. At `0644` **every** user on the machine would be cluster-admin. The `ansible_user` on the master node gets its own copy at `~/.kube/config` with mode `0600`; a copy rather than a symlink, because a symlink could not read a `0600` source. The user's home directory is resolved with `getent passwd {{ ansible_user }}` (there is no hardcoded UID 1000 assumption). To give another non-root user access, copy the kubeconfig to them as well; `k3s_hardening: false` restores the old `0644` behaviour.
 
 ## 💻 Usage Examples
 
@@ -564,9 +609,17 @@ A rolling update strategy is used to update your cluster **without downtime**.
 
 ### Upgrade Process
 
+0. **Etcd Snapshot**: Right before the upgrade, `k3s etcd-snapshot save --name pre-upgrade`
+   runs on master[0] and is pruned down to the last 5 pre-upgrade snapshots (on-demand
+   snapshots have no automatic retention). If the snapshot fails, the upgrade does not
+   start. k3s' own scheduled snapshot runs every 12 hours, so one is not guaranteed to
+   exist right before an upgrade.
 1. **Version Check**: Current K3s versions of all nodes are checked
 2. **Downgrade Prevention**: Upgrade is skipped if current version is higher than target
 3. **Master Node Updates** (Sequentially):
+   - Masters and workers run in **separate plays**: no worker is upgraded before the
+     master play finishes. The Kubernetes skew policy does not allow a kubelet to be
+     newer than the apiserver (`.tmp/kubernetes/version-skew-policy.md`)
    - Master nodes are updated **one by one** (`serial: 1`)
    - For each master node:
      - Node is **drained** (pods are moved to other nodes)
@@ -582,7 +635,7 @@ A rolling update strategy is used to update your cluster **without downtime**.
 
 ### Running Upgrade
 
-**1. Set Version**: In `playbooks/roles/k3s_setup/vars/main.yml`:
+**1. Set Version**: In `playbooks/roles/k3s_setup/defaults/main.yml`:
 
 ```yaml
 # Initial installation version
@@ -601,7 +654,7 @@ ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
 
 ### Upgrade Configuration
 
-Configurable parameters in `playbooks/roles/update_cluster/vars/main.yml`:
+Configurable parameters in `playbooks/roles/update_cluster/defaults/main.yml`:
 
 ```yaml
 upgrade_drain_timeout: 600          # Drain timeout (seconds) - increased for PVC-heavy workloads
@@ -612,7 +665,7 @@ upgrade_force: false                 # Force upgrade even if versions match (not
 
 ### Important Notes
 
-⚠️ **Backup**: Backup important data before upgrade  
+⚠️ **Backup**: The playbook takes an etcd snapshot before upgrading (see `k3s etcd-snapshot ls`); back up your application data (PVs) separately  
 ⚠️ **Test**: Test in a test environment before applying to production  
 ⚠️ **Version Compatibility**: Check compatibility between K3s versions  
 ⚠️ **Etcd**: In HA installations, etcd compatibility is important, update master nodes first  
@@ -702,7 +755,7 @@ ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
 
 ### Important Notes
 
-⚠️ **Version Compatibility**: New nodes' version must be compatible with current cluster version. Version is taken from `k3s_version` variable in `playbooks/roles/k3s_setup/vars/main.yml`.
+⚠️ **Version Compatibility**: The version comes from the `k3s_version` variable in `playbooks/roles/k3s_setup/defaults/main.yml`. **You can leave it empty**: the role then reads the version running on the first master and pins the new node to it (`_resolve_k3s_version.yml`), so a new node never gets a kubelet newer than the cluster. If you set it by hand, use the cluster's version, not a newer one.
 
 ⚠️ **Hostname Change**: If the node's hostname doesn't match the inventory name, hostname is changed and system is rebooted.
 
@@ -848,7 +901,7 @@ kubectl get gateway -n kube-system homelab
 
 ### Component Versions
 
-All live in `playbooks/roles/k3s_setup/vars/main.yml`. `""` = pull the newest release each install.
+All live in `playbooks/roles/k3s_setup/defaults/main.yml`. `""` = pull the newest release each install.
 
 | Component | Variable | Version |
 |---|---|---|
@@ -887,7 +940,7 @@ The StorageClass for monitoring (Prometheus/Alertmanager/Grafana) PVCs comes fro
 
 - **If Longhorn is installed** (`longhorn_install: true`) → defaults to `longhorn-retain-2` (2 replicas for HA)
 - **If Longhorn is disabled** (`longhorn_install: false`) → automatically `local-path` (k3s built-in, no replication, node-local)
-- You can pin it manually in `vars/main.yml` (e.g. `longhorn-retain-1`, or any other StorageClass)
+- You can pin it manually in `defaults/main.yml` (e.g. `longhorn-retain-1`, or any other StorageClass)
 
 > So with `longhorn_install: false` + `grafana_install: true` you can install **monitoring without Longhorn**.
 
@@ -980,8 +1033,9 @@ systemctl is-active firewalld
 firewall-cmd --list-ports
 firewall-cmd --zone=trusted --list-sources
 
-# If missing, open them manually (the role does this automatically in Step 1)
-firewall-cmd --permanent --add-port=8472/udp
+# The trusted zone must list EVERY node IP plus the pod/service networks
+# If missing, add them manually (the role does this automatically in Step 1)
+firewall-cmd --permanent --zone=trusted --add-source=<other node IP>
 firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16
 firewall-cmd --reload
 ```
@@ -1023,7 +1077,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │   └── roles
 │       ├── extra_node_cluster
 │       │   ├── tasks
-│       │   │   ├── 00_system_requirements.yml
 │       │   │   ├── 01_check_existing_node.yml
 │       │   │   ├── 02_add_master_node.yml
 │       │   │   ├── 03_add_worker_node.yml
@@ -1049,6 +1102,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   └── metallb
 │       │   │   │       ├── values-ha.yml
 │       │   │   │       └── values-single-master.yml
+│       │   │   ├── k3s-audit-policy.yaml        # k3s hardening policies
+│       │   │   ├── k3s-psa.yaml
 │       │   │   └── traefik-gateway-config.yml
 │       │   ├── handlers
 │       │   │   ├── .gitkeep
@@ -1063,6 +1118,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── 01_configure_hostname.yml
 │       │   │   ├── 02_install_keepalived.yml
 │       │   │   ├── 03_install_k3s.yml
+│       │   │   ├── 03_k3s_config.yml           # k3s config.yaml + hardening files
+│       │   │   ├── 03_k3s_post_install.yml
 │       │   │   ├── 03_wait_api_ready.yml      # central "is the API ready" gate
 │       │   │   ├── 04_install_helm.yml
 │       │   │   ├── 05_gateway_api_install.yml
@@ -1073,7 +1130,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── 10_rancher_install.yml
 │       │   │   ├── 11_argocd_install.yml
 │       │   │   ├── 99_result.yml
-│       │   │   ├── _resolve_user.yml        # resolves ansible_user -> home directory
+│       │   │   ├── _resolve_k3s_version.yml
+│       │   │   ├── _facts.yml               # home directory + master_count/k3s_api_endpoint
 │       │   │   └── main.yml
 │       │   ├── templates                    # rendered from cluster_domain etc.
 │       │   │   ├── my-charts
@@ -1089,6 +1147,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   └── rancher
 │       │   │   │       └── httproute.yml.j2
 │       │   │   ├── chrony.j2
+│       │   │   ├── k3s-config.yaml.j2
 │       │   │   ├── keepalived.conf.j2
 │       │   │   ├── kube-prometheus-stack-values.yml.j2
 │       │   │   ├── longhorn-storageclass.yml.j2

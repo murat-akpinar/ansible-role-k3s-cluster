@@ -61,12 +61,6 @@
   when: 
     - "'master' in group_names"
 
-- name: Count the number of master nodes
-  set_fact:
-    master_count: "{{ groups['master'] | length | int }}"
-  when: "'master' in group_names"
-  run_once: true
-
 - name: Set metallb values file for HA (3+ masters)
   set_fact:
     metallb_values_file: "{{ user_home_directory }}/my-charts/metallb/values-ha.yml"

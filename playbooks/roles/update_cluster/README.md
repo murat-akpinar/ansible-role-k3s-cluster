@@ -15,7 +15,7 @@ Bu role, K3s cluster'ınızı **rolling update** stratejisi ile güvenli bir şe
 
 ### 1. Versiyon Belirleme
 
-`playbooks/roles/update_cluster/vars/main.yml` dosyasında güncellenecek versiyonu belirtin:
+`playbooks/roles/update_cluster/defaults/main.yml` dosyasında güncellenecek versiyonu belirtin:
 
 ```yaml
 k3s_target_version: "v1.31.6+k3s1"  # Güncellenecek K3s versiyonu
@@ -44,7 +44,7 @@ ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
 
 ## Yapılandırma
 
-`playbooks/roles/update_cluster/vars/main.yml` dosyasında ayarlanabilir parametreler:
+`playbooks/roles/update_cluster/defaults/main.yml` dosyasında ayarlanabilir parametreler:
 
 ```yaml
 k3s_target_version: "v1.31.6+k3s1"  # Güncellenecek versiyon

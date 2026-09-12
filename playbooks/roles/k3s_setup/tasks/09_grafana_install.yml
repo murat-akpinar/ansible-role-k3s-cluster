@@ -63,12 +63,6 @@
   become_user: "{{ ansible_user }}"
   when: "'master' in group_names"
 
-- name: Count the number of master nodes
-  set_fact:
-    master_count: "{{ groups['master'] | length | int }}"
-  when: "'master' in group_names"
-  run_once: true
-
 - name: Render kube-prometheus-stack values from variables (storageClass)
   ansible.builtin.template:
     src: kube-prometheus-stack-values.yml.j2
