@@ -423,7 +423,7 @@ Ayrıca bu dosyada yer alan diğer değişkenler:
 | `k3s_disable_servicelb` | `true` ise k3s gömülü ServiceLB (klipper) kapatılır. Varsayılan `false`: MetalLB de kapalı olduğu için LoadBalancer IP'lerini klipper verir. **İkisini birden kapatmayın** — hiçbir LB controller kalmaz ve `traefik` servisi `<pending>` takılır. `metallb_install: true` yaparsanız bunu da `true` yapın |
 | `k3s_master_taint` / `k3s_master_taint_value` | Master'ları ağır iş yüklerinden korur; varsayılan `false`, yalnızca worker varken açın (bkz. [Master/Worker Pod Dağılımı](#masterworker-pod-dağılımı)) |
 | `monitoring_storage_class` | Monitoring PVC'lerinin StorageClass'ı; varsayılan k3s gömülü `local-path` (replikasyonsuz, node-yerel) |
-| `helm_repo_*`, `helm_install_script_url`, `k3s_install_url` | Dış kaynak URL'leri; air-gapped/mirror ortamda değiştirin |
+| `helm_repo_*`, `helm_download_url`, `k3s_install_url` | Dış kaynak URL'leri; air-gapped/mirror ortamda değiştirin |
 
 ### Master/Worker Pod Dağılımı
 
@@ -885,6 +885,7 @@ Tümü `playbooks/roles/k3s_setup/defaults/main.yml` içinde. `""` = her kurulum
 | ArgoCD | `argocd_chart_version` | `10.3.3` |
 | Rancher | `rancher_version` | `v2.15.0` |
 | k3s | `k3s_version` | `""` |
+| Helm (binary) | `helm_version` | `v3.22.0` (boş bırakılamaz) |
 
 ```bash
 helm repo update && helm search repo jetstack/cert-manager --versions | head -3

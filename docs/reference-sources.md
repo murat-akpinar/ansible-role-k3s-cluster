@@ -17,6 +17,7 @@ tag'i güncelle.
 | ArgoCD | chart 10.3.3 (ArgoCD v3.5.1) | argo-helm `argo-cd-10.3.3`, argo-cd `v3.5.1` |
 | Gateway API | v1.5.1 | gateway-api `v1.5.1` |
 | Traefik | 3.7.x (k3s gömülü) | traefik `v3.7`, chart `master` |
+| Helm | `helm_version: v3.22.0` | helm-www `main` `versioned_docs/version-3` |
 | Ansible | core 2.21.3 (yerel) | ansible-documentation `devel` + yerel `ansible-doc` |
 
 ## ansible/
@@ -72,11 +73,10 @@ tag'i güncelle.
 ## helm/
 | Dosya | Ne için |
 |---|---|
-| `get-helm-3.sh` | Install scripti; `DESIRED_VERSION` env'i (todo C11). |
 | `helm_upgrade.md`, `helm_install.md` | `--install`, `--repo`, `--wait`, `--atomic`, `--version` (todo B3). |
 | `helm_repo_add.md`, `helm_show_values.md` | Repo yönetimi, values görüntüleme. |
-| `values_files.mdx`, `subcharts_and_globals.md` | Values birleştirme sırası, **subchart values'ın nereye yazılacağı** (0fe9ffa hatasının kökü). |
-| `install.mdx`, `using-helm.mdx` | Genel. |
+| `values_files.md`, `subcharts_and_globals.md` | Values birleştirme sırası, **subchart values'ın nereye yazılacağı** (0fe9ffa hatasının kökü). |
+| `install.md`, `using-helm.md` | Genel; `install.md` arşiv adı ve doğrulama (`04_install_helm.yml`). |
 
 ## keepalived/
 | Dosya | Ne için |

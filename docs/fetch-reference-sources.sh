@@ -58,16 +58,15 @@ get kubernetes/admission-controllers.md        $KW/docs/reference/access-authn-a
 get kubernetes/audit.md                        $KW/docs/tasks/debug/debug-cluster/audit.md
 get kubernetes/audit-policy.yaml               $KW/examples/audit/audit-policy.yaml
 
-# ---------------- Helm (helm/helm-www main) ----------------
-H=$GH/helm/helm-www/main/docs
-get helm/get-helm-3.sh          $GH/helm/helm/main/scripts/get-helm-3
-get helm/install.mdx            $H/intro/install.mdx
-get helm/using-helm.mdx         $H/intro/using_helm.mdx
+# ---------------- Helm (helm/helm-www main, v3 dokumanlari; helm_version v3) ----------------
+H=$GH/helm/helm-www/main/versioned_docs/version-3
+get helm/install.md             $H/intro/install.md
+get helm/using-helm.md          $H/intro/using_helm.md
 get helm/helm_install.md        $H/helm/helm_install.md
 get helm/helm_upgrade.md        $H/helm/helm_upgrade.md
 get helm/helm_repo_add.md       $H/helm/helm_repo_add.md
 get helm/helm_show_values.md    $H/helm/helm_show_values.md
-get helm/values_files.mdx       $H/chart_template_guide/values_files.mdx
+get helm/values_files.md        $H/chart_template_guide/values_files.md
 get helm/subcharts_and_globals.md $H/chart_template_guide/subcharts_and_globals.md
 
 # ---------------- Keepalived (acassen/keepalived master) ----------------

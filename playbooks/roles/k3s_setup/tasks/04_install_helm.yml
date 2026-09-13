@@ -3,30 +3,31 @@
 # Install Helm
 # ============================
 
-- name: Check if Helm is installed
-  ansible.builtin.command: which helm
+# Kurulu surum helm_version'dan farkliysa (ya da helm yoksa) kurar/yukseltir.
+- name: Get installed Helm version
+  ansible.builtin.command: /usr/local/bin/helm version --short
   register: helm_installed
   failed_when: false
   changed_when: false
   check_mode: false
   when: "'master' in group_names"
 
-- name: Download Helm installation script
-  ansible.builtin.get_url:
-    url: "{{ helm_install_script_url }}"
-    dest: /tmp/get_helm.sh
-    mode: '0700'
-  when:
-    - "'master' in group_names"
-    - helm_installed.rc != 0
-
+# Resmi release arsivi, script yok. get-helm-3'un checksum'i da ayni sunucudan
+# geliyordu; TLS'ten fazla guvence vermiyordu.
 - name: Install Helm
-  ansible.builtin.command:
-    cmd: /tmp/get_helm.sh
-    creates: /usr/local/bin/helm
+  ansible.builtin.unarchive:
+    src: "{{ helm_download_url }}/helm-{{ helm_version }}-{{ helm_dist }}.tar.gz"
+    remote_src: true
+    dest: /usr/local/bin
+    include: "{{ helm_dist }}/helm"
+    extra_opts: [--strip-components=1]
+    owner: root
+    group: root
+  vars:
+    helm_dist: "linux-{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'armv7l': 'arm'}[ansible_facts['architecture']] }}"
   when:
     - "'master' in group_names"
-    - helm_installed.rc != 0
+    - helm_installed.stdout.split('+')[0] != helm_version
 
 - name: Ensure K3S server is enabled and running
   ansible.builtin.systemd:

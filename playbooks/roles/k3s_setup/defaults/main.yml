@@ -115,8 +115,12 @@ k3s_hardening: true
 # baslatilmasini ve worker'larin yeni token ile guncellenmesini gerektirir.
 k3s_agent_token: "{{ vault_k3s_agent_token | default('') }}"
 
+# Helm binary'si: master'lardaki surum farkliysa bir sonraki kosuda bu surume getirilir.
+# Son surumler: https://github.com/helm/helm/releases
+helm_version: "v3.22.0"
+helm_download_url: https://get.helm.sh
+
 # Helm Repository URLs
-helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 helm_repo_metallb: https://metallb.github.io/metallb
 helm_repo_cert_manager: https://charts.jetstack.io
 helm_repo_prometheus: https://prometheus-community.github.io/helm-charts

@@ -63,7 +63,8 @@ ezilemez (yalnızca `-e`). Bkz. [architecture.md](architecture.md) "Değişken a
 
 | Değişken | Varsayılan | Not |
 |---|---|---|
-| `helm_install_script_url` | `.../helm/main/scripts/get-helm-3` | Sürümsüz (todo C11). |
+| `helm_version` | `v3.22.0` | `04_install_helm.yml`, boş olamaz. Master'daki `/usr/local/bin/helm` bu sürümde değilse (ya da yoksa) resmi arşivden kurulur/yükseltilir. |
+| `helm_download_url` | `https://get.helm.sh` | Arşiv adresi: `<url>/helm-<sürüm>-linux-<arch>.tar.gz`; mirror için değiştir. |
 | `helm_repo_metallb` | `https://metallb.github.io/metallb` | `helm upgrade --install ... --repo` ile doğrudan kullanılır (`helm repo add` yok); mirror için değiştir. |
 | `helm_repo_cert_manager` | `https://charts.jetstack.io` | |
 | `helm_repo_prometheus` | `https://prometheus-community.github.io/helm-charts` | |

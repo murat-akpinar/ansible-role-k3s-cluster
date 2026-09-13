@@ -65,8 +65,9 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 ## Helm (`helm_install`)
 
 - **Dosyalar:** `tasks/04_install_helm.yml`, `files/my-charts/`, `templates/my-charts/`.
-- get-helm-3 scripti (`main` branch, sürümsüz) → `/usr/local/bin/helm`. Tüm master'lara kurulur,
-  yalnızca master[0] kullanır.
+- `helm_version` arşivi (`get.helm.sh`, `unarchive`) → `/usr/local/bin/helm`. Kurulu sürüm farklıysa
+  yükseltir, aynıysa atlar. Tüm master'lara kurulur, yalnızca master[0] kullanır. Arch eşlemesi
+  x86_64/aarch64/armv7l; başka mimaride task tanımsız anahtar hatası verir.
 - `files/my-charts/` → `~/my-charts/` kopya; domain içeren 5 manifest `.j2`'den render:
   gateway/gateway.yml, gateway/wildcard-certificate.yml, {argocd,grafana,rancher}/httproute.yml.
 - Her chart adımı aynı kalıp: `helm upgrade --install <release> <chart> --repo {{ helm_repo_<x> }}

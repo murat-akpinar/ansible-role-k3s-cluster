@@ -54,7 +54,7 @@ playbooks/roles/
 | 7 | `03_wait_api_ready.yml` | master[0] | `kubectl get --raw=/readyz` 30×10 sn; olmazsa fail. |
 | 8 | `03_k3s_post_install.yml` | master | `~/.kube/config` kopyası (0600) + `.bashrc` KUBECONFIG; PKI `*.crt` 0600 (CIS 1.1.20); default SA token automount kapalı (CIS 5.1.5). |
 | 7 | `00_wellcome.yml` | all | `/etc/motd` (`wellcome.j2`), update-motd.d scriptlerinin exec biti düşürülür. |
-| 8 | `04_install_helm.yml` `[helm]` | master | helm binary (get-helm-3), `files/my-charts/` → `~/my-charts/`, domain içeren 5 manifest `templates/my-charts/*.j2`'den render. |
+| 8 | `04_install_helm.yml` `[helm]` | master | helm binary (`helm_version`, get.helm.sh arşivi), `files/my-charts/` → `~/my-charts/`, domain içeren 5 manifest `templates/my-charts/*.j2`'den render. |
 | 9 | `05_gateway_api_install.yml` `[gateway-api]` | master[0] / master | Gateway API CRD'leri `--server-side` apply + pin, `traefik-gateway-config.yml` → `/var/lib/rancher/k3s/server/manifests/` (HelmChartConfig), GatewayClass Accepted bekle. |
 | 10 | `06_metallb_install.yml` `[metallb]` | master[0] | helm upgrade --install `--wait`, `metallb-config.yml.j2` (IPAddressPool + L2Advertisement) apply. |
 | 11 | `07_cert_manager_install.yml` `[cert-manager]` | master[0] | helm (`crds.enabled=true`), selfsigned ClusterIssuer, **wildcard Certificate + paylaşılan Gateway** (kube-system/homelab). |

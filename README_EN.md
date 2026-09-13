@@ -426,7 +426,7 @@ Other variables living in the same file:
 | `k3s_disable_servicelb` | When `true`, disables the k3s bundled ServiceLB (klipper). Defaults to `false`: MetalLB is off too, so klipper hands out LoadBalancer IPs. **Do not turn both off** — no LB controller would be left and the `traefik` service stays `<pending>`. If you set `metallb_install: true`, set this to `true` as well |
 | `k3s_master_taint` / `k3s_master_taint_value` | Protects masters from heavy workloads; default `false`, enable only when you have workers (see [Master/Worker Pod Distribution](#masterworker-pod-distribution)) |
 | `monitoring_storage_class` | StorageClass for the monitoring PVCs; defaults to the k3s built-in `local-path` (not replicated, node-local) |
-| `helm_repo_*`, `helm_install_script_url`, `k3s_install_url` | External source URLs; change these for air-gapped/mirrored environments |
+| `helm_repo_*`, `helm_download_url`, `k3s_install_url` | External source URLs; change these for air-gapped/mirrored environments |
 
 ### Master/Worker Pod Distribution
 
@@ -888,6 +888,7 @@ All live in `playbooks/roles/k3s_setup/defaults/main.yml`. `""` = pull the newes
 | ArgoCD | `argocd_chart_version` | `10.3.3` |
 | Rancher | `rancher_version` | `v2.15.0` |
 | k3s | `k3s_version` | `""` |
+| Helm (binary) | `helm_version` | `v3.22.0` (cannot be empty) |
 
 ```bash
 helm repo update && helm search repo jetstack/cert-manager --versions | head -3
