@@ -1027,10 +1027,8 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── k3s-network-policy.yaml
 │       │   │   └── traefik-gateway-config.yml
 │       │   ├── handlers
-│       │   │   ├── .gitkeep
 │       │   │   └── main.yml
 │       │   ├── meta
-│       │   │   ├── .gitkeep
 │       │   │   └── main.yml
 │       │   ├── tasks
 │       │   │   ├── 00_prerequisites.yml       # packages, firewalld

@@ -85,4 +85,5 @@ ile karşılaştır ya da master[0]'da `helm template ... -f values | less`.
 - `inventory/cluster_inventory.yml` bu makinede `git update-index --skip-worktree` ile
   işaretli: düzenlemeler `git status`'ta görünmez, commit'e girmez. Geri almak:
   `git update-index --no-skip-worktree inventory/cluster_inventory.yml`.
-- `ansible.cfg` `host_key_checking = False` ve `deprecation_warnings = False` (todo D3).
+- `ansible.cfg` `host_key_checking = False` (yeni kurulan VM'lere ilk bağlantı için; homelab kabulü).
+  SSH `ControlPath` verilmez (varsayılan `~/.ansible/cp/%C`), deprecation uyarıları açık.
