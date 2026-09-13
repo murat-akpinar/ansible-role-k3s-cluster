@@ -646,7 +646,7 @@ ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
 Configurable parameters in `playbooks/roles/update_cluster/defaults/main.yml`:
 
 ```yaml
-upgrade_drain_timeout: 600          # Drain timeout (seconds) - increased for PVC-heavy workloads
+upgrade_drain_timeout: 600          # Drain timeout (seconds)
 upgrade_drain_grace_period: 120     # Pod termination grace period (seconds)
 upgrade_wait_for_pods: 60           # Pod stabilization wait time (seconds)
 upgrade_force: false                 # Force upgrade even if versions match (not recommended)

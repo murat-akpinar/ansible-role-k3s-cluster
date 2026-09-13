@@ -48,7 +48,7 @@ ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
 
 ```yaml
 k3s_target_version: "v1.31.6+k3s1"  # Güncellenecek versiyon
-upgrade_drain_timeout: 300          # Drain timeout (saniye)
+upgrade_drain_timeout: 600          # Drain timeout (saniye)
 upgrade_wait_for_pods: 60           # Pod stabilize bekleme süresi (saniye)
 upgrade_force: false                 # Versiyon eşleşse bile zorla upgrade
 ```
