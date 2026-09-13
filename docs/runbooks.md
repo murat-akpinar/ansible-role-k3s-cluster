@@ -25,7 +25,7 @@ Tüm komutlar repo kökünden; `ansible.cfg` envanteri zaten gösteriyor ama aç
    tablosu Gateway IP'sini, URL'leri ve parolaları basar.
 6. Doğrula: `ansible-playbook -i inventory/cluster_inventory.yml verify.yml` → `RESULT: ALL CHECKS PASSED`.
 7. Hostname erişimi için istemci `/etc/hosts`'una Gateway IP'sini ekle:
-   `192.168.1.x grafana.homelab.local argocd.homelab.local rancher.homelab.local`
+   `192.168.1.x grafana.homelab.home.arpa argocd.homelab.home.arpa rancher.homelab.home.arpa`
 
 ## 2. Mevcut cluster'a bileşen açma / tek bileşeni yeniden çalıştırma
 

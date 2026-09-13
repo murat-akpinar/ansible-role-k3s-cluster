@@ -91,7 +91,7 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   `*.{{ cluster_domain }}`, TLS Terminate, secret `homelab-wildcard-tls`, `allowedRoutes: All`.
 - HTTPRoute kalıbı: `parentRefs: {name: homelab, namespace: kube-system, sectionName: websecure}`,
   hostname `<svc>.{{ cluster_domain }}`, backend Service:port.
-- Tuzaklar: HTTP listener yok → `http://` boş (todo C6); `.local` mDNS çakışması (todo C3);
+- Tuzaklar: HTTP listener yok → `http://` boş (todo C6); `cluster_domain` `.local` olursa mDNS çakışması;
   Gateway API sürümü Traefik'in derlendiği sürümle eşleşmeli.
 
 ## MetalLB (`metallb_install`)
@@ -121,6 +121,7 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   (replicas 1), `*-master-only.yml` (nodeAffinity master DoesNotExist), `vars: monitoring_storage_class`.
 - Values sırası: temel `.j2` → (single ise) `-single-master` → `-master-only`; sonraki öncekini ezer.
 - Prometheus 10Gi/30d, Alertmanager 2Gi, Grafana 10Gi; Grafana `adminPassword: admin`.
+- Grafana `grafana.ini.server.domain/root_url` = `https://grafana.{{ cluster_domain }}` (boşken linkler localhost).
 - `kube-state-metrics` subchart ayarları **subchart anahtarı altında** (`kube-state-metrics:`),
   `kubeStateMetrics:` altına yazılırsa yok sayılır (0fe9ffa).
 - Bekleme: helm `--wait` (Grafana, operator, kube-state-metrics, node-exporter, Grafana PVC);
@@ -146,6 +147,7 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - **Dosyalar:** `tasks/11_argocd_install.yml`, `files/my-charts/argocd/values-*.yml`,
   `templates/my-charts/argocd/httproute.yml.j2`.
 - `configs.params."server.insecure": "true"` — TLS Gateway'de biter, backend HTTP.
+- `--set global.domain=argocd.{{ cluster_domain }}` → `argocd-cm` `url` (chart varsayılanı `argocd.example.com`).
 - HA: server/controller/repoServer/applicationSet 2 replika; redis tek instance (redis-ha kapalı).
 - Bekleme: helm `--wait` (server, repo-server, applicationset Deployment'ları, application-controller StatefulSet).
 - İlk parola `argocd-initial-admin-secret` (silinebilir; rol `failed_when: false`).

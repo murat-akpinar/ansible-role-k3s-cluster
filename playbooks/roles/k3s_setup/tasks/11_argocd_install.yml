@@ -29,6 +29,8 @@
     - inventory_hostname == groups['master'][0]
   run_once: true
 
+# global.domain argocd-cm'deki url'i uretir (SSO donusu, bildirim linkleri);
+# chart varsayilani argocd.example.com.
 - name: Install ArgoCD Helm chart
   ansible.builtin.command:
     cmd: >-
@@ -36,6 +38,7 @@
       --wait --timeout 10m --namespace argocd --create-namespace
       {{ ('--version ' ~ argocd_chart_version) if argocd_chart_version else '' }}
       -f {{ argocd_values_file }}
+      --set global.domain=argocd.{{ cluster_domain }}
   become: true
   become_user: "{{ ansible_user }}"
   environment:

@@ -69,7 +69,7 @@ through this VIP. MetalLB hands out IPs for LoadBalancer services.
    │ app pods │   │ app pods │     │ app pods │      │ app pods │
    └──────────┘   └──────────┘     └──────────┘      └──────────┘
 
-   MetalLB IP pool: 192.168.1.242 (Traefik Gateway → *.homelab.local)
+   MetalLB IP pool: 192.168.1.242 (Traefik Gateway → *.homelab.home.arpa)
 ```
 
 - **VIP (Keepalived)**: If the active master fails, VRRP moves the VIP to another master; API access is not interrupted.
@@ -233,7 +233,7 @@ playbook:
 |---|---|
 | Any component installed via Helm | `helm_install: true` — the helm binary and the `my-charts` templates (Gateway/HTTPRoute/values files) are produced by that step; nothing below can install without it |
 | Use `Gateway` / `HTTPRoute` resources | `gateway_api_install: true` — enables the bundled Traefik's Gateway provider (this is where `GatewayClass` appears) and pins the CRDs to `gateway_api_version` |
-| Reach services at `https://<name>.homelab.local` | `cert_manager_install: true` — the shared Gateway and the `*.homelab.local` wildcard certificate are created by that step; with it off no Gateway exists at all |
+| Reach services at `https://<name>.homelab.home.arpa` | `cert_manager_install: true` — the shared Gateway and the `*.homelab.home.arpa` wildcard certificate are created by that step; with it off no Gateway exists at all |
 | Hand out LoadBalancer IPs from a pool on your network | `metallb_install: true` **+** `k3s_disable_servicelb: true` — leaving both LB controllers on makes klipper and MetalLB race for the same Service |
 | Prometheus + Grafana + Alertmanager | `grafana_install: true` |
 | Rancher management UI | `rancher_install: true` (Rancher needs cert-manager for its own TLS, enable both) |
@@ -348,7 +348,7 @@ The following services are installed based on configuration (✅ = on by default
 | **Cert-Manager** | ❌ | SSL/TLS certificate management + the shared Gateway |
 | **kube-prometheus-stack** | ❌ | Prometheus + Grafana + Alertmanager |
 | **Rancher** | ❌ | Kubernetes management UI |
-| **ArgoCD** | ❌ | GitOps continuous delivery (CD) — `argocd.homelab.local` (see [Access ArgoCD](#access-argocd)) |
+| **ArgoCD** | ❌ | GitOps continuous delivery (CD) — `argocd.homelab.home.arpa` (see [Access ArgoCD](#access-argocd)) |
 
 > ⚠️ The shared Gateway depends on the wildcard certificate: with `cert_manager_install: false` the Gateway and HTTPRoutes are **not created at all**, so no service is reachable by hostname. The Gateway's only listener is HTTPS and requires the `homelab-wildcard-tls` secret, which cert-manager produces.
 
@@ -372,7 +372,13 @@ example shipped with the repo is fully commented out). The one exception is
 
 # Cluster domain: the Gateway, the wildcard certificate, every HTTPRoute and the
 # summary screen URLs are all generated from this single variable.
-cluster_domain: homelab.local
+# The default is meant for a home network (home.arpa, RFC 8375). In production or
+# on a company network use your own DNS zone (e.g. k8s.example.com). Do not use
+# `.local`: it is reserved for mDNS, and systemd-resolved and macOS do not send
+# those names to your DNS server.
+# Installed with the old default `homelab.local` and want to keep the URLs?
+# Pin `cluster_domain: homelab.local` in group_vars.
+cluster_domain: homelab.home.arpa
 
 # Keepalived
 keepalived_vip: 192.168.1.244
@@ -554,7 +560,7 @@ After Rancher installation, to get the bootstrap password:
 kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{"\n"}}'
 ```
 
-Access Rancher: `https://rancher.homelab.local` (update your `/etc/hosts` file with the MetalLB IP)
+Access Rancher: `https://rancher.homelab.home.arpa` (update your `/etc/hosts` file with the MetalLB IP)
 
 ### Access Grafana
 
@@ -564,7 +570,7 @@ To get the Grafana admin password:
 kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode
 ```
 
-Access Grafana: `https://grafana.homelab.local` (with admin username)
+Access Grafana: `https://grafana.homelab.home.arpa` (with admin username)
 
 ### Access ArgoCD
 
@@ -574,7 +580,7 @@ To get the ArgoCD admin password:
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
 
-Access ArgoCD: `https://argocd.homelab.local` (with admin username). The password is also shown in the `99_result.yml` summary output after installation.
+Access ArgoCD: `https://argocd.homelab.home.arpa` (with admin username). The password is also shown in the `99_result.yml` summary output after installation.
 
 ### Installing / Re-running a Single Component (Tags)
 
@@ -842,7 +848,7 @@ All services share a **single wildcard certificate**, issued and renewed automat
 ### Wildcard certificate + shared Gateway
 - **Directory**: `templates/my-charts/gateway/` (templated, they contain the domain)
 - **Files**:
-  - `wildcard-certificate.yml.j2` — `*.homelab.local` Certificate (ns: `kube-system`, secret: `homelab-wildcard-tls`)
+  - `wildcard-certificate.yml.j2` — `*.homelab.home.arpa` Certificate (ns: `kube-system`, secret: `homelab-wildcard-tls`)
   - `gateway.yml.j2` — `kube-system/homelab` Gateway, HTTPS listener, `allowedRoutes.namespaces.from: All`
 - The certificate lives in the same namespace as the Gateway, so `certificateRefs` is not cross-namespace and **no ReferenceGrant is required**.
 
@@ -852,9 +858,9 @@ Each service attaches to the shared Gateway with an `HTTPRoute` in its own names
 
 | Service | File | Namespace | Domain |
 |---|---|---|---|
-| Grafana | `templates/my-charts/grafana/httproute.yml.j2` | `monitoring` | `grafana.homelab.local` |
-| Rancher | `templates/my-charts/rancher/httproute.yml.j2` | `cattle-system` | `rancher.homelab.local` |
-| ArgoCD | `templates/my-charts/argocd/httproute.yml.j2` | `argocd` | `argocd.homelab.local` |
+| Grafana | `templates/my-charts/grafana/httproute.yml.j2` | `monitoring` | `grafana.homelab.home.arpa` |
+| Rancher | `templates/my-charts/rancher/httproute.yml.j2` | `cattle-system` | `rancher.homelab.home.arpa` |
+| ArgoCD | `templates/my-charts/argocd/httproute.yml.j2` | `argocd` | `argocd.homelab.home.arpa` |
 
 Publishing a new service needs no new certificate — the wildcard already covers it, just add an `HTTPRoute`.
 
@@ -862,12 +868,12 @@ Publishing a new service needs no new certificate — the wildcard already cover
 
 ### Hosts File Configuration
 
-Add the following lines to your `/etc/hosts` file for local access:
+Add the following lines to your `/etc/hosts` file for local access (or add a single `*.homelab.home.arpa` wildcard record to your DNS server — router, Pi-hole; if you changed `cluster_domain`, use your own domain):
 
 ```bash
 # K3s Cluster Services
-192.168.1.242    rancher.homelab.local
-192.168.1.242    grafana.homelab.local
+192.168.1.242    rancher.homelab.home.arpa
+192.168.1.242    grafana.homelab.home.arpa
 ```
 
 **Note**: The IP address (`192.168.1.242`) is the MetalLB LoadBalancer IP. To check the address assigned to the Gateway:

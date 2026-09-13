@@ -18,7 +18,10 @@ keepalived_auth_pass: "{{ vault_keepalived_auth_pass | default('P@ssw0rd123!') }
 keepalived_vip: 192.168.1.244
 # Gateway/HTTPRoute/wildcard sertifika ve ozet ekranindaki URL'ler bu tek
 # degiskenden uretilir. Degistirince hepsi birlikte degisir.
-cluster_domain: homelab.local
+# home.arpa ev aglarina ayrilmis alan (RFC 8375). .local KULLANMAYIN: mDNS'e ayrili,
+# systemd-resolved / macOS bu sorgulari DNS sunucusuna gondermez. Ev disinda (prod,
+# sirket agi) kendi DNS zone'unuzu verin, or. k8s.sirket.com.tr.
+cluster_domain: homelab.home.arpa
 # Keepalived VRRP interface'i. Bos birakilirsa otomatik algilanir (ansible_default_ipv4.interface).
 # Farkli dagitimlarda eth0, ens3, ens18 vb. olabilir; otomatik algilama yanlis arabirimi
 # secerse asagiya sabit deger yazarak override edebilirsiniz (or: "eth0").

@@ -97,6 +97,13 @@ alertmanager:
 
 # Grafana Configuration
 grafana:
+  # Paylasim / alarm bildirimi linkleri icin disaridan erisilen adres (HTTPRoute);
+  # bos kalirsa root_url localhost olur.
+  grafana.ini:
+    server:
+      domain: grafana.{{ cluster_domain }}
+      root_url: https://grafana.{{ cluster_domain }}
+
   # Resources
   resources:
     limits:

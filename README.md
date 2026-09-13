@@ -69,7 +69,7 @@ master node'lar arasında bir **VIP** (Virtual IP) yönetir; tüm `kubectl`/agen
    │ app pods │   │ app pods │     │ app pods │      │ app pods │
    └──────────┘   └──────────┘     └──────────┘      └──────────┘
 
-   MetalLB IP havuzu: 192.168.1.242 (Traefik Gateway → *.homelab.local)
+   MetalLB IP havuzu: 192.168.1.242 (Traefik Gateway → *.homelab.home.arpa)
 ```
 
 - **VIP (Keepalived)**: Aktif master çökerse VRRP ile VIP başka bir master'a taşınır; API erişimi kesilmez.
@@ -231,7 +231,7 @@ Fazlasını istiyorsanız kurulumdan **önce** ilgili değişkeni `true` yapın:
 |---|---|
 | Helm ile kurulan herhangi bir bileşen | `helm_install: true` — helm binary'si ve `my-charts` şablonları (Gateway/HTTPRoute/values dosyaları) bu adımda üretilir, aşağıdakilerin hiçbiri onsuz kurulamaz |
 | `Gateway` / `HTTPRoute` kaynakları kullanmak | `gateway_api_install: true` — gömülü Traefik'in Gateway sağlayıcısı açılır (`GatewayClass` bu adımda oluşur) ve CRD'ler `gateway_api_version`'a sabitlenir |
-| Servislere `https://<isim>.homelab.local` ile erişmek | `cert_manager_install: true` — paylaşımlı Gateway ve `*.homelab.local` wildcard sertifikası bu adımda kurulur, kapalıyken Gateway hiç oluşmaz |
+| Servislere `https://<isim>.homelab.home.arpa` ile erişmek | `cert_manager_install: true` — paylaşımlı Gateway ve `*.homelab.home.arpa` wildcard sertifikası bu adımda kurulur, kapalıyken Gateway hiç oluşmaz |
 | LoadBalancer IP'lerini ağınızdaki bir havuzdan vermek | `metallb_install: true` **+** `k3s_disable_servicelb: true` — ikisi birden açık kalırsa klipper ile MetalLB aynı Service'e IP atamaya çalışır |
 | Prometheus + Grafana + Alertmanager | `grafana_install: true` |
 | Rancher yönetim arayüzü | `rancher_install: true` (Rancher kendi TLS'i için cert-manager ister, birlikte açın) |
@@ -344,7 +344,7 @@ Yapılandırmaya göre şu servisler kurulur (✅ = varsayılan açık):
 | **Cert-Manager** | ❌ | SSL/TLS sertifika yönetimi + paylaşımlı Gateway |
 | **kube-prometheus-stack** | ❌ | Prometheus + Grafana + Alertmanager |
 | **Rancher** | ❌ | Kubernetes yönetim arayüzü |
-| **ArgoCD** | ❌ | GitOps sürekli dağıtım (CD) — `argocd.homelab.local` (bkz. [ArgoCD'ye Erişim](#argocdye-erişim)) |
+| **ArgoCD** | ❌ | GitOps sürekli dağıtım (CD) — `argocd.homelab.home.arpa` (bkz. [ArgoCD'ye Erişim](#argocdye-erişim)) |
 
 > ⚠️ Paylaşımlı Gateway wildcard sertifikaya bağlı: `cert_manager_install: false` ise Gateway ve HTTPRoute'lar **hiç kurulmaz**, servisler hostname üzerinden erişilemez. Gateway'in tek listener'ı HTTPS'tir ve `homelab-wildcard-tls` secret'ını ister; o secret'ı da cert-manager üretir.
 
@@ -369,7 +369,12 @@ Tek istisna `k3s_server_args`: `vars/main.yml`'de durur ve bilerek ezilemez.
 
 # Cluster domain'i: Gateway, wildcard sertifika, tüm HTTPRoute'lar ve özet
 # ekranındaki URL'ler bu tek değişkenden üretilir.
-cluster_domain: homelab.local
+# Varsayılan ev ağı içindir (home.arpa, RFC 8375). Prod / şirket ağında kendi
+# DNS zone'unuzu verin (ör. k8s.sirket.com.tr). `.local` kullanmayın: mDNS'e
+# ayrılmıştır, systemd-resolved ve macOS bu adları DNS sunucusuna sormaz.
+# Eski varsayılan `homelab.local` ile kurduysanız ve URL'ler değişmesin
+# istiyorsanız bu değeri group_vars'ta `homelab.local` olarak sabitleyin.
+cluster_domain: homelab.home.arpa
 
 # Keepalived
 keepalived_vip: 192.168.1.244
@@ -582,7 +587,7 @@ Rancher kurulumundan sonra bootstrap şifresini almak için:
 kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{"\n"}}'
 ```
 
-Rancher'a erişim: `https://rancher.homelab.local` (MetalLB IP'si ile `/etc/hosts` dosyanızı güncelleyin)
+Rancher'a erişim: `https://rancher.homelab.home.arpa` (MetalLB IP'si ile `/etc/hosts` dosyanızı güncelleyin)
 
 ### Grafana'ya Erişim
 
@@ -592,7 +597,7 @@ Grafana admin şifresini almak için:
 kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode
 ```
 
-Grafana'ya erişim: `https://grafana.homelab.local` (admin kullanıcı adı ile)
+Grafana'ya erişim: `https://grafana.homelab.home.arpa` (admin kullanıcı adı ile)
 
 ### ArgoCD'ye Erişim
 
@@ -602,7 +607,7 @@ ArgoCD admin şifresini almak için:
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
 
-ArgoCD'ye erişim: `https://argocd.homelab.local` (admin kullanıcı adı ile). Şifre kurulum sonrası `99_result.yml` özet çıktısında da gösterilir.
+ArgoCD'ye erişim: `https://argocd.homelab.home.arpa` (admin kullanıcı adı ile). Şifre kurulum sonrası `99_result.yml` özet çıktısında da gösterilir.
 
 ## 🔄 K3s Cluster Upgrade
 
@@ -839,7 +844,7 @@ Tüm servisler **tek bir wildcard sertifika** paylaşır; sertifika `cert-manage
 ### Wildcard sertifika + paylaşımlı Gateway
 - **Dizin**: `templates/my-charts/gateway/` (domain içerdikleri için template)
 - **Dosyalar**:
-  - `wildcard-certificate.yml.j2` — `*.homelab.local` Certificate (ns: `kube-system`, secret: `homelab-wildcard-tls`)
+  - `wildcard-certificate.yml.j2` — `*.homelab.home.arpa` Certificate (ns: `kube-system`, secret: `homelab-wildcard-tls`)
   - `gateway.yml.j2` — `kube-system/homelab` Gateway, HTTPS listener, `allowedRoutes.namespaces.from: All`
 - Sertifika Gateway ile aynı namespace'te durduğu için `certificateRefs` cross-namespace olmaz ve **ReferenceGrant gerekmez**.
 
@@ -849,9 +854,9 @@ Her servis kendi namespace'inde bir `HTTPRoute` ile paylaşımlı Gateway'e bağ
 
 | Servis | Dosya | Namespace | Domain |
 |---|---|---|---|
-| Grafana | `templates/my-charts/grafana/httproute.yml.j2` | `monitoring` | `grafana.homelab.local` |
-| Rancher | `templates/my-charts/rancher/httproute.yml.j2` | `cattle-system` | `rancher.homelab.local` |
-| ArgoCD | `templates/my-charts/argocd/httproute.yml.j2` | `argocd` | `argocd.homelab.local` |
+| Grafana | `templates/my-charts/grafana/httproute.yml.j2` | `monitoring` | `grafana.homelab.home.arpa` |
+| Rancher | `templates/my-charts/rancher/httproute.yml.j2` | `cattle-system` | `rancher.homelab.home.arpa` |
+| ArgoCD | `templates/my-charts/argocd/httproute.yml.j2` | `argocd` | `argocd.homelab.home.arpa` |
 
 Yeni bir servis yayınlamak için sertifika eklemenize gerek yok — wildcard zaten kapsıyor, sadece bir `HTTPRoute` yazın.
 
@@ -859,12 +864,12 @@ Yeni bir servis yayınlamak için sertifika eklemenize gerek yok — wildcard za
 
 ### Hosts Dosyası Yapılandırması
 
-Yerel erişim için `/etc/hosts` dosyanıza şu satırları ekleyin:
+Yerel erişim için `/etc/hosts` dosyanıza şu satırları ekleyin (ya da DNS sunucunuza — router, Pi-hole — tek bir `*.homelab.home.arpa` wildcard kaydı girin; `cluster_domain`'i değiştirdiyseniz kendi domain'inizi yazın):
 
 ```bash
 # K3s Cluster Services
-192.168.1.242    rancher.homelab.local
-192.168.1.242    grafana.homelab.local
+192.168.1.242    rancher.homelab.home.arpa
+192.168.1.242    grafana.homelab.home.arpa
 ```
 
 **Not**: IP adresi (`192.168.1.242`) MetalLB LoadBalancer IP'sidir. Gateway'e atanan adresi kontrol etmek için:

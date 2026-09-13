@@ -15,7 +15,7 @@
 # keepalived_vip: 192.168.1.244      # 3+ master'da API VIP'i (tek master'da kullanilmaz)
 # keepalived_interface: ""           # bos = ansible_default_ipv4.interface'ten otomatik
 # keepalived_router_id: 51           # ayni L2 agdaki her cluster icin farkli (1-255)
-# cluster_domain: homelab.local      # Gateway/HTTPRoute/wildcard sertifika hostname'leri
+# cluster_domain: homelab.home.arpa  # Gateway/HTTPRoute/wildcard sertifika hostname'leri; prod'da kendi zone'unuz
 # k3s_version: ""                    # bos = mevcut cluster surumune pinlenir, yoksa en son
 # k3s_hardening: true                # CIS sikilastirmalari (audit, PSA, secrets-encryption)
 # k3s_master_taint: true             # master'lari is yukune kapat (worker varken acin)

@@ -6,7 +6,7 @@ Kaynak: `playbooks/roles/k3s_setup/defaults/main.yml` (aksi belirtilmedikçe),
 **Nereden değiştirilir:** buradaki her değer rol `defaults/`'unda, yani öncelik
 sırasının en altında. Üç yol da geçerli, üstteki alttakini ezer:
 
-1. `-e cluster_domain=ornek.local` (tek seferlik),
+1. `-e cluster_domain=k8s.sirket.com.tr` (tek seferlik),
 2. `inventory/group_vars/all/main.yml` (kalıcı override dosyası; örnek tamamı
    yorumlu gelir — `git pull` ile gelen rol güncellemeleri bu dosyayı bozmaz),
 3. `playbooks/roles/k3s_setup/defaults/main.yml`'i doğrudan düzenlemek.
@@ -29,7 +29,7 @@ ezilemez (yalnızca `-e`). Bkz. [architecture.md](architecture.md) "Değişken a
 | `keepalived_auth_pass` | `{{ vault_keepalived_auth_pass \| default('P@ssw0rd123!') }}` | `keepalived.conf.j2` `auth_pass`. Vault'tan ver. keepalived yalnızca **ilk 8 karakteri** kullanır (`keepalived.conf(5)`); VRRP'yi asıl koruyan `00_prerequisites.yml`'nin kaynak kısıtı. |
 | `keepalived_interface` | `""` (= `ansible_default_ipv4.interface`) | `02_install_keepalived.yml` → `keepalived_network`; verify.yml. |
 | `keepalived_router_id` | `51` | `virtual_router_id`; aynı L2'de ikinci cluster varsa değiştir. |
-| `cluster_domain` | `homelab.local` | Gateway listener hostname, wildcard Certificate, 4 HTTPRoute, 99_result URL'leri. |
+| `cluster_domain` | `homelab.home.arpa` | Gateway listener hostname, wildcard Certificate, 4 HTTPRoute, 99_result URL'leri, ArgoCD `global.domain` (`11_argocd_install.yml`), Grafana `grafana.ini.server.root_url`. Ev ağı varsayılanı (RFC 8375); prod'da kendi DNS zone'u. `.local` verilmez (mDNS). Değiştirmek URL'leri ve wildcard sertifikayı yeniler. |
 
 ## Bileşen bayrakları (varsayılan: hepsi kapalı = saf k3s)
 
