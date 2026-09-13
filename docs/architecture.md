@@ -56,12 +56,12 @@ playbooks/roles/
 | 7 | `00_wellcome.yml` | all | `/etc/motd` (`wellcome.j2`), update-motd.d scriptlerinin exec biti düşürülür. |
 | 8 | `04_install_helm.yml` `[helm]` | master | helm binary (get-helm-3), `files/my-charts/` → `~/my-charts/`, domain içeren 6 manifest `templates/my-charts/*.j2`'den render. |
 | 9 | `05_gateway_api_install.yml` `[gateway-api]` | master[0] / master | Gateway API CRD'leri `--server-side` apply + pin, `traefik-gateway-config.yml` → `/var/lib/rancher/k3s/server/manifests/` (HelmChartConfig), GatewayClass Accepted bekle. |
-| 10 | `06_metallb_install.yml` `[metallb]` | master[0] | helm upgrade --install, controller Available bekle, `metallb-config.yml.j2` (IPAddressPool + L2Advertisement) apply. |
+| 10 | `06_metallb_install.yml` `[metallb]` | master[0] | helm upgrade --install `--wait`, `metallb-config.yml.j2` (IPAddressPool + L2Advertisement) apply. |
 | 11 | `07_cert_manager_install.yml` `[cert-manager]` | master[0] | helm (`crds.enabled=true`), selfsigned ClusterIssuer, **wildcard Certificate + paylaşılan Gateway** (kube-system/homelab). |
 | 12 | `08_longhorn_install.yml` `[longhorn]` | master[0] | helm, `longhorn-storageclass.yml.j2` (6 StorageClass), local-path default'u kaldır, HTTPRoute. |
-| 13 | `09_grafana_install.yml` `[grafana, monitoring]` | master[0] | `kube-prometheus-stack-values.yml.j2` render (storageClass), helm, PVC Bound bekle, HTTPRoute, parola göster. |
-| 14 | `10_rancher_install.yml` `[rancher]` | master[0] | `rancher-deployment.yml.j2` (chart değil, düz Deployment) apply, bootstrap parolası. |
-| 15 | `11_argocd_install.yml` `[argocd]` | master[0] | helm, 3 deployment Running bekle, HTTPRoute, admin parolası. |
+| 13 | `09_grafana_install.yml` `[grafana, monitoring]` | master[0] | `kube-prometheus-stack-values.yml.j2` render (storageClass), helm `--wait`, Prometheus CR Available bekle, HTTPRoute, parola göster. |
+| 14 | `10_rancher_install.yml` `[rancher]` | master[0] | `rancher-deployment.yml.j2` (chart değil, düz Deployment) apply, `rollout status`, bootstrap parolası. |
+| 15 | `11_argocd_install.yml` `[argocd]` | master[0] | helm `--wait`, HTTPRoute, admin parolası. |
 | 16 | `99_result.yml` | master[0] | Özet tablo: Gateway IP, URL'ler, parolalar. |
 
 8–15 arası her adım `when: <x>_install` ile kapılıdır; varsayılanda hepsi `false`

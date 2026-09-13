@@ -3,64 +3,6 @@
 # Install Cert-Manager
 # ============================
 
-- name: Check if Jetstack Helm repository is already added
-  ansible.builtin.command:
-    cmd: helm repo list
-  register: helm_repo_list
-  failed_when: false
-  changed_when: false
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: "'master' in group_names"
-
-- name: Fail if helm repo list failed for reasons other than no repositories
-  ansible.builtin.fail:
-    msg: "Failed to list Helm repositories: {{ helm_repo_list.stderr }}"
-  when: 
-    - "'master' in group_names"
-    - helm_repo_list.rc != 0
-    - "'no repositories' not in helm_repo_list.stderr | default('')"
-
-- name: Extract Helm repository names
-  ansible.builtin.shell: |
-    echo "{{ helm_repo_list.stdout }}" | awk 'NR > 1 {print $1}'
-  register: helm_repo_names
-  when: "'master' in group_names"
-
-- name: Check if Jetstack Helm repository is already present
-  ansible.builtin.set_fact:
-    jetstack_repo_present: "{{ 'jetstack' in helm_repo_names.stdout }}"
-  when: "'master' in group_names"
-
-- name: Debug if Jetstack Helm repository is present
-  ansible.builtin.debug:
-    msg: "Jetstack Helm repository is present: {{ jetstack_repo_present }}"
-  when: "'master' in group_names"
-
-- name: Add Jetstack Helm repository
-  ansible.builtin.command:
-    cmd: helm repo add jetstack {{ helm_repo_cert_manager }}
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: 
-    - "'master' in group_names"
-    - not jetstack_repo_present
-
-- name: Debug message if Jetstack Helm repository is already present
-  ansible.builtin.debug:
-    msg: "Jetstack Helm repository is already added."
-  when:
-    - "'master' in group_names"
-    - jetstack_repo_present
-
-- name: Update Helm repository list
-  ansible.builtin.command:
-    cmd: helm repo update
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: 
-    - "'master' in group_names"
-
 - name: Set cert-manager values file for HA (3+ masters)
   set_fact:
     cert_manager_values_file: "{{ user_home_directory }}/my-charts/cert-manager/values-ha.yml"
@@ -79,24 +21,15 @@
 
 - name: Install Cert-Manager Helm chart
   ansible.builtin.command:
-    cmd: helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set crds.enabled=true -f {{ cert_manager_values_file }}
+    cmd: helm upgrade --install cert-manager cert-manager --repo {{ helm_repo_cert_manager }} --wait --timeout 10m --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set crds.enabled=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: cert_manager_helm_result
   until: cert_manager_helm_result.rc == 0
-  retries: 5
+  retries: 3
   delay: 30
-  when: inventory_hostname == groups['master'][0]
-
-- name: Wait for Cert-Manager pods to be in Running state
-  command: kubectl get pods -n cert-manager -l app.kubernetes.io/name=cert-manager -o jsonpath='{.items[*].status.phase}'
-  register: cert_manager_pod_status
-  until: cert_manager_pod_status.stdout.find('Running') != -1
-  retries: 10
-  delay: 60
-  changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Apply selfsigned issuer
@@ -106,6 +39,13 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  # helm --wait webhook pod'unu Ready bekler; cainjector'in CA'yi webhook
+  # config'ine yazmasi birkac saniye daha surebilir.
+  register: selfsigned_issuer_apply
+  until: selfsigned_issuer_apply.rc == 0
+  retries: 6
+  delay: 10
+  changed_when: selfsigned_issuer_apply.stdout is search('(created|configured)$', multiline=True)
   when:
     - inventory_hostname == groups['master'][0]
 
@@ -120,6 +60,8 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: wildcard_cert_apply
+  changed_when: wildcard_cert_apply.stdout is search('(created|configured)$', multiline=True)
   when:
     - inventory_hostname == groups['master'][0]
 
@@ -145,6 +87,8 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: homelab_gateway_apply
+  changed_when: homelab_gateway_apply.stdout is search('(created|configured)$', multiline=True)
   when:
     - inventory_hostname == groups['master'][0]
 

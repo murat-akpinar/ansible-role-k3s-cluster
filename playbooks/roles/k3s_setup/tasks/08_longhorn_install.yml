@@ -3,64 +3,6 @@
 # Install Longhorn
 # ============================
 
-- name: Check if Longhorn Helm repository is already added
-  ansible.builtin.command:
-    cmd: helm repo list
-  register: helm_repo_list
-  failed_when: false
-  changed_when: false
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: "'master' in group_names"
-
-- name: Fail if helm repo list failed for reasons other than no repositories
-  ansible.builtin.fail:
-    msg: "Failed to list Helm repositories: {{ helm_repo_list.stderr }}"
-  when: 
-    - "'master' in group_names"
-    - helm_repo_list.rc != 0
-    - "'no repositories' not in helm_repo_list.stderr | default('')"
-
-- name: Extract Helm repository names
-  ansible.builtin.shell: |
-    echo "{{ helm_repo_list.stdout }}" | awk 'NR > 1 {print $1}'
-  register: helm_repo_names
-  when: "'master' in group_names"
-
-- name: Check if Longhorn Helm repository is already present
-  ansible.builtin.set_fact:
-    longhorn_repo_present: "{{ 'longhorn' in helm_repo_names.stdout }}"
-  when: "'master' in group_names"
-
-- name: Debug if Longhorn Helm repository is present
-  ansible.builtin.debug:
-    msg: "Longhorn Helm repository is present: {{ longhorn_repo_present }}"
-  when: "'master' in group_names"
-
-- name: Add Longhorn Helm repository
-  ansible.builtin.command:
-    cmd: helm repo add longhorn {{ helm_repo_longhorn }}
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: 
-    - "'master' in group_names"
-    - not longhorn_repo_present
-
-- name: Debug message if Longhorn Helm repository is already present
-  ansible.builtin.debug:
-    msg: "Longhorn Helm repository is already added."
-  when:
-    - "'master' in group_names"
-    - longhorn_repo_present
-
-- name: Update Helm repository list
-  ansible.builtin.command:
-    cmd: helm repo update
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: 
-    - "'master' in group_names"
-
 - name: Set longhorn values file for HA (3+ masters)
   set_fact:
     longhorn_values_file: "{{ user_home_directory }}/my-charts/longhorn/values-ha.yml"
@@ -79,24 +21,15 @@
 
 - name: Install Longhorn Helm chart
   ansible.builtin.command:
-    cmd: helm upgrade --install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace {{ ('--version ' ~ longhorn_chart_version) if longhorn_chart_version else '' }} -f {{ longhorn_values_file }}
+    cmd: helm upgrade --install longhorn longhorn --repo {{ helm_repo_longhorn }} --wait --timeout 10m --namespace longhorn-system --create-namespace {{ ('--version ' ~ longhorn_chart_version) if longhorn_chart_version else '' }} -f {{ longhorn_values_file }}
   become: true
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: longhorn_helm_result
   until: longhorn_helm_result.rc == 0
-  retries: 5
+  retries: 3
   delay: 30
-  when: inventory_hostname == groups['master'][0]
-
-- name: Wait for Longhorn pods to be in Running state
-  command: kubectl get pods -n longhorn-system -l app=longhorn-manager -o jsonpath='{.items[*].status.phase}'
-  register: longhorn_pod_status
-  until: longhorn_pod_status.stdout.find('Running') != -1
-  retries: 10
-  delay: 60
-  changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Render Longhorn StorageClasses from variables
@@ -115,11 +48,15 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: longhorn_sc_apply
+  changed_when: longhorn_sc_apply.stdout is search('(created|configured)$', multiline=True)
   when: inventory_hostname == groups['master'][0]
 
 - name: "Disable local-path as default StorageClass"
   shell: |
     kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+  register: local_path_patch
+  changed_when: "'(no change)' not in local_path_patch.stdout"
   when: inventory_hostname == groups['master'][0]
 
 - name: Apply Longhorn HTTPRoute
@@ -129,10 +66,8 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: longhorn_httproute_apply
+  changed_when: longhorn_httproute_apply.stdout is search('(created|configured)$', multiline=True)
   when:
     - inventory_hostname == groups['master'][0]
     - cert_manager_install | default(false)
-
-
-
-

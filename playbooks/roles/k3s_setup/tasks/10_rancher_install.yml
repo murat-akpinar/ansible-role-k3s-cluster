@@ -25,14 +25,18 @@
   until: rancher_apply_result.rc == 0
   retries: 5
   delay: 30
+  changed_when: rancher_apply_result.stdout is search('(created|configured)$', multiline=True)
   when: inventory_hostname == groups['master'][0]
 
-- name: Wait for Rancher pods to be in Running state
-  command: kubectl get pods -n cattle-system -l app=rancher -o jsonpath='{.items[*].status.phase}'
-  register: rancher_pod_status
-  until: rancher_pod_status.stdout.find('Running') != -1
-  retries: 15
-  delay: 30
+# rollout status: yeni ReplicaSet'in TUM replikalari hazir olana kadar bekler
+# (condition=Available rancher_version degisiminde eski pod'larla hemen gecerdi).
+- name: Wait for Rancher deployment rollout
+  ansible.builtin.command:
+    cmd: kubectl rollout status deployment/rancher -n cattle-system --timeout=600s
+  become: true
+  become_user: "{{ ansible_user }}"
+  environment:
+    KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   changed_when: false
   when: inventory_hostname == groups['master'][0]
 
@@ -43,6 +47,8 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: rancher_httproute_apply
+  changed_when: rancher_httproute_apply.stdout is search('(created|configured)$', multiline=True)
   when:
     - inventory_hostname == groups['master'][0]
     - cert_manager_install | default(false)
@@ -51,6 +57,7 @@
   command: kubectl get secret -n cattle-system bootstrap-secret
   register: bootstrap_secret_check
   until: bootstrap_secret_check.rc == 0
+  changed_when: false
   retries: 20
   delay: 10
   failed_when: false
@@ -59,6 +66,7 @@
 - name: Get Rancher bootstrap password from secret
   shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{% raw %}{{.data.bootstrapPassword|base64decode}}{{"\n"}}{% endraw %}'
   register: rancher_bootstrap_password_raw
+  changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Extract Rancher bootstrap password

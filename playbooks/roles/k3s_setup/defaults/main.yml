@@ -119,7 +119,6 @@ helm_repo_metallb: https://metallb.github.io/metallb
 helm_repo_cert_manager: https://charts.jetstack.io
 helm_repo_longhorn: https://charts.longhorn.io
 helm_repo_prometheus: https://prometheus-community.github.io/helm-charts
-helm_repo_grafana: https://grafana.github.io/helm-charts
 helm_repo_argo: https://argoproj.github.io/argo-helm
 
 # Internal Service URLs

@@ -65,11 +65,10 @@ ezilemez (yalnızca `-e`). Bkz. [architecture.md](architecture.md) "Değişken a
 | Değişken | Varsayılan | Not |
 |---|---|---|
 | `helm_install_script_url` | `.../helm/main/scripts/get-helm-3` | Sürümsüz (todo C11). |
-| `helm_repo_metallb` | `https://metallb.github.io/metallb` | |
+| `helm_repo_metallb` | `https://metallb.github.io/metallb` | `helm upgrade --install ... --repo` ile doğrudan kullanılır (`helm repo add` yok); mirror için değiştir. |
 | `helm_repo_cert_manager` | `https://charts.jetstack.io` | |
 | `helm_repo_longhorn` | `https://charts.longhorn.io` | |
 | `helm_repo_prometheus` | `https://prometheus-community.github.io/helm-charts` | |
-| `helm_repo_grafana` | `https://grafana.github.io/helm-charts` | Tanımlı ama kullanılmıyor. |
 | `helm_repo_argo` | `https://argoproj.github.io/argo-helm` | |
 | `metallb_chart_version` | `0.16.1` | `""` = en son. |
 | `cert_manager_chart_version` | `v1.21.1` | |

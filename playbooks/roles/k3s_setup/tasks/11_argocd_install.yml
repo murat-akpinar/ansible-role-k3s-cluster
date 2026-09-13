@@ -3,64 +3,6 @@
 # Install ArgoCD
 # ============================
 
-- name: Check if Argo Helm repository is already added
-  ansible.builtin.command:
-    cmd: helm repo list
-  register: helm_repo_list
-  failed_when: false
-  changed_when: false
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: "'master' in group_names"
-
-- name: Fail if helm repo list failed for reasons other than no repositories
-  ansible.builtin.fail:
-    msg: "Failed to list Helm repositories: {{ helm_repo_list.stderr }}"
-  when: 
-    - "'master' in group_names"
-    - helm_repo_list.rc != 0
-    - "'no repositories' not in helm_repo_list.stderr | default('')"
-
-- name: Extract Helm repository names
-  ansible.builtin.shell: |
-    echo "{{ helm_repo_list.stdout }}" | awk 'NR > 1 {print $1}'
-  register: helm_repo_names
-  when: "'master' in group_names"
-
-- name: Check if Argo Helm repository is already present
-  ansible.builtin.set_fact:
-    argo_repo_present: "{{ 'argo' in helm_repo_names.stdout }}"
-  when: "'master' in group_names"
-
-- name: Debug if Argo Helm repository is present
-  ansible.builtin.debug:
-    msg: "Argo Helm repository is present: {{ argo_repo_present }}"
-  when: "'master' in group_names"
-
-- name: Add Argo Helm repository
-  ansible.builtin.command:
-    cmd: helm repo add argo {{ helm_repo_argo }}
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: 
-    - "'master' in group_names"
-    - not argo_repo_present
-
-- name: Debug message if Argo Helm repository is already present
-  ansible.builtin.debug:
-    msg: "Argo Helm repository is already added."
-  when:
-    - "'master' in group_names"
-    - argo_repo_present
-
-- name: Update Helm repository list
-  ansible.builtin.command:
-    cmd: helm repo update
-  become: true
-  become_user: "{{ ansible_user }}"
-  when: 
-    - "'master' in group_names"
-
 - name: Set argocd values file for HA (3+ masters)
   set_fact:
     argocd_values_file: "{{ user_home_directory }}/my-charts/argocd/values-ha.yml"
@@ -89,42 +31,15 @@
 
 - name: Install ArgoCD Helm chart
   ansible.builtin.command:
-    cmd: helm upgrade --install argocd argo/argo-cd --namespace argocd --create-namespace {{ ('--version ' ~ argocd_chart_version) if argocd_chart_version else '' }} -f {{ argocd_values_file }}
+    cmd: helm upgrade --install argocd argo-cd --repo {{ helm_repo_argo }} --wait --timeout 10m --namespace argocd --create-namespace {{ ('--version ' ~ argocd_chart_version) if argocd_chart_version else '' }} -f {{ argocd_values_file }}
   become: true
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: argocd_helm_result
   until: argocd_helm_result.rc == 0
-  retries: 5
+  retries: 3
   delay: 30
-  when: inventory_hostname == groups['master'][0]
-
-- name: Wait for ArgoCD server pods to be in Running state
-  command: kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server -o jsonpath='{.items[*].status.phase}'
-  register: argocd_server_pod_status
-  until: argocd_server_pod_status.stdout.find('Running') != -1
-  retries: 15
-  delay: 30
-  changed_when: false
-  when: inventory_hostname == groups['master'][0]
-
-- name: Wait for ArgoCD application-controller pods to be in Running state
-  command: kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-application-controller -o jsonpath='{.items[*].status.phase}'
-  register: argocd_controller_pod_status
-  until: argocd_controller_pod_status.stdout.find('Running') != -1
-  retries: 15
-  delay: 30
-  changed_when: false
-  when: inventory_hostname == groups['master'][0]
-
-- name: Wait for ArgoCD repo-server pods to be in Running state
-  command: kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-repo-server -o jsonpath='{.items[*].status.phase}'
-  register: argocd_repo_server_pod_status
-  until: argocd_repo_server_pod_status.stdout.find('Running') != -1
-  retries: 15
-  delay: 30
-  changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Apply ArgoCD HTTPRoute
@@ -134,6 +49,8 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+  register: argocd_httproute_apply
+  changed_when: argocd_httproute_apply.stdout is search('(created|configured)$', multiline=True)
   when:
     - inventory_hostname == groups['master'][0]
     - cert_manager_install | default(false)

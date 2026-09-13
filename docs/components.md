@@ -55,8 +55,10 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   yalnızca master[0] kullanır.
 - `files/my-charts/` → `~/my-charts/` kopya; domain içeren 6 manifest `.j2`'den render:
   gateway/gateway.yml, gateway/wildcard-certificate.yml, {argocd,grafana,longhorn,rancher}/httproute.yml.
-- Her chart adımı aynı kalıp: repo list → var mı → add → update → `helm upgrade --install
-  --version X -f values` (5 retry × 30 sn) → pod bekle → ek manifest apply. (todo B3: `--repo` ile kısalır.)
+- Her chart adımı aynı kalıp: `helm upgrade --install <release> <chart> --repo {{ helm_repo_<x> }}
+  --wait --timeout 10m --version X -f values` (3 retry × 30 sn) → ek manifest apply. `helm repo add`
+  yok; `--wait` chart'ın Deployment/StatefulSet/DaemonSet/PVC'lerini hazır bekler, ayrı "pod Running"
+  task'ı yok. `kubectl apply` task'ları yalnızca `created`/`configured` satırı varsa `changed`.
 - Values seçimi: `master_count >= 3` → `values-ha.yml`, aksi `values-single-master.yml`.
   HA values'ları master taint'ini **tolere etmez** (worker'a yerleşir), `podAntiAffinity: preferred`.
 
@@ -82,8 +84,7 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - **Dosyalar:** `tasks/06_metallb_install.yml`, `templates/metallb-config.yml.j2`,
   `files/my-charts/metallb/values-*.yml`.
 - `k3s_disable_servicelb: true` zorunlu; ikisi aynı Service'e IP atamaya çalışır.
-- Bekleme: `kubectl wait deployment/metallb-controller Available` (webhook için pod Running yetmez),
-  IPAddressPool apply 6×10 sn retry (caBundle yayılımı).
+- Bekleme: helm `--wait` (controller Ready), IPAddressPool apply 6×10 sn retry (webhook caBundle yayılımı).
 - `speaker` DaemonSet master taint'ini tolere eder (master'daki LB servisleri için), controller etmez.
 - L2 modu: tek node anons eder, failover ~saniyeler.
 
@@ -95,6 +96,7 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - `ClusterIssuer selfsigned-issuer` → `Certificate homelab-wildcard` (kube-system, 8760h,
   renewBefore 2160h, `*.domain` + `domain`) → secret `homelab-wildcard-tls` → Gateway apply →
   `Programmed` bekle. Bu adım Gateway'in sahibi olduğu için HTTPRoute'lar buna bağımlı.
+- Issuer apply 6×10 sn retry: helm `--wait` webhook pod'unu bekler, cainjector'ın CA'yı yazması biraz sürer.
 - Tuzak: self-signed → her istemcide uyarı; CA zinciri ile tek sefer güven (todo C2).
 
 ## Longhorn (`longhorn_install`)
@@ -106,8 +108,11 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - HA: `defaultClassReplicaCount 3`, CSI replicaCount 3; single: 1.
 - 6 StorageClass (`longhorn-{retain,delete}-{1,2,3}`) + chart'ın default `longhorn` class'ı;
   `local-path` default annotation'ı kaldırılır.
-- Tuzaklar: multipathd, `longhornctl check preflight` (todo C8); drain sırasında volume
-  rebuild bekleme scriptleri dash'te çalışmıyor (todo A5).
+- Bekleme: helm `--wait` (longhorn-manager DaemonSet her node'da Ready olmalı; iscsid eksik bir
+  node kurulumu 10 dk'da düşürür).
+- Upgrade'de worker başına Longhorn pod'ları Ready ve hiçbir volume `degraded` değil beklenir
+  (`update_cluster/tasks/03_upgrade_workers.yml`, uyarı niteliğinde).
+- Tuzaklar: multipathd, `longhornctl check preflight` (todo C8).
 
 ## Monitoring / kube-prometheus-stack (`grafana_install`)
 
@@ -118,7 +123,9 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - Prometheus 10Gi/30d, Alertmanager 2Gi, Grafana 10Gi; Grafana `adminPassword: admin`.
 - `kube-state-metrics` subchart ayarları **subchart anahtarı altında** (`kube-state-metrics:`),
   `kubeStateMetrics:` altına yazılırsa yok sayılır (0fe9ffa).
-- Bekleme: Grafana/Prometheus pod Running, PVC Bound (10×30 sn).
+- Bekleme: helm `--wait` (Grafana, operator, kube-state-metrics, node-exporter, Grafana PVC);
+  Prometheus StatefulSet'ini operator oluşturduğu için ayrıca
+  `kubectl wait --for=condition=Available prometheuses.monitoring.coreos.com/kube-prometheus-stack-prometheus` (600 sn).
 - Tuzaklar: HA'da `podAntiAffinity: required` + replicas 2 → en az 2 worker; k3s'te
   controller-manager/scheduler/proxy/etcd hedefleri DOWN → sahte alarm (todo C1).
 
@@ -127,6 +134,8 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - **Dosyalar:** `tasks/10_rancher_install.yml`, `templates/rancher-deployment.yml.j2`, `vars: rancher_version`.
 - Chart değil: Namespace + SA (cluster-admin) + Deployment (2 replika, podAntiAffinity preferred,
   `imagePullPolicy: Always`) + ClusterIP Service. Probe yok.
+- Bekleme: `kubectl rollout status deployment/rancher` (600 sn). Probe olmadığı için "hazır" =
+  konteyner başladı; Rancher'ın gerçekten cevap vermesi birkaç dakika daha sürebilir.
 - Bootstrap parolası `cattle-system/bootstrap-secret` (20×10 sn bekler).
 - Tuzaklar: Rancher'ın k8s sürüm penceresi dar, minor atlanamaz (todo C10).
 
@@ -136,7 +145,7 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   `templates/my-charts/argocd/httproute.yml.j2`.
 - `configs.params."server.insecure": "true"` — TLS Gateway'de biter, backend HTTP.
 - HA: server/controller/repoServer/applicationSet 2 replika; redis tek instance (redis-ha kapalı).
-- Bekleme: server, application-controller, repo-server pod'ları Running (15×30 sn).
+- Bekleme: helm `--wait` (server, repo-server, applicationset Deployment'ları, application-controller StatefulSet).
 - İlk parola `argocd-initial-admin-secret` (silinebilir; rol `failed_when: false`).
 
 ## Sistem hazırlığı (her node)

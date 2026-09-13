@@ -45,7 +45,10 @@ ile karşılaştır ya da master[0]'da `helm template ... -f values | less`.
 1. `defaults/main.yml`: `<x>_install: false`, `helm_repo_<x>`, `<x>_chart_version` (yorumla pin tarihi).
 2. `tasks/NN_<x>_install.yml`: helm kalıbı (06_metallb örneği), `when: inventory_hostname == groups['master'][0]`,
    `become_user: "{{ ansible_user }}"` + `KUBECONFIG: "{{ user_home_directory }}/.kube/config"`,
-   `kubectl wait` ile bekleme, HTTPRoute apply (`cert_manager_install` şartıyla).
+   `helm upgrade --install <x> <chart> --repo {{ helm_repo_<x> }} --wait --timeout 10m` (repo add yok,
+   ayrı pod bekleme task'ı yok; chart dışı kaynak gerekiyorsa `kubectl wait --for=condition=...`),
+   `kubectl apply` task'ına `register` + `changed_when: <reg>.stdout is search('(created|configured)$', multiline=True)`,
+   HTTPRoute apply (`cert_manager_install` şartıyla).
 3. `tasks/main.yml`: `import_tasks` + `when: <x>_install | default(false)` + `tags: ['<x>']`.
 4. `files/my-charts/<x>/values-ha.yml` ve `values-single-master.yml` (master taint tolere etme,
    podAntiAffinity preferred); domain içeriyorsa `templates/my-charts/<x>/httproute.yml.j2` ve
