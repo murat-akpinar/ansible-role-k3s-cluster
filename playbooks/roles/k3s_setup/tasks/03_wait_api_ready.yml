@@ -1,6 +1,6 @@
 ---
 # Merkezi "API hazir mi" kapisi: k3s kurulumundan sonra, Helm/kubectl kullanan
-# tum rollerden (cert-manager, longhorn, grafana, rancher, argocd...) once calisir.
+# tum rollerden (cert-manager, grafana, rancher, argocd...) once calisir.
 # HA/etcd isinma veya apiserver restart penceresinde olusan 503 / connection refused
 # hatalarini burada bir kez bekleyerek onler. Roller artik kendi beklemelerini icermez.
 

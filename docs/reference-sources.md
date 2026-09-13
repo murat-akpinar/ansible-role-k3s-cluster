@@ -13,7 +13,6 @@ tag'i güncelle.
 | k3s | `k3s_version: ""` (latest) | k3s-io/docs `main` |
 | MetalLB | chart 0.16.1 | metallb/metallb `v0.16.1` |
 | cert-manager | chart v1.21.1 | cert-manager/cert-manager `v1.21.1` |
-| Longhorn | chart 1.12.1 | longhorn/longhorn `v1.12.1`, docs `1.12.1` |
 | kube-prometheus-stack | chart 88.3.0 | helm-charts `kube-prometheus-stack-88.3.0` |
 | ArgoCD | chart 10.3.3 (ArgoCD v3.5.1) | argo-helm `argo-cd-10.3.3`, argo-cd `v3.5.1` |
 | Gateway API | v1.5.1 | gateway-api `v1.5.1` |
@@ -102,15 +101,6 @@ tag'i güncelle.
 | `usage-certificate.md` | Certificate alanları (duration, renewBefore, dnsNames). |
 | `usage-gateway.md` | Gateway API ile cert-manager (gateway-shim) alternatifi. |
 | `installation-helm.md`, `troubleshooting.md` | Kurulum, "certificate not Ready" ayıklama. |
-
-## longhorn/
-| Dosya | Ne için |
-|---|---|
-| `values-v1.12.1.yaml`, `chart-README-v1.12.1.md` | Pinli chart values (`persistence.defaultClassReplicaCount`, `csi.*ReplicaCount`, tolerations). |
-| `install-requirements.md` | open-iscsi, nfs, kernel, **multipathd** notu (todo C8). |
-| `best-practices.md` | Node/disk düzeni, replica sayısı. |
-| `storage-class-parameters.md` | `numberOfReplicas` vb. (templates/longhorn-storageclass.yml.j2). |
-| `install-with-helm.md`, `upgrade.md`, `troubleshooting.md`, `longhornctl-preflight.md` | Kurulum/yükseltme/ayıklama, `longhornctl check preflight`. |
 
 ## kube-prometheus-stack/
 | Dosya | Ne için |

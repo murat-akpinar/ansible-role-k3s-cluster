@@ -59,7 +59,6 @@
     - gateway/wildcard-certificate.yml
     - argocd/httproute.yml
     - grafana/httproute.yml
-    - longhorn/httproute.yml
     - rancher/httproute.yml
   when:
     - "'master' in group_names"

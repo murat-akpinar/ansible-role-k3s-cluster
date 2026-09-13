@@ -64,8 +64,8 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - **Dosyalar:** `tasks/04_install_helm.yml`, `files/my-charts/`, `templates/my-charts/`.
 - get-helm-3 scripti (`main` branch, sürümsüz) → `/usr/local/bin/helm`. Tüm master'lara kurulur,
   yalnızca master[0] kullanır.
-- `files/my-charts/` → `~/my-charts/` kopya; domain içeren 6 manifest `.j2`'den render:
-  gateway/gateway.yml, gateway/wildcard-certificate.yml, {argocd,grafana,longhorn,rancher}/httproute.yml.
+- `files/my-charts/` → `~/my-charts/` kopya; domain içeren 5 manifest `.j2`'den render:
+  gateway/gateway.yml, gateway/wildcard-certificate.yml, {argocd,grafana,rancher}/httproute.yml.
 - Her chart adımı aynı kalıp: `helm upgrade --install <release> <chart> --repo {{ helm_repo_<x> }}
   --wait --timeout 10m --version X -f values` (3 retry × 30 sn) → ek manifest apply. `helm repo add`
   yok; `--wait` chart'ın Deployment/StatefulSet/DaemonSet/PVC'lerini hazır bekler, ayrı "pod Running"
@@ -110,21 +110,6 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - Issuer apply 6×10 sn retry: helm `--wait` webhook pod'unu bekler, cainjector'ın CA'yı yazması biraz sürer.
 - Tuzak: self-signed → her istemcide uyarı; CA zinciri ile tek sefer güven (todo C2).
 
-## Longhorn (`longhorn_install`)
-
-- **Dosyalar:** `tasks/08_longhorn_install.yml`, `templates/longhorn-storageclass.yml.j2`,
-  `files/my-charts/longhorn/values-*.yml`, `vars: longhorn_storage_classes`.
-- Önkoşul: open-iscsi/iscsid, nfs-common (`00_prerequisites.yml`). Bileşenler master taint'ini
-  tolere etmez → **worker-only storage**; worker yoksa Longhorn çalışmaz.
-- HA: `defaultClassReplicaCount 3`, CSI replicaCount 3; single: 1.
-- 6 StorageClass (`longhorn-{retain,delete}-{1,2,3}`) + chart'ın default `longhorn` class'ı;
-  `local-path` default annotation'ı kaldırılır.
-- Bekleme: helm `--wait` (longhorn-manager DaemonSet her node'da Ready olmalı; iscsid eksik bir
-  node kurulumu 10 dk'da düşürür).
-- Upgrade'de worker başına Longhorn pod'ları Ready ve hiçbir volume `degraded` değil beklenir
-  (`update_cluster/tasks/03_upgrade_workers.yml`, uyarı niteliğinde).
-- Tuzaklar: multipathd, `longhornctl check preflight` (todo C8).
-
 ## Monitoring / kube-prometheus-stack (`grafana_install`)
 
 - **Dosyalar:** `tasks/09_grafana_install.yml`, `templates/kube-prometheus-stack-values.yml.j2`
@@ -164,7 +149,7 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - `00_system_requirements.yml`: CPU/RAM uyarı, swap kapalı (+fstab), `overlay`/`br_netfilter`
   (+`/etc/modules-load.d/k3s.conf`), sysctl bridge-nf-call-*/ip_forward (`/etc/sysctl.d/99-k3s.conf`),
   chrony (`chrony.j2`, handler ile restart).
-- `00_prerequisites.yml`: acl (become_user için), iSCSI/NFS, firewalld aktifse `6443/tcp`
+- `00_prerequisites.yml`: acl (become_user için), firewalld aktifse `6443/tcp`
   herkese; node IP'leri (`ansible_host`) ve pod/service CIDR'ları `trusted` zone — node-arası
   `8472/udp`, `10250/tcp`, `2379-2380/tcp` ve VRRP böylece yalnızca node'lardan gelir. Eski
   "herkese açık `8472/udp` + `10250/tcp`" kuralı `state: disabled` ile kapatılır. firewalld

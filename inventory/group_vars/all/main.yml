@@ -25,7 +25,6 @@
 # gateway_api_install: false
 # metallb_install: false             # acarsaniz k3s_disable_servicelb: true yapin
 # cert_manager_install: false
-# longhorn_install: false
 # grafana_install: false
 # rancher_install: false
 # argocd_install: false

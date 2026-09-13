@@ -5,8 +5,8 @@
 # acik; eksik olan yalnizca bu politika dosyasiydi.
 #
 # enforce: baseline -> privileged pod, hostPath, hostPID/hostNetwork reddedilir.
-# CIS "restricted" der ama cluster genelinde restricted MetalLB speaker,
-# Longhorn ve node-exporter'i kirar; onlar asagida muaf. Kendi is yuklerinizi
+# CIS "restricted" der ama cluster genelinde restricted MetalLB speaker
+# ve node-exporter'i kirar; onlar asagida muaf. Kendi is yuklerinizi
 # restricted'a tasimak icin once warn/audit ciktisina bakin.
 apiVersion: apiserver.config.k8s.io/v1
 kind: AdmissionConfiguration
@@ -29,7 +29,6 @@ plugins:
         # sorun degil; bileseni kapaliysa satir bos yere durur.
         namespaces:
           - kube-system          # traefik, coredns, local-path, metrics-server
-          - longhorn-system      # privileged + hostPath (iSCSI)
           - metallb-system       # speaker: NET_ADMIN + hostNetwork
           - monitoring           # node-exporter: hostPID + hostNetwork
           - cattle-system        # Rancher agent'lari

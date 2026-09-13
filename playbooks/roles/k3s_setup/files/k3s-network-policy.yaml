@@ -6,7 +6,7 @@
 # Yalnizca INGRESS kisitlanir, egress serbest. Bir pod'u secen ilk policy'den sonra o pod'a
 # yalnizca izin verilen trafik girer; policy'ler toplanir (ekstra izin = yeni bir policy).
 # Pod'un kendi node'undan gelen trafik (kubelet probe'lari) kube-router'da hep serbest.
-# default ve bilesen namespace'leri (longhorn-system, monitoring, argocd...) BILEREK
+# default ve bilesen namespace'leri (monitoring, argocd...) BILEREK
 # yok: oradaki is yuku Traefik'ten / NodePort'tan trafik bekler, kurali kurulumu yapan yazar.
 ---
 # kube-system icinden kube-system'e her sey serbest; disaridan yalnizca asagidakiler.

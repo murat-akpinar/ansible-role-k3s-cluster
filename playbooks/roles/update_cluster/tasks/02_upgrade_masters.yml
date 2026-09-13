@@ -25,8 +25,8 @@
 # Master'da drain YOK, yalnizca cordon: k3s dururken container'lar calismaya
 # devam eder (.tmp/k3s/upgrades-manual.md); system-upgrade-controller ornegi de
 # server'lar icin yalnizca `cordon: true` kullanir. Drain tek master'da tum
-# pod'lari gidecek yeri olmadan tahliye ediyordu ve Longhorn'un son replikayi
-# koruyan PDB'si drain'i timeout'a kadar bloklayip upgrade'i durduruyordu (todo A12).
+# pod'lari gidecek yeri olmadan tahliye ediyordu ve PDB'ler drain'i timeout'a
+# kadar bloklayip upgrade'i durdurabiliyordu (todo A12).
 - name: Upgrade master node
   when: upgrade_needed | default(true)
   block:

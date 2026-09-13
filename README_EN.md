@@ -22,7 +22,6 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 - [HA Mode Verification](#-ha-mode-verification)
 - [Pod Distribution and Replica Strategy](#-pod-distribution-and-replica-strategy)
 - [SSL/TLS Certificates](#-ssltls-certificates)
-- [Longhorn StorageClass](#-longhorn-storageclass)
 - [Troubleshooting](#-troubleshooting)
 
 ## ✨ Features
@@ -36,7 +35,6 @@ This Ansible role automates the installation of a **K3S**-based Kubernetes clust
 - ✅ **Pod Distribution**: System pods on masters, application pods on workers
 - ✅ **SSL/TLS**: Automatic certificate management with cert-manager
 - ✅ **Monitoring**: Prometheus + Grafana + Alertmanager
-- ✅ **Storage**: Distributed block storage with Longhorn
 - ✅ **Load Balancer**: Bare metal load balancing with MetalLB
 - ✅ **Gateway API**: Gateway API via the k3s built-in Traefik (no Ingress resources)
 - ✅ **Management**: Cluster management with Rancher
@@ -129,14 +127,13 @@ The default install is plain k3s: only the k3s rows and the bundled Traefik belo
 | **Traefik (bundled)** | ~0.1 vCPU | ~64 MB | ships with k3s |
 | **MetalLB** | ~0.1 vCPU | ~128 MB | controller + speaker (DaemonSet) |
 | **cert-manager** | ~0.1 vCPU | ~128 MB | controller + webhook + cainjector |
-| **Longhorn** ⚠️ | ~0.5 vCPU | ~500 MB–1 GB | manager + CSI on every node; **heavy** |
 | **kube-prometheus-stack (Grafana/Prometheus)** ⚠️ | ~0.5 vCPU | ~1–2 GB | Prometheus TSDB memory grows with data; **heavy** |
 | **Rancher** ⚠️ | ~0.5 vCPU | ~1 GB | 2 replicas; **heavy** |
 | **ArgoCD** | ~0.3 vCPU | ~512 MB | repo-server + application-controller |
 
 > Components marked ⚠️ are the biggest resource consumers. **With all components enabled**, at least
 > **4 GB RAM** per master (3 masters in HA) and **16 GB+ RAM** cluster-wide are recommended for
-> comfortable operation. Longhorn requires additional free disk on worker nodes.
+> comfortable operation.
 
 ### 4. ETCD and HA Note
 
@@ -213,7 +210,6 @@ helm_install: false
 gateway_api_install: false
 metallb_install: false
 cert_manager_install: false
-longhorn_install: false
 grafana_install: false
 rancher_install: false
 argocd_install: false
@@ -239,7 +235,6 @@ playbook:
 | Use `Gateway` / `HTTPRoute` resources | `gateway_api_install: true` — enables the bundled Traefik's Gateway provider (this is where `GatewayClass` appears) and pins the CRDs to `gateway_api_version` |
 | Reach services at `https://<name>.homelab.local` | `cert_manager_install: true` — the shared Gateway and the `*.homelab.local` wildcard certificate are created by that step; with it off no Gateway exists at all |
 | Hand out LoadBalancer IPs from a pool on your network | `metallb_install: true` **+** `k3s_disable_servicelb: true` — leaving both LB controllers on makes klipper and MetalLB race for the same Service |
-| Persistent/replicated disks (PVC) | `longhorn_install: true` |
 | Prometheus + Grafana + Alertmanager | `grafana_install: true` |
 | Rancher management UI | `rancher_install: true` (Rancher needs cert-manager for its own TLS, enable both) |
 | GitOps / ArgoCD | `argocd_install: true` |
@@ -277,10 +272,8 @@ On every node the playbook does the following (`00_system_requirements.yml`):
 - Applies the sysctl settings: `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`
 - Installs and configures Chrony (see Step 3)
 
-Next, `00_prerequisites.yml` installs the shared packages on every node: `acl`
-(needed for `become` with an unprivileged `ansible_user`), `open-iscsi`/`nfs-common`
-(`iscsi-initiator-utils`/`nfs-utils` on RHEL) and the `iscsid` service — so the
-node is ready if Longhorn is enabled later.
+Next, `00_prerequisites.yml` installs the shared package on every node: `acl`
+(needed for `become` with an unprivileged `ansible_user`).
 
 **firewalld (RHEL family only)**: if firewalld is running, the same file applies the rules below. Ubuntu/Debian does not ship firewalld and the role does **not** install it (turning a firewall on where there was none would first cut MetalLB/Traefik LoadBalancer traffic and NodePorts); it prints a single `[WARN]` line instead.
 
@@ -354,7 +347,6 @@ The following services are installed based on configuration (✅ = on by default
 | **Traefik Gateway provider** | ❌ | Ships disabled in k3s; enabling it creates the `GatewayClass` and makes `Gateway`/`HTTPRoute` usable |
 | **MetalLB** | ❌ | Hands out LoadBalancer IPs from a pool on your network (instead of klipper) |
 | **Cert-Manager** | ❌ | SSL/TLS certificate management + the shared Gateway |
-| **Longhorn** | ❌ | Distributed block storage |
 | **kube-prometheus-stack** | ❌ | Prometheus + Grafana + Alertmanager |
 | **Rancher** | ❌ | Kubernetes management UI |
 | **ArgoCD** | ❌ | GitOps continuous delivery (CD) — `argocd.homelab.local` (see [Access ArgoCD](#access-argocd)) |
@@ -409,7 +401,6 @@ gateway_api_install: false
 metallb_install: false
 # Owns the Gateway and the wildcard certificate; set true for hostname access
 cert_manager_install: false
-longhorn_install: false
 grafana_install: false
 rancher_install: false
 argocd_install: false
@@ -435,8 +426,7 @@ Other variables living in the same file:
 | `k3s_server_args` | **Leave it empty.** k3s server/agent flags no longer live on the command line but in the k3s configuration file: `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`. The install script rewrites the systemd unit on every run but never touches this file, so flags survive an upgrade. A flag set here wins over the file and wipes out the list settings (audit, PSA) it contains |
 | `k3s_disable_servicelb` | When `true`, disables the k3s bundled ServiceLB (klipper). Defaults to `false`: MetalLB is off too, so klipper hands out LoadBalancer IPs. **Do not turn both off** — no LB controller would be left and the `traefik` service stays `<pending>`. If you set `metallb_install: true`, set this to `true` as well |
 | `k3s_master_taint` / `k3s_master_taint_value` | Protects masters from heavy workloads (see [Master/Worker Pod Distribution](#masterworker-pod-distribution)) |
-| `monitoring_storage_class` | StorageClass for the monitoring PVCs (see [Longhorn StorageClass](#-longhorn-storageclass)) |
-| `longhorn_storage_classes` | List of StorageClasses to generate — `reclaim` and `replicas` are managed here |
+| `monitoring_storage_class` | StorageClass for the monitoring PVCs; defaults to the k3s built-in `local-path` (not replicated, node-local) |
 | `helm_repo_*`, `helm_install_script_url`, `k3s_install_url` | External source URLs; change these for air-gapped/mirrored environments |
 
 ### Master/Worker Pod Distribution
@@ -448,7 +438,6 @@ Installation **automatically selects** values files based on master count:
 **Pod Distribution Strategy:**
 - **System Pods** (Prometheus, Alertmanager, Cert-Manager, Traefik, MetalLB Controller): Run on master nodes
 - **Application Pods** (Grafana): Run on worker nodes
-- **Storage Pods** (Longhorn): Run with master preferred, worker fallback strategy
 
 ## 🔐 Security
 
@@ -486,13 +475,13 @@ upgrade roles call the same task.
 |---|---|
 | `secrets-encryption` | Secrets are written to etcd encrypted with AES. Without it, anyone who gets the etcd snapshot or the disk reads every password in plaintext |
 | Audit log | `/var/lib/rancher/k3s/server/logs/audit.log` (`level: Metadata`, 10 × 100 MB rotation). Records who read which Secret and who changed which RBAC rule |
-| Pod Security Admission | Defaults to `baseline`: `privileged` pods, `hostPath`, `hostPID`/`hostNetwork` are rejected. The `restricted` level is reported as a warning only. Components that genuinely need privileges (Longhorn, MetalLB speaker, node-exporter, Rancher) are in the exempt namespace list |
+| Pod Security Admission | Defaults to `baseline`: `privileged` pods, `hostPath`, `hostPID`/`hostNetwork` are rejected. The `restricted` level is reported as a warning only. Components that genuinely need privileges (MetalLB speaker, node-exporter, Rancher) are in the exempt namespace list |
 | `agent-token` | Workers join with a separate token that can only add agents, instead of the server token (when `vault_k3s_agent_token` is set) |
 | `protect-kernel-defaults` + kubelet flags | The kubelet refuses to start if kernel parameters differ from the expected values; plus `pod-max-pids`, a TLS cipher list and a streaming timeout. The required sysctls are written by the same task (`/etc/sysctl.d/99-k3s-hardening.conf`) |
 | kubeconfig `0600` | `/etc/rancher/k3s/k3s.yaml` is a cluster-admin credential; at `0644` every user on the machine is cluster-admin (see [kubeconfig Access](#kubeconfig-access)) |
 | PKI file permissions | `/var/lib/rancher/k3s/server/tls/*.crt` files are set to `0600` (CIS 1.1.20). k3s writes them `0644` |
 | ServiceAccount token automount | The `default` ServiceAccount in the `default`, `kube-public` and `kube-node-lease` namespaces no longer mounts a token automatically (CIS 5.1.5). A workload that needs API access must declare its own ServiceAccount. `kube-system` is deliberately left out |
-| NetworkPolicy | Only the traffic that is needed may enter the `kube-system`, `kube-public` and `kube-node-lease` namespaces from outside (CIS 5.3.2): DNS, metrics-server, Traefik and the ServiceLB pods. A compromised pod in another namespace can no longer reach the other pods in kube-system. The rules are enforced by k3s's embedded network policy controller (`files/k3s-network-policy.yaml` → `/var/lib/rancher/k3s/server/manifests/`, no restart needed). `default` and the component namespaces (Longhorn, monitoring, ArgoCD...) are deliberately left out: applications there expect traffic from Traefik and NodePorts, whoever deploys them writes their rules |
+| NetworkPolicy | Only the traffic that is needed may enter the `kube-system`, `kube-public` and `kube-node-lease` namespaces from outside (CIS 5.3.2): DNS, metrics-server, Traefik and the ServiceLB pods. A compromised pod in another namespace can no longer reach the other pods in kube-system. The rules are enforced by k3s's embedded network policy controller (`files/k3s-network-policy.yaml` → `/var/lib/rancher/k3s/server/manifests/`, no restart needed). `default` and the component namespaces (monitoring, ArgoCD...) are deliberately left out: applications there expect traffic from Traefik and NodePorts, whoever deploys them writes their rules |
 
 > **On an existing cluster**: a running k3s does not re-read the configuration file on its own.
 > The playbook reminds you on screen but **does not restart anything by itself** — restarting
@@ -593,9 +582,6 @@ Access ArgoCD: `https://argocd.homelab.local` (with admin username). The passwor
 If the cluster is already set up, you can run only a specific component with `--tags` (without running the whole playbook):
 
 ```bash
-# Install/update Longhorn only
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags longhorn
-
 # Monitoring (Grafana/Prometheus) only
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitoring
 
@@ -603,7 +589,7 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitor
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags "gateway-api,metallb"
 ```
 
-Available tags: `helm`, `gateway-api`, `metallb`, `cert-manager`, `longhorn`, `grafana`/`monitoring`, `rancher`, `argocd`.
+Available tags: `helm`, `gateway-api`, `metallb`, `cert-manager`, `grafana`/`monitoring`, `rancher`, `argocd`.
 
 > **Note**: Tagged runs assume the cluster is **already installed** (k3s, helm, etc. must be ready). For the initial installation, run the full playbook without tags.
 
@@ -832,11 +818,6 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 | **Cert-Manager CA Injector** | 2 replicas | 1 replica |
 | **Prometheus** | 2 replicas | 1 replica |
 | **Alertmanager** | 2 replicas | 1 replica |
-| **Longhorn UI** | 2 replicas | 1 replica |
-| **Longhorn CSI Attacher** | 3 replicas | 1 replica |
-| **Longhorn CSI Provisioner** | 3 replicas | 1 replica |
-| **Longhorn CSI Resizer** | 3 replicas | 1 replica |
-| **Longhorn CSI Snapshotter** | 3 replicas | 1 replica |
 | **Grafana** | 1 replica | 1 replica |
 | **Rancher** | 2 replicas | 2 replicas |
 
@@ -854,9 +835,6 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 | **Alertmanager** | monitoring | 2 | 1 | Master (preferred) |
 | **Grafana** | monitoring | 1 | 1 | Worker |
 | **Kube State Metrics** | monitoring | 1 | 1 | Master (preferred) |
-| **Longhorn Manager** | longhorn-system | DaemonSet | DaemonSet | All Nodes |
-| **Longhorn UI** | longhorn-system | 2 | 1 | Master (preferred) |
-| **Longhorn CSI Components** | longhorn-system | 3 | 1 | Master (preferred) |
 | **Rancher** | cattle-system | 2 | 2 | Any |
 
 ## 🔐 SSL/TLS Certificates
@@ -877,7 +855,6 @@ Each service attaches to the shared Gateway with an `HTTPRoute` in its own names
 | Service | File | Namespace | Domain |
 |---|---|---|---|
 | Grafana | `templates/my-charts/grafana/httproute.yml.j2` | `monitoring` | `grafana.homelab.local` |
-| Longhorn | `templates/my-charts/longhorn/httproute.yml.j2` | `longhorn-system` | `longhorn.homelab.local` |
 | Rancher | `templates/my-charts/rancher/httproute.yml.j2` | `cattle-system` | `rancher.homelab.local` |
 | ArgoCD | `templates/my-charts/argocd/httproute.yml.j2` | `argocd` | `argocd.homelab.local` |
 
@@ -893,7 +870,6 @@ Add the following lines to your `/etc/hosts` file for local access:
 # K3s Cluster Services
 192.168.1.242    rancher.homelab.local
 192.168.1.242    grafana.homelab.local
-192.168.1.242    longhorn.homelab.local
 ```
 
 **Note**: The IP address (`192.168.1.242`) is the MetalLB LoadBalancer IP. To check the address assigned to the Gateway:
@@ -910,7 +886,6 @@ All live in `playbooks/roles/k3s_setup/defaults/main.yml`. `""` = pull the newes
 |---|---|---|
 | MetalLB | `metallb_chart_version` | `0.16.1` |
 | cert-manager | `cert_manager_chart_version` | `v1.21.1` |
-| Longhorn | `longhorn_chart_version` | `1.12.1` |
 | kube-prometheus-stack | `kube_prometheus_stack_chart_version` | `88.3.0` |
 | ArgoCD | `argocd_chart_version` | `10.3.3` |
 | Rancher | `rancher_version` | `v2.15.0` |
@@ -921,59 +896,6 @@ helm repo update && helm search repo jetstack/cert-manager --versions | head -3
 ```
 
 > ⚠️ Rancher does not allow skipping minor versions. Jumping `rancher_version` from 2.8 to 2.15 on a running install breaks the DB migration; step through the minors.
-
-## 💾 Longhorn StorageClass
-
-Longhorn provides distributed block storage for Kubernetes. During installation, 6 different StorageClasses are automatically created:
-
-### StorageClasses
-
-| StorageClass | ReclaimPolicy | Replica Count | Use Case |
-|-------------|---------------|---------------|----------|
-| `longhorn-retain-1` | Retain | 1 | For Single Master installations |
-| `longhorn-retain-2` | Retain | 2 | For HA installations (recommended) |
-| `longhorn-retain-3` | Retain | 3 | For high data security requirements |
-| `longhorn-delete-1` | Delete | 1 | For temporary data |
-| `longhorn-delete-2` | Delete | 2 | For temporary data (HA) |
-| `longhorn-delete-3` | Delete | 3 | For temporary data (high security) |
-
-### Current PVC Configuration
-
-The StorageClass for monitoring (Prometheus/Alertmanager/Grafana) PVCs comes from the `monitoring_storage_class` variable; it is **not hard-coupled to Longhorn**:
-
-- **If Longhorn is installed** (`longhorn_install: true`) → defaults to `longhorn-retain-2` (2 replicas for HA)
-- **If Longhorn is disabled** (`longhorn_install: false`) → automatically `local-path` (k3s built-in, no replication, node-local)
-- You can pin it manually in `defaults/main.yml` (e.g. `longhorn-retain-1`, or any other StorageClass)
-
-> So with `longhorn_install: false` + `grafana_install: true` you can install **monitoring without Longhorn**.
-
-### Data Persistence and Security
-
-✅ **ReclaimPolicy: Retain** - Volumes are preserved even if PVC is deleted, manual cleanup required  
-✅ **Pod Restart**: Data is preserved (PVC remains attached)  
-✅ **Node Restart**: Data is preserved (Longhorn volumes are replicated across different nodes)  
-✅ **HA Installation**: No data loss even if one node fails with `longhorn-retain-2`
-
-### StorageClass Verification
-
-To check existing StorageClasses:
-
-```bash
-kubectl get storageclass
-```
-
-To check PVCs:
-
-```bash
-kubectl get pvc -A
-```
-
-### Recommendations
-
-- **HA Installations (3+ Masters)**: Use `longhorn-retain-2` or `longhorn-retain-3`
-- **Single Master**: `longhorn-retain-1` is sufficient
-- **Production Environments**: Use at least 2 replicas (`longhorn-retain-2`)
-- **Critical Data**: Use 3 replicas (`longhorn-retain-3`)
 
 ## 🔧 Troubleshooting
 
@@ -1099,9 +1021,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   ├── grafana
 │       │   │   │   │   ├── kube-prometheus-stack-values-master-only.yml
 │       │   │   │   │   └── kube-prometheus-stack-values-single-master.yml
-│       │   │   │   ├── longhorn
-│       │   │   │   │   ├── values-ha.yml
-│       │   │   │   │   └── values-single-master.yml
 │       │   │   │   └── metallb
 │       │   │   │       ├── values-ha.yml
 │       │   │   │       └── values-single-master.yml
@@ -1116,7 +1035,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── .gitkeep
 │       │   │   └── main.yml
 │       │   ├── tasks
-│       │   │   ├── 00_prerequisites.yml       # packages, iscsid, firewalld
+│       │   │   ├── 00_prerequisites.yml       # packages, firewalld
 │       │   │   ├── 00_system_requirements.yml
 │       │   │   ├── 00_wellcome.yml
 │       │   │   ├── 01_configure_hostname.yml
@@ -1129,7 +1048,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── 05_gateway_api_install.yml
 │       │   │   ├── 06_metallb_install.yml
 │       │   │   ├── 07_cert_manager_install.yml
-│       │   │   ├── 08_longhorn_install.yml
 │       │   │   ├── 09_grafana_install.yml
 │       │   │   ├── 10_rancher_install.yml
 │       │   │   ├── 11_argocd_install.yml
@@ -1146,15 +1064,12 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   │   └── wildcard-certificate.yml.j2
 │       │   │   │   ├── grafana
 │       │   │   │   │   └── httproute.yml.j2
-│       │   │   │   ├── longhorn
-│       │   │   │   │   └── httproute.yml.j2
 │       │   │   │   └── rancher
 │       │   │   │       └── httproute.yml.j2
 │       │   │   ├── chrony.j2
 │       │   │   ├── k3s-config.yaml.j2
 │       │   │   ├── keepalived.conf.j2
 │       │   │   ├── kube-prometheus-stack-values.yml.j2
-│       │   │   ├── longhorn-storageclass.yml.j2
 │       │   │   ├── metallb-config.yml.j2
 │       │   │   ├── rancher-deployment.yml.j2
 │       │   │   └── wellcome.j2

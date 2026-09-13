@@ -155,41 +155,6 @@
       changed_when: false
       failed_when: false
 
-    # Beklemeler uyari niteliginde: zaman asiminda task kirmizi "...ignoring"
-    # basar, upgrade durmaz. Eskiden bash dongusuydu; /bin/sh (dash) altinda hic
-    # beklemiyordu (todo A5).
-    - name: Wait for Longhorn pods on worker to be Ready after upgrade
-      ansible.builtin.command:
-        cmd: >-
-          kubectl wait pod -n longhorn-system --for=condition=Ready --timeout=120s
-          --field-selector spec.nodeName={{ inventory_hostname }},status.phase!=Succeeded,status.phase!=Failed
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      delegate_to: "{{ groups['master'][0] }}"
-      changed_when: false
-      ignore_errors: true  # noqa: ignore-errors
-      when: longhorn_install | bool
-
-    # Siradaki worker drain edilmeden once replikalar tamamlanmali.
-    # robustness: healthy | degraded | faulted | unknown (detached volume).
-    - name: Wait for Longhorn volumes to finish rebuilding after upgrade
-      ansible.builtin.command:
-        cmd: kubectl get volumes.longhorn.io -n longhorn-system -o jsonpath='{.items[*].status.robustness}'
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      delegate_to: "{{ groups['master'][0] }}"
-      register: longhorn_volumes
-      until: longhorn_volumes.rc == 0 and 'degraded' not in longhorn_volumes.stdout
-      retries: 30
-      delay: 10
-      changed_when: false
-      ignore_errors: true
-      when: longhorn_install | bool
-
     - name: Uncordon worker node
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
@@ -200,6 +165,9 @@
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
 
+    # Beklemeler uyari niteliginde: zaman asiminda task kirmizi "...ignoring"
+    # basar, upgrade durmaz. Eskiden bash dongusuydu; /bin/sh (dash) altinda hic
+    # beklemiyordu (todo A5).
     # Uncordon'dan SONRA: tek worker'li cluster'da tahliye edilen pod'lar ancak
     # simdi schedule olabilir.
     - name: Wait for monitoring pods to be Ready after upgrade

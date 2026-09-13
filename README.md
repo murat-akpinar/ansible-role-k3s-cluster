@@ -22,7 +22,6 @@ Bu Ansible rolü, **K3S** tabanlı Kubernetes cluster kurulumunu otomatikleştir
 - [HA Modu Kontrolü](#-ha-modu-kontrolü)
 - [Pod Dağılımı ve Replica Stratejisi](#-pod-dağılımı-ve-replica-stratejisi)
 - [SSL/TLS Sertifikaları](#-ssltls-sertifikaları)
-- [Longhorn StorageClass](#-longhorn-storageclass)
 - [Troubleshooting](#-troubleshooting)
 
 ## ✨ Özellikler
@@ -36,7 +35,6 @@ Bu Ansible rolü, **K3S** tabanlı Kubernetes cluster kurulumunu otomatikleştir
 - ✅ **Pod Dağılımı**: System pod'lar master'da, application pod'lar worker'da
 - ✅ **SSL/TLS**: Cert-manager ile otomatik sertifika yönetimi
 - ✅ **Monitoring**: Prometheus + Grafana + Alertmanager
-- ✅ **Storage**: Longhorn ile distributed block storage
 - ✅ **Load Balancer**: MetalLB ile bare metal load balancing
 - ✅ **Gateway API**: k3s gömülü Traefik ile Gateway API (Ingress kullanılmaz)
 - ✅ **Management**: Rancher ile cluster yönetimi
@@ -129,14 +127,13 @@ Varsayılan kurulum saf k3s'tir: aşağıdakilerden yalnızca k3s satırları ve
 | **Traefik (gömülü)** | ~0.1 vCPU | ~64 MB | k3s ile gelir |
 | **MetalLB** | ~0.1 vCPU | ~128 MB | controller + speaker (DaemonSet) |
 | **cert-manager** | ~0.1 vCPU | ~128 MB | controller + webhook + cainjector |
-| **Longhorn** ⚠️ | ~0.5 vCPU | ~500 MB–1 GB | her node'da manager + CSI; **ağır** |
 | **kube-prometheus-stack (Grafana/Prometheus)** ⚠️ | ~0.5 vCPU | ~1–2 GB | Prometheus TSDB belleği veriyle büyür; **ağır** |
 | **Rancher** ⚠️ | ~0.5 vCPU | ~1 GB | 2 replica; **ağır** |
 | **ArgoCD** | ~0.3 vCPU | ~512 MB | repo-server + application-controller |
 
 > ⚠️ ile işaretli bileşenler en çok kaynak tüketenlerdir. **Tüm bileşenler açıkken** master node başına
 > en az **4 GB RAM** (HA'da 3 master) ve toplamda rahat çalışması için cluster genelinde **16 GB+ RAM**
-> önerilir. Longhorn için worker node'larda ek boş disk gerekir.
+> önerilir.
 
 ### 4. ETCD ve HA Notu
 
@@ -213,7 +210,6 @@ helm_install: false
 gateway_api_install: false
 metallb_install: false
 cert_manager_install: false
-longhorn_install: false
 grafana_install: false
 rancher_install: false
 argocd_install: false
@@ -237,7 +233,6 @@ Fazlasını istiyorsanız kurulumdan **önce** ilgili değişkeni `true` yapın:
 | `Gateway` / `HTTPRoute` kaynakları kullanmak | `gateway_api_install: true` — gömülü Traefik'in Gateway sağlayıcısı açılır (`GatewayClass` bu adımda oluşur) ve CRD'ler `gateway_api_version`'a sabitlenir |
 | Servislere `https://<isim>.homelab.local` ile erişmek | `cert_manager_install: true` — paylaşımlı Gateway ve `*.homelab.local` wildcard sertifikası bu adımda kurulur, kapalıyken Gateway hiç oluşmaz |
 | LoadBalancer IP'lerini ağınızdaki bir havuzdan vermek | `metallb_install: true` **+** `k3s_disable_servicelb: true` — ikisi birden açık kalırsa klipper ile MetalLB aynı Service'e IP atamaya çalışır |
-| Kalıcı/replikalı disk (PVC) | `longhorn_install: true` |
 | Prometheus + Grafana + Alertmanager | `grafana_install: true` |
 | Rancher yönetim arayüzü | `rancher_install: true` (Rancher kendi TLS'i için cert-manager ister, birlikte açın) |
 | GitOps / ArgoCD | `argocd_install: true` |
@@ -273,10 +268,8 @@ Playbook her node'da şunları yapar (`00_system_requirements.yml`):
 - sysctl ayarlarını uygular: `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, `net.ipv4.ip_forward`
 - Chrony kurar ve yapılandırır (bkz. Adım 3)
 
-Ardından `00_prerequisites.yml` her node'da ortak paketleri kurar: `acl`
-(unprivileged `ansible_user` ile `become` için), `open-iscsi`/`nfs-common`
-(RHEL'de `iscsi-initiator-utils`/`nfs-utils`) ve `iscsid` servisi — Longhorn
-sonradan açılırsa hazır olsun diye.
+Ardından `00_prerequisites.yml` her node'da `acl` paketini kurar (unprivileged
+`ansible_user` ile `become` için).
 
 **firewalld (yalnızca RHEL ailesi)**: firewalld çalışıyorsa aynı dosya aşağıdakileri uygular. Ubuntu/Debian'da firewalld kurulu gelmez; rol **kurmaz** (hiç filtresi olmayan bir host'ta firewalld'i açmak önce MetalLB/Traefik LoadBalancer trafiğini ve NodePort'ları keser) ve yerine tek bir `[WARN]` satırı basar.
 
@@ -350,7 +343,6 @@ Yapılandırmaya göre şu servisler kurulur (✅ = varsayılan açık):
 | **Traefik Gateway sağlayıcısı** | ❌ | k3s'te kapalı gelir; açılınca `GatewayClass` oluşur ve `Gateway`/`HTTPRoute` kullanılabilir hale gelir |
 | **MetalLB** | ❌ | LoadBalancer servislerine ağınızdaki havuzdan IP dağıtır (klipper yerine) |
 | **Cert-Manager** | ❌ | SSL/TLS sertifika yönetimi + paylaşımlı Gateway |
-| **Longhorn** | ❌ | Distributed block storage |
 | **kube-prometheus-stack** | ❌ | Prometheus + Grafana + Alertmanager |
 | **Rancher** | ❌ | Kubernetes yönetim arayüzü |
 | **ArgoCD** | ❌ | GitOps sürekli dağıtım (CD) — `argocd.homelab.local` (bkz. [ArgoCD'ye Erişim](#argocdye-erişim)) |
@@ -406,7 +398,6 @@ gateway_api_install: false
 metallb_install: false
 # Gateway + wildcard sertifikanın sahibi; hostname erişimi istiyorsanız true yapın
 cert_manager_install: false
-longhorn_install: false
 grafana_install: false
 rancher_install: false
 argocd_install: false
@@ -432,8 +423,7 @@ Ayrıca bu dosyada yer alan diğer değişkenler:
 | `k3s_server_args` | **Boş bırakın.** k3s server/agent flag'leri artık komut satırında değil, k3s'in kendi ayar dosyasında: `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`. Install script systemd unit'ini her çalıştırmada yeniden yazar ama bu dosyaya dokunmaz, böylece flag'ler upgrade'de kaybolmaz. Burada bir flag verirseniz komut satırı kazanır ve config'teki liste ayarlarını (audit, PSA) tümüyle ezer |
 | `k3s_disable_servicelb` | `true` ise k3s gömülü ServiceLB (klipper) kapatılır. Varsayılan `false`: MetalLB de kapalı olduğu için LoadBalancer IP'lerini klipper verir. **İkisini birden kapatmayın** — hiçbir LB controller kalmaz ve `traefik` servisi `<pending>` takılır. `metallb_install: true` yaparsanız bunu da `true` yapın |
 | `k3s_master_taint` / `k3s_master_taint_value` | Master'ları ağır iş yüklerinden korur (bkz. [Master/Worker Pod Dağılımı](#masterworker-pod-dağılımı)) |
-| `monitoring_storage_class` | Monitoring PVC'lerinin StorageClass'ı (bkz. [Longhorn StorageClass](#-longhorn-storageclass)) |
-| `longhorn_storage_classes` | Üretilecek StorageClass listesi — `reclaim` ve `replicas` buradan yönetilir |
+| `monitoring_storage_class` | Monitoring PVC'lerinin StorageClass'ı; varsayılan k3s gömülü `local-path` (replikasyonsuz, node-yerel) |
 | `helm_repo_*`, `helm_install_script_url`, `k3s_install_url` | Dış kaynak URL'leri; air-gapped/mirror ortamda değiştirin |
 
 ### Master/Worker Pod Dağılımı
@@ -445,7 +435,6 @@ Kurulum, **master sayısına göre otomatik olarak** values dosyalarını seçer
 **Pod Dağılımı Stratejisi:**
 - **System Pod'lar** (Prometheus, Alertmanager, Cert-Manager, Traefik, MetalLB Controller): Master node'larda çalışır
 - **Application Pod'lar** (Grafana): Worker node'larda çalışır
-- **Storage Pod'lar** (Longhorn): Master preferred, worker fallback stratejisi ile çalışır
 
 ## 🔐 Güvenlik
 
@@ -483,13 +472,13 @@ rolleri de aynı task'ı çağırır.
 |---|---|
 | `secrets-encryption` | Secret'lar etcd'ye AES ile şifreli yazılır. Bu olmadan etcd snapshot'ını veya diski ele geçiren herkes bütün parolaları düz metin okur |
 | Audit log | `/var/lib/rancher/k3s/server/logs/audit.log` (`level: Metadata`, 10 × 100 MB döngü). Kimin hangi Secret'ı okuduğu / hangi RBAC'i değiştirdiği kaydedilir |
-| Pod Security Admission | Varsayılan `baseline`: `privileged` pod, `hostPath`, `hostPID`/`hostNetwork` reddedilir. `restricted` seviyesi uyarı olarak raporlanır. Ayrıcalık isteyen bileşenler (Longhorn, MetalLB speaker, node-exporter, Rancher) muaf namespace listesinde |
+| Pod Security Admission | Varsayılan `baseline`: `privileged` pod, `hostPath`, `hostPID`/`hostNetwork` reddedilir. `restricted` seviyesi uyarı olarak raporlanır. Ayrıcalık isteyen bileşenler (MetalLB speaker, node-exporter, Rancher) muaf namespace listesinde |
 | `agent-token` | Worker'lar server token'ı yerine yalnızca agent ekleyebilen ayrı bir token ile katılır (`vault_k3s_agent_token` dolduruldu ise) |
 | `protect-kernel-defaults` + kubelet flag'leri | Kernel parametreleri beklenen değerlerde değilse kubelet başlamaz; ayrıca `pod-max-pids`, TLS cipher listesi ve streaming timeout. Gerekli sysctl'leri aynı task yazar (`/etc/sysctl.d/99-k3s-hardening.conf`) |
 | kubeconfig `0600` | `/etc/rancher/k3s/k3s.yaml` cluster-admin kimlik bilgisidir; `0644` iken makinedeki her kullanıcı cluster-admin olur (bkz. [kubeconfig Erişimi](#kubeconfig-erişimi)) |
 | PKI dosya izinleri | `/var/lib/rancher/k3s/server/tls/*.crt` dosyaları `0600`'e çekilir (CIS 1.1.20). k3s bunları `0644` yazıyor |
 | ServiceAccount token automount | `default`, `kube-public` ve `kube-node-lease` namespace'lerindeki `default` ServiceAccount'a token otomatik bağlanmaz (CIS 5.1.5). API'ye erişmesi gereken iş yükü kendi ServiceAccount'unu tanımlamalı. `kube-system` bilerek dışarıda |
-| NetworkPolicy | `kube-system`, `kube-public` ve `kube-node-lease` namespace'lerine dışarıdan yalnızca gereken trafik girer (CIS 5.3.2): DNS, metrics-server, Traefik ve ServiceLB pod'ları. Başka bir namespace'teki ele geçirilmiş bir pod, kube-system'deki diğer pod'lara ulaşamaz. Kuralları k3s'in gömülü network policy controller'ı uygular (`files/k3s-network-policy.yaml` → `/var/lib/rancher/k3s/server/manifests/`, restart gerekmez). `default` ve bileşen namespace'leri (Longhorn, monitoring, ArgoCD...) bilerek dışarıda: oradaki uygulamalar Traefik'ten ve NodePort'tan trafik bekler, kuralları uygulamayı kuran yazar |
+| NetworkPolicy | `kube-system`, `kube-public` ve `kube-node-lease` namespace'lerine dışarıdan yalnızca gereken trafik girer (CIS 5.3.2): DNS, metrics-server, Traefik ve ServiceLB pod'ları. Başka bir namespace'teki ele geçirilmiş bir pod, kube-system'deki diğer pod'lara ulaşamaz. Kuralları k3s'in gömülü network policy controller'ı uygular (`files/k3s-network-policy.yaml` → `/var/lib/rancher/k3s/server/manifests/`, restart gerekmez). `default` ve bileşen namespace'leri (monitoring, ArgoCD...) bilerek dışarıda: oradaki uygulamalar Traefik'ten ve NodePort'tan trafik bekler, kuralları uygulamayı kuran yazar |
 
 > **Mevcut bir cluster'da**: ayar dosyası değişse bile çalışan k3s onu kendiliğinden yeniden
 > okumaz. Playbook bunu ekranda hatırlatır ama **kendisi yeniden başlatmaz** — HA'da bütün
@@ -545,9 +534,6 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml
 Cluster zaten kuruluysa, yalnızca belirli bir bileşeni `--tags` ile çalıştırabilirsiniz (tüm playbook'u koşmadan):
 
 ```bash
-# Sadece Longhorn'u kur/güncelle
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags longhorn
-
 # Sadece monitoring (Grafana/Prometheus) bileşenini
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitoring
 
@@ -555,7 +541,7 @@ ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitor
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags "gateway-api,metallb"
 ```
 
-Kullanılabilir tag'ler: `helm`, `gateway-api`, `metallb`, `cert-manager`, `longhorn`, `grafana`/`monitoring`, `rancher`, `argocd`.
+Kullanılabilir tag'ler: `helm`, `gateway-api`, `metallb`, `cert-manager`, `grafana`/`monitoring`, `rancher`, `argocd`.
 
 > **Not**: Tag'li çalıştırmalar cluster'ın **zaten kurulu** olduğunu varsayar (k3s, helm vb. hazır olmalı). İlk kurulumda tam playbook'u tag'siz çalıştırın.
 
@@ -829,11 +815,6 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 | **Cert-Manager CA Injector** | 2 replicas | 1 replica |
 | **Prometheus** | 2 replicas | 1 replica |
 | **Alertmanager** | 2 replicas | 1 replica |
-| **Longhorn UI** | 2 replicas | 1 replica |
-| **Longhorn CSI Attacher** | 3 replicas | 1 replica |
-| **Longhorn CSI Provisioner** | 3 replicas | 1 replica |
-| **Longhorn CSI Resizer** | 3 replicas | 1 replica |
-| **Longhorn CSI Snapshotter** | 3 replicas | 1 replica |
 | **Grafana** | 1 replica | 1 replica |
 | **Rancher** | 2 replicas | 2 replicas |
 
@@ -851,9 +832,6 @@ kubectl get nodes -l node-role.kubernetes.io/master -o wide
 | **Alertmanager** | monitoring | 2 | 1 | Master (preferred) |
 | **Grafana** | monitoring | 1 | 1 | Worker |
 | **Kube State Metrics** | monitoring | 1 | 1 | Master (preferred) |
-| **Longhorn Manager** | longhorn-system | DaemonSet | DaemonSet | All Nodes |
-| **Longhorn UI** | longhorn-system | 2 | 1 | Master (preferred) |
-| **Longhorn CSI Components** | longhorn-system | 3 | 1 | Master (preferred) |
 | **Rancher** | cattle-system | 2 | 2 | Any |
 
 ## 🔐 SSL/TLS Sertifikaları
@@ -874,7 +852,6 @@ Her servis kendi namespace'inde bir `HTTPRoute` ile paylaşımlı Gateway'e bağ
 | Servis | Dosya | Namespace | Domain |
 |---|---|---|---|
 | Grafana | `templates/my-charts/grafana/httproute.yml.j2` | `monitoring` | `grafana.homelab.local` |
-| Longhorn | `templates/my-charts/longhorn/httproute.yml.j2` | `longhorn-system` | `longhorn.homelab.local` |
 | Rancher | `templates/my-charts/rancher/httproute.yml.j2` | `cattle-system` | `rancher.homelab.local` |
 | ArgoCD | `templates/my-charts/argocd/httproute.yml.j2` | `argocd` | `argocd.homelab.local` |
 
@@ -890,7 +867,6 @@ Yerel erişim için `/etc/hosts` dosyanıza şu satırları ekleyin:
 # K3s Cluster Services
 192.168.1.242    rancher.homelab.local
 192.168.1.242    grafana.homelab.local
-192.168.1.242    longhorn.homelab.local
 ```
 
 **Not**: IP adresi (`192.168.1.242`) MetalLB LoadBalancer IP'sidir. Gateway'e atanan adresi kontrol etmek için:
@@ -907,7 +883,6 @@ Tümü `playbooks/roles/k3s_setup/defaults/main.yml` içinde. `""` = her kurulum
 |---|---|---|
 | MetalLB | `metallb_chart_version` | `0.16.1` |
 | cert-manager | `cert_manager_chart_version` | `v1.21.1` |
-| Longhorn | `longhorn_chart_version` | `1.12.1` |
 | kube-prometheus-stack | `kube_prometheus_stack_chart_version` | `88.3.0` |
 | ArgoCD | `argocd_chart_version` | `10.3.3` |
 | Rancher | `rancher_version` | `v2.15.0` |
@@ -918,59 +893,6 @@ helm repo update && helm search repo jetstack/cert-manager --versions | head -3
 ```
 
 > ⚠️ Rancher minor sürüm atlamaya izin vermez. `rancher_version`'ı çalışan bir kurulumda 2.8 → 2.15 sıçratmak DB migrasyonunu bozar; minor'leri tek tek geçin.
-
-## 💾 Longhorn StorageClass
-
-Longhorn, Kubernetes için dağıtılmış blok depolama sağlar. Kurulum sırasında otomatik olarak 6 farklı StorageClass oluşturulur:
-
-### StorageClass'lar
-
-| StorageClass | ReclaimPolicy | Replica Sayısı | Kullanım Amacı |
-|-------------|---------------|---------------|----------------|
-| `longhorn-retain-1` | Retain | 1 | Single Master kurulumlar için |
-| `longhorn-retain-2` | Retain | 2 | HA kurulumlar için (önerilen) |
-| `longhorn-retain-3` | Retain | 3 | Yüksek veri güvenliği gereken durumlar |
-| `longhorn-delete-1` | Delete | 1 | Geçici veriler için |
-| `longhorn-delete-2` | Delete | 2 | Geçici veriler için (HA) |
-| `longhorn-delete-3` | Delete | 3 | Geçici veriler için (yüksek güvenlik) |
-
-### Mevcut PVC Yapılandırması
-
-Monitoring (Prometheus/Alertmanager/Grafana) PVC'lerinin StorageClass'ı `monitoring_storage_class` değişkeninden gelir; **Longhorn'a zorunlu bağımlı değildir**:
-
-- **Longhorn kuruluysa** (`longhorn_install: true`) → varsayılan `longhorn-retain-2` (HA için 2 replica)
-- **Longhorn kapalıysa** (`longhorn_install: false`) → otomatik `local-path` (k3s gömülü, replikasyonsuz, node-yerel)
-- İstersen `defaults/main.yml`'de elle sabitleyebilirsin (or: `longhorn-retain-1`, ya da başka bir StorageClass)
-
-> Yani `longhorn_install: false` + `grafana_install: true` ile **Longhorn olmadan da monitoring** kurulabilir.
-
-### Veri Kalıcılığı ve Güvenlik
-
-✅ **ReclaimPolicy: Retain** - PVC silinse bile volume'lar korunur, manuel temizlik gerekir  
-✅ **Pod Restart**: Veri korunur (PVC bağlı kalır)  
-✅ **Node Restart**: Veri korunur (Longhorn volume'lar farklı node'larda replike edilir)  
-✅ **HA Kurulum**: `longhorn-retain-2` ile bir node çökse bile veri kaybı olmaz
-
-### StorageClass Kontrolü
-
-Mevcut StorageClass'ları kontrol etmek için:
-
-```bash
-kubectl get storageclass
-```
-
-PVC'leri kontrol etmek için:
-
-```bash
-kubectl get pvc -A
-```
-
-### Öneriler
-
-- **HA Kurulumlar (3+ Master)**: `longhorn-retain-2` veya `longhorn-retain-3` kullanın
-- **Single Master**: `longhorn-retain-1` yeterlidir
-- **Production Ortamları**: En az 2 replica (`longhorn-retain-2`) kullanın
-- **Kritik Veriler**: 3 replica (`longhorn-retain-3`) kullanın
 
 ## 🔧 Troubleshooting
 
@@ -1095,9 +1017,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   ├── grafana
 │       │   │   │   │   ├── kube-prometheus-stack-values-master-only.yml
 │       │   │   │   │   └── kube-prometheus-stack-values-single-master.yml
-│       │   │   │   ├── longhorn
-│       │   │   │   │   ├── values-ha.yml
-│       │   │   │   │   └── values-single-master.yml
 │       │   │   │   └── metallb
 │       │   │   │       ├── values-ha.yml
 │       │   │   │       └── values-single-master.yml
@@ -1112,7 +1031,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── .gitkeep
 │       │   │   └── main.yml
 │       │   ├── tasks
-│       │   │   ├── 00_prerequisites.yml       # paketler, iscsid, firewalld
+│       │   │   ├── 00_prerequisites.yml       # paketler, firewalld
 │       │   │   ├── 00_system_requirements.yml
 │       │   │   ├── 00_wellcome.yml
 │       │   │   ├── 01_configure_hostname.yml
@@ -1125,7 +1044,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   ├── 05_gateway_api_install.yml
 │       │   │   ├── 06_metallb_install.yml
 │       │   │   ├── 07_cert_manager_install.yml
-│       │   │   ├── 08_longhorn_install.yml
 │       │   │   ├── 09_grafana_install.yml
 │       │   │   ├── 10_rancher_install.yml
 │       │   │   ├── 11_argocd_install.yml
@@ -1142,15 +1060,12 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │   │   └── wildcard-certificate.yml.j2
 │       │   │   │   ├── grafana
 │       │   │   │   │   └── httproute.yml.j2
-│       │   │   │   ├── longhorn
-│       │   │   │   │   └── httproute.yml.j2
 │       │   │   │   └── rancher
 │       │   │   │       └── httproute.yml.j2
 │       │   │   ├── chrony.j2
 │       │   │   ├── k3s-config.yaml.j2
 │       │   │   ├── keepalived.conf.j2
 │       │   │   ├── kube-prometheus-stack-values.yml.j2
-│       │   │   ├── longhorn-storageclass.yml.j2
 │       │   │   ├── metallb-config.yml.j2
 │       │   │   ├── rancher-deployment.yml.j2
 │       │   │   └── wellcome.j2

@@ -25,7 +25,7 @@ Tüm komutlar repo kökünden; `ansible.cfg` envanteri zaten gösteriyor ama aç
    tablosu Gateway IP'sini, URL'leri ve parolaları basar.
 6. Doğrula: `ansible-playbook -i inventory/cluster_inventory.yml verify.yml` → `RESULT: ALL CHECKS PASSED`.
 7. Hostname erişimi için istemci `/etc/hosts`'una Gateway IP'sini ekle:
-   `192.168.1.x grafana.homelab.local argocd.homelab.local longhorn.homelab.local rancher.homelab.local`
+   `192.168.1.x grafana.homelab.local argocd.homelab.local rancher.homelab.local`
 
 ## 2. Mevcut cluster'a bileşen açma / tek bileşeni yeniden çalıştırma
 
@@ -33,11 +33,10 @@ Bayrağı `true` yap, ilgili tag ile çalıştır (bağımlılık sırasına dik
 
 ```sh
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags helm,gateway-api,cert-manager
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags longhorn
 ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --tags monitoring
 ```
 
-Tag'ler: `helm`, `gateway-api`, `metallb`, `cert-manager`, `longhorn`, `grafana`/`monitoring`,
+Tag'ler: `helm`, `gateway-api`, `metallb`, `cert-manager`, `grafana`/`monitoring`,
 `rancher`, `argocd`. `_facts` `always` olduğu için kısmi çalıştırma güvenli; ama
 `03_wait_api_ready` tag'siz, API kapalıysa ilk helm komutu retry'a düşer.
 Tüm helm adımları `helm upgrade --install` — tekrar çalıştırmak values/sürüm değişikliğini uygular.
@@ -78,11 +77,9 @@ keepalived **tüm** master'larda yapılandırılır ve VIP kalkar. Sonraki node'
      → master'da cordon, worker'da drain → install script ile yeniden kurulum (flag'ler
      `/etc/rancher/k3s/config.yaml`'dan, upgrade öncesi `03_k3s_config` ile tazelenir) →
      uncordon → `upgrade_wait_for_pods` sn. Master drain edilmez: k3s dururken container'lar
-     çalışmaya devam eder; drain tek master'da tam kesinti, Longhorn'lu master'da PDB takılması
+     çalışmaya devam eder; drain tek master'da tam kesinti, PDB'li master'da takılma
      demekti. Master'ın uncordon'u `always:` içinde, upgrade fail etse de node cordon'lu kalmaz.
-     Worker'da ek olarak: `longhorn_install` ise uncordon'dan önce node'daki Longhorn pod'ları
-     Ready ve hiçbir volume `degraded` değil; `grafana_install` ise uncordon'dan sonra
-     `monitoring` pod'ları Ready. Süre dolarsa uyarı (`...ignoring`), upgrade durmaz.
+     Worker'da ek olarak: `grafana_install` ise uncordon'dan sonra `monitoring` pod'ları Ready. Süre dolarsa uyarı (`...ignoring`), upgrade durmaz.
      Master'lar her zaman önce: kubelet apiserver'dan yeni olamaz.
    - Sürümü hedefe eşit/yüksek node'lar `SKIP`. `upgrade_force: true` ile zorlanır.
    - Sonda play 4: takılı cordon temizliği, node/pod özeti.
@@ -94,7 +91,7 @@ keepalived **tüm** master'larda yapılandırılır ve VIP kalkar. Sonraki node'
 
 | Değişen | Düzenle | Sonra çalıştır |
 |---|---|---|
-| `cluster_domain` | defaults/main.yml | `--tags helm,cert-manager,longhorn,monitoring,rancher,argocd` (manifestler yeniden render + apply; wildcard cert yeni dnsNames ile yeniden kesilir; istemci /etc/hosts güncelle) |
+| `cluster_domain` | defaults/main.yml | `--tags helm,cert-manager,monitoring,rancher,argocd` (manifestler yeniden render + apply; wildcard cert yeni dnsNames ile yeniden kesilir; istemci /etc/hosts güncelle) |
 | `metallb_ip_addresses` | defaults/main.yml | `--tags metallb` (IPAddressPool apply); mevcut LB IP'leri değişmez, servisi yeniden oluştur |
 | `keepalived_vip` | defaults/main.yml | Kurulu cluster'da **değiştirme**: `--tls-san` ve tüm `K3S_URL`'ler buna bağlı; yeniden kurulum gerekir |
 | `keepalived_auth_pass` | vault.yml | `k3s_setup.yml` tam çalıştır (keepalived adımının tag'i yok); ya da `ansible master -m template -a "src=... dest=/etc/keepalived/keepalived.conf"` + restart |
@@ -105,7 +102,7 @@ keepalived **tüm** master'larda yapılandırılır ve VIP kalkar. Sonraki node'
 1. `helm search repo <repo>/<chart> --versions | head` (helm yerelde yoksa upstream
    `Chart.yaml`/release sayfası) → `*_chart_version`'ı güncelle.
 2. Major atlamada chart README'sindeki upgrade notlarına bak (kube-prometheus-stack CRD
-   adımları, ArgoCD, Longhorn "bir minor at" kuralı); `.tmp/<bileşen>/` altındaki README.
+   adımları, ArgoCD); `.tmp/<bileşen>/` altındaki README.
 3. `--tags <bileşen>` ile çalıştır.
 4. `docs/fetch-reference-sources.sh` içindeki tag'i ve `docs/reference-sources.md` tablosunu güncelle, `sh docs/fetch-reference-sources.sh`.
 
@@ -117,8 +114,6 @@ sudo /usr/local/bin/k3s-agent-uninstall.sh
 # master
 sudo /usr/local/bin/k3s-uninstall.sh
 sudo systemctl disable --now keepalived; sudo rm -f /etc/keepalived/keepalived.conf
-# Longhorn kullandıysa
-sudo rm -rf /var/lib/longhorn
 ```
 Node cluster'dan da silinmeli: `kubectl delete node <ad>`. Sonra `add_node.yml` ile geri alınabilir.
 

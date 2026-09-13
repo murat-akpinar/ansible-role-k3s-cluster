@@ -46,7 +46,7 @@ playbooks/roles/
 | 0 | `_facts.yml` (`tags: always`) | all | `getent passwd` → `user_home_directory`; ayrıca `master_count`, `first_master_ip` ve `k3s_api_endpoint` (3+ master ise VIP, altında ilk master IP'si). `--tags` ile kısmi çalıştırmada da gelir. |
 | 0b | `_resolve_k3s_version.yml` | all (`run_once` master[0]) | `k3s_version` boşsa cluster'da çalışan sürümü okur ve tüm node'lara pinler (sürüm kayması). Boş cluster'da no-op. Sonunda `k3s_version_env`'i (kurulum satırlarının `INSTALL_K3S_VERSION` öneki) üretir. |
 | 1 | `00_system_requirements.yml` | all | CPU/RAM uyarısı (fail etmez), swap kapatma, overlay/br_netfilter, sysctl, chrony + `chrony.j2`. |
-| 2 | `00_prerequisites.yml` | all | acl + open-iscsi + nfs-common (RHEL karşılıkları), iscsid, firewalld aktifse: `6443/tcp` herkese açık; node IP'leri + pod/service CIDR'ları `trusted` zone (node-arası 8472/udp, 10250/tcp, 2379-2380/tcp, VRRP yalnızca node'lardan); eski herkese-açık 8472/10250 kuralı kapatılır. firewalld yoksa `[WARN]`. |
+| 2 | `00_prerequisites.yml` | all | acl, firewalld aktifse: `6443/tcp` herkese açık; node IP'leri + pod/service CIDR'ları `trusted` zone (node-arası 8472/udp, 10250/tcp, 2379-2380/tcp, VRRP yalnızca node'lardan); eski herkese-açık 8472/10250 kuralı kapatılır. firewalld yoksa `[WARN]`. |
 | 3 | `01_configure_hostname.yml` | all | hostname ≠ inventory_hostname ise hostnamectl + /etc/hosts + **reboot**. |
 | 4 | `02_install_keepalived.yml` | master | paket her master'a; `master_count >= 3` ise `keepalived.conf.j2` (state/priority envanter sırasından, `chk_k3s` track_script). |
 | 5 | `03_k3s_config.yml` | all | **k3s'ten önce**: `k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml` (0600), sıkılaştırma sysctl'leri, `audit.yaml` + `psa.yaml` + `k3s-network-policy.yaml` → `server/manifests/` (master). Çalışan k3s varsa restart hatırlatması. |
@@ -54,19 +54,18 @@ playbooks/roles/
 | 7 | `03_wait_api_ready.yml` | master[0] | `kubectl get --raw=/readyz` 30×10 sn; olmazsa fail. |
 | 8 | `03_k3s_post_install.yml` | master | `~/.kube/config` kopyası (0600) + `.bashrc` KUBECONFIG; PKI `*.crt` 0600 (CIS 1.1.20); default SA token automount kapalı (CIS 5.1.5). |
 | 7 | `00_wellcome.yml` | all | `/etc/motd` (`wellcome.j2`), update-motd.d scriptlerinin exec biti düşürülür. |
-| 8 | `04_install_helm.yml` `[helm]` | master | helm binary (get-helm-3), `files/my-charts/` → `~/my-charts/`, domain içeren 6 manifest `templates/my-charts/*.j2`'den render. |
+| 8 | `04_install_helm.yml` `[helm]` | master | helm binary (get-helm-3), `files/my-charts/` → `~/my-charts/`, domain içeren 5 manifest `templates/my-charts/*.j2`'den render. |
 | 9 | `05_gateway_api_install.yml` `[gateway-api]` | master[0] / master | Gateway API CRD'leri `--server-side` apply + pin, `traefik-gateway-config.yml` → `/var/lib/rancher/k3s/server/manifests/` (HelmChartConfig), GatewayClass Accepted bekle. |
 | 10 | `06_metallb_install.yml` `[metallb]` | master[0] | helm upgrade --install `--wait`, `metallb-config.yml.j2` (IPAddressPool + L2Advertisement) apply. |
 | 11 | `07_cert_manager_install.yml` `[cert-manager]` | master[0] | helm (`crds.enabled=true`), selfsigned ClusterIssuer, **wildcard Certificate + paylaşılan Gateway** (kube-system/homelab). |
-| 12 | `08_longhorn_install.yml` `[longhorn]` | master[0] | helm, `longhorn-storageclass.yml.j2` (6 StorageClass), local-path default'u kaldır, HTTPRoute. |
-| 13 | `09_grafana_install.yml` `[grafana, monitoring]` | master[0] | `kube-prometheus-stack-values.yml.j2` render (storageClass), helm `--wait`, Prometheus CR Available bekle, HTTPRoute, parola göster. |
-| 14 | `10_rancher_install.yml` `[rancher]` | master[0] | `rancher-deployment.yml.j2` (chart değil, düz Deployment) apply, `rollout status`, bootstrap parolası. |
-| 15 | `11_argocd_install.yml` `[argocd]` | master[0] | helm `--wait`, HTTPRoute, admin parolası. |
-| 16 | `99_result.yml` | master[0] | Özet tablo: Gateway IP, URL'ler, parolalar. |
+| 12 | `09_grafana_install.yml` `[grafana, monitoring]` | master[0] | `kube-prometheus-stack-values.yml.j2` render (storageClass), helm `--wait`, Prometheus CR Available bekle, HTTPRoute, parola göster. |
+| 13 | `10_rancher_install.yml` `[rancher]` | master[0] | `rancher-deployment.yml.j2` (chart değil, düz Deployment) apply, `rollout status`, bootstrap parolası. |
+| 14 | `11_argocd_install.yml` `[argocd]` | master[0] | helm `--wait`, HTTPRoute, admin parolası. |
+| 15 | `99_result.yml` | master[0] | Özet tablo: Gateway IP, URL'ler, parolalar. |
 
-8–15 arası her adım `when: <x>_install` ile kapılıdır; varsayılanda hepsi `false`
+8–14 arası her adım `when: <x>_install` ile kapılıdır; varsayılanda hepsi `false`
 (saf k3s). Bağımlılık: `helm_install → gateway_api_install → cert_manager_install →
-diğerleri`. HTTPRoute'lar (08–11) ayrıca `cert_manager_install` ister çünkü Gateway
+diğerleri`. HTTPRoute'lar (09–11) ayrıca `cert_manager_install` ister çünkü Gateway
 orada oluşur.
 
 ## `add_node.yml` akışı (rol: extra_node_cluster)
@@ -92,7 +91,7 @@ orada oluşur.
   `k3s_version`; `is version(..., '<', semver)`) → `02_upgrade_masters.yml` /
   `03_upgrade_workers.yml`. Master: cordon → install script ile yeniden kur → bekle →
   uncordon (`always:`, upgrade fail etse de). Worker: drain → yeniden kur → uncordon →
-  bekle (worker'da `kubectl wait` / `until` ile Longhorn ve monitoring beklemeleri; uyarı niteliğinde). **Master'lar worker'lardan önce**: kubelet apiserver'dan yeni olamaz (skew).
+  bekle (worker'da `kubectl wait` ile monitoring beklemesi; uyarı niteliğinde). **Master'lar worker'lardan önce**: kubelet apiserver'dan yeni olamaz (skew).
   İki ayrı play olmasının sebebi bu; `hosts: all` iken sıra envanterdeki grup dizilişine
   kalıyordu.
 - **Play 4** `hosts: master` (serial yok): `05_cleanup_stuck_nodes` → `04_verify_cluster`.

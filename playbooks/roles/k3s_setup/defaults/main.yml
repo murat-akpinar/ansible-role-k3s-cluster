@@ -52,10 +52,9 @@ metallb_install: false
 # Paylasilan homelab Gateway'i ve *.{{ cluster_domain }} wildcard sertifikasini
 # cert-manager adimi kurar (Gateway'in tek listener'i bu sertifikaya bagli).
 # false ise Gateway ve HTTPRoute'lar hic kurulmaz -> hicbir servis hostname'den
-# erisilemez; servislere NodePort/port-forward ile ulasilir. Grafana, Rancher,
-# ArgoCD veya Longhorn UI'sini hostname ile acacaksaniz bunu true yapin.
+# erisilemez; servislere NodePort/port-forward ile ulasilir. Grafana, Rancher
+# veya ArgoCD UI'sini hostname ile acacaksaniz bunu true yapin.
 cert_manager_install: false
-longhorn_install: false
 grafana_install: false
 rancher_install: false
 argocd_install: false
@@ -87,7 +86,7 @@ k3s_disable_servicelb: false
 #  - Yalnizca YENI kurulan/kaydolan node'larda etkilidir; mevcut node'lari elle taint'leyin:
 #      kubectl taint nodes <master> node-role.kubernetes.io/master=system:NoSchedule
 #  - Master'da kalmasi gerekenler taint'i tolere eder: metallb speaker (DaemonSet),
-#    longhorn ve monitoring node-exporter. rancher/argocd/cert-manager BILEREK
+#    monitoring node-exporter. rancher/argocd/cert-manager BILEREK
 #    tolere etmez, worker'lara yerlesirler.
 k3s_master_taint: true
 k3s_master_taint_value: "node-role.kubernetes.io/master=system:NoSchedule"
@@ -117,7 +116,6 @@ k3s_agent_token: "{{ vault_k3s_agent_token | default('') }}"
 helm_install_script_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 helm_repo_metallb: https://metallb.github.io/metallb
 helm_repo_cert_manager: https://charts.jetstack.io
-helm_repo_longhorn: https://charts.longhorn.io
 helm_repo_prometheus: https://prometheus-community.github.io/helm-charts
 helm_repo_argo: https://argoproj.github.io/argo-helm
 
@@ -130,7 +128,6 @@ prometheus_data_url: http://kube-prometheus-stack-prometheus.monitoring.svc.clus
 # ============================================================================
 metallb_chart_version: "0.16.1"
 cert_manager_chart_version: "v1.21.1"
-longhorn_chart_version: "1.12.1"
 kube_prometheus_stack_chart_version: "88.3.0"   # -> Prometheus Operator v0.93.0
 argocd_chart_version: "10.3.3"                  # -> ArgoCD v3.5.1
 
@@ -142,11 +139,9 @@ rancher_version: "v2.15.0"
 # ============================================================================
 # Monitoring (Prometheus/Alertmanager/Grafana) PVC StorageClass
 # ============================================================================
-# Monitoring tek basina Longhorn'a bagimli olmasin diye storageClass degisken.
-# Varsayilan: Longhorn kuruluysa replikali "longhorn-retain-2", degilse k3s
-# gomulu "local-path" (replikasyonsuz, node-yerel). Istersen elle sabitleyebilirsin
-# (or: "longhorn-retain-1" tek master icin, ya da baska bir StorageClass).
-monitoring_storage_class: "{{ 'longhorn-retain-2' if (longhorn_install | default(false)) else 'local-path' }}"
+# Varsayilan k3s gomulu "local-path" (replikasyonsuz, node-yerel). Cluster'da
+# baska bir StorageClass varsa buradan verin.
+monitoring_storage_class: "local-path"
 
 # ============================================================================
 # MetalLB IP Adres Havuzu (LoadBalancer servisleri icin)
@@ -156,19 +151,6 @@ monitoring_storage_class: "{{ 'longhorn-retain-2' if (longhorn_install | default
 metallb_ip_pool_name: "first-pool"
 metallb_ip_addresses:
   - "192.168.1.242-192.168.1.242"
-
-# ============================================================================
-# Longhorn StorageClass'lari
-# ============================================================================
-# Her giris bir StorageClass uretir. reclaim: Retain|Delete, replicas: replica sayisi.
-# Liste tamamen ozellestirilebilir; replica sayilarini buradan yonetin.
-longhorn_storage_classes:
-  - { name: "longhorn-retain-1", reclaim: "Retain", replicas: 1 }
-  - { name: "longhorn-retain-2", reclaim: "Retain", replicas: 2 }
-  - { name: "longhorn-retain-3", reclaim: "Retain", replicas: 3 }
-  - { name: "longhorn-delete-1", reclaim: "Delete", replicas: 1 }
-  - { name: "longhorn-delete-2", reclaim: "Delete", replicas: 2 }
-  - { name: "longhorn-delete-3", reclaim: "Delete", replicas: 3 }
 
 # Gateway API CRD surumu. Traefik'in derlendigi surumle eslesmeli
 # (Traefik 3.7.x -> v1.5.1); kontrol: traefik go.mod | grep gateway-api

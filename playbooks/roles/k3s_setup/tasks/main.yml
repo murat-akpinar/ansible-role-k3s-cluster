@@ -62,11 +62,6 @@
   when: cert_manager_install | default(false)
   tags: ['cert-manager']
 
-- name: "Install Longhorn"
-  ansible.builtin.import_tasks: 08_longhorn_install.yml
-  when: longhorn_install | default(false)
-  tags: ['longhorn']
-
 - name: "Install Grafana"
   ansible.builtin.import_tasks: 09_grafana_install.yml
   when: grafana_install | default(false)

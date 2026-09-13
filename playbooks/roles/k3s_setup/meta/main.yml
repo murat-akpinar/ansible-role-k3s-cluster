@@ -6,7 +6,7 @@ galaxy_info:
   description: >-
     HA ve Single Master modlarını destekleyen, Keepalived VIP yönetimli
     K3s tabanlı Kubernetes cluster kurulum rolü. Gateway API (Traefik), MetalLB,
-    cert-manager, Longhorn, kube-prometheus-stack, Rancher ve ArgoCD
+    cert-manager, kube-prometheus-stack, Rancher ve ArgoCD
     bileşenlerini opsiyonel olarak kurar.
   license: MIT
   min_ansible_version: "2.15"

@@ -125,7 +125,6 @@
               - { name: "Traefik (Gateway API)", ns: "kube-system", selector: "app.kubernetes.io/name=traefik", enabled: true }
               - { name: "MetalLB", ns: "metallb-system", enabled: "{{ metallb_install | default(false) }}" }
               - { name: "cert-manager", ns: "cert-manager", enabled: "{{ cert_manager_install | default(false) }}" }
-              - { name: "Longhorn", ns: "longhorn-system", enabled: "{{ longhorn_install | default(false) }}" }
               - { name: "Monitoring / Grafana", ns: "monitoring", enabled: "{{ grafana_install | default(false) }}" }
               - { name: "Rancher", ns: "cattle-system", enabled: "{{ rancher_install | default(false) }}" }
               - { name: "ArgoCD", ns: "argocd", enabled: "{{ argocd_install | default(false) }}" }

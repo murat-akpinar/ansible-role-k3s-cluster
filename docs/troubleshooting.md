@@ -17,8 +17,8 @@ Kaynak: CHANGELOG'daki düzeltmeler, todo.md bulguları ve rolün bekleme/hata m
 | `Cannot add additional master nodes! ... --cluster-init` | ilk master elle/SQLite ile kurulmuş | `/var/lib/rancher/k3s/server/db/etcd` yok → yeniden kurulum |
 | Yeni node `kubelet version newer than apiserver` / NotReady | `k3s_version` elle cluster'dan yeni bir sürüme pinlenmiş (boşken rol zaten cluster sürümüne pinler) | `k3s_version`'ı `ssh master-1 k3s --version` çıktısına eşitle ya da boşalt, node'u `k3s-*-uninstall.sh` ile sil, tekrar ekle |
 | `TARGET VERSION NOT SPECIFIED` | `k3s_upgrade_version` ve `k3s_version` boş | birini doldur |
-| Upgrade'de worker drain 10 dk takılıyor, sonra devam ediyor | PDB `minAvailable` karşılanamıyor; Longhorn `node-drain-policy: block-if-contains-last-replica` volume'un son replikası o node'daysa instance-manager'ı tahliye ettirmez (master'lar drain edilmez, yalnızca cordon) | `kubectl get pdb -A`; `upgrade_drain_timeout`; replika sayısını artır |
-| Upgrade'de `Wait for Longhorn …` / `Wait for monitoring …` task'ı `...ignoring` bastı | Süre doldu (pod 120 sn, volume 5 dk, monitoring 180 sn); upgrade uyarıyla devam eder | Sıradaki worker'dan önce `kubectl get volumes.longhorn.io -n longhorn-system` (`degraded` kalmamalı), `kubectl get pods -n monitoring` |
+| Upgrade'de worker drain 10 dk takılıyor, sonra devam ediyor | PDB `minAvailable` karşılanamıyor (master'lar drain edilmez, yalnızca cordon) | `kubectl get pdb -A`; `upgrade_drain_timeout`; replika sayısını artır |
+| Upgrade'de `Wait for monitoring …` task'ı `...ignoring` bastı | Süre doldu (180 sn); upgrade uyarıyla devam eder | Sıradaki worker'dan önce `kubectl get pods -n monitoring` |
 | `GatewayClass traefik` gelmiyor (20 deneme) | HelmChartConfig helm-controller tarafından işlenmedi / traefik pod restart | `kubectl -n kube-system get helmchartconfig traefik -o yaml`, `kubectl -n kube-system logs job/helm-install-traefik`, `kubectl -n kube-system get gatewayclass` |
 | `gateway/homelab` Programmed değil | listener port 8443 ≠ Traefik entryPoint; secret yok; GatewayClass yok | `kubectl -n kube-system describe gateway homelab` conditions; `kubectl -n kube-system get secret homelab-wildcard-tls` |
 | HTTPRoute Accepted değil (`verify.yml` FAIL) | `sectionName: websecure` yanlış, hostname `*.cluster_domain` ile eşleşmiyor, namespace izinli değil | `kubectl describe httproute -n <ns> <ad>` `.status.parents[].conditions` |
@@ -26,9 +26,7 @@ Kaynak: CHANGELOG'daki düzeltmeler, todo.md bulguları ve rolün bekleme/hata m
 | `certificate/homelab-wildcard` Ready değil | ClusterIssuer yok, cert-manager webhook hazır değil | `kubectl describe clusterissuer selfsigned-issuer`; `kubectl -n cert-manager get pods`; `kubectl -n kube-system describe certificate homelab-wildcard` |
 | Tarayıcı `NET::ERR_CERT_AUTHORITY_INVALID` | self-signed (beklenen) | CA zinciri (todo C2) ya da istisna ekle |
 | `*.homelab.local` bazen çözülmüyor | `.local` mDNS (systemd-resolved/avahi) | `resolvectl query`, domain'i `home.arpa` yap (todo C3) |
-| Longhorn pod'ları hiç zamanlanmıyor | worker yok (master taint tolere edilmez) / iscsid kapalı | `kubectl -n longhorn-system get pods -o wide`; `systemctl status iscsid`; `longhornctl check preflight` |
-| Longhorn volume `attach` "device busy" | multipathd Longhorn diskini kapmış | `/etc/multipath.conf` blacklist veya `systemctl disable --now multipathd` |
-| Monitoring PVC Pending | `monitoring_storage_class` yok (Longhorn kapalıyken `local-path` bekleniyor), HA `podAntiAffinity: required` için worker yetersiz | `kubectl get sc`; `kubectl -n monitoring describe pvc` |
+| Monitoring PVC Pending | `monitoring_storage_class` yok (varsayılan `local-path`), HA `podAntiAffinity: required` için worker yetersiz | `kubectl get sc`; `kubectl -n monitoring describe pvc` |
 | Alertmanager sürekli `KubeControllerManagerDown/KubeSchedulerDown/KubeProxyDown/etcd*` | k3s bu bileşenleri ayrı pod olarak sunmaz (todo C1) | values'ta ilgili `*.enabled: false` |
 | Rancher pod CrashLoop | Kubernetes sürümü Rancher'ın desteklediği pencerede değil / minor atlandı | `kubectl -n cattle-system logs deploy/rancher`; `rancher_version` ile `.tmp/rancher/installation-requirements.md` |
 | ArgoCD `argocd-initial-admin-secret` yok | secret silinmiş (normal) | `argocd admin initial-password` ya da parola sıfırla |

@@ -94,18 +94,6 @@ get cert-manager/usage-certificate.md  $C/website/master/content/docs/usage/cert
 get cert-manager/usage-gateway.md      $C/website/master/content/docs/usage/gateway.md
 get cert-manager/troubleshooting.md    $C/website/master/content/docs/troubleshooting/README.md
 
-# ---------------- Longhorn (chart 1.12.1) ----------------
-L=$GH/longhorn
-get longhorn/values-v1.12.1.yaml           $L/longhorn/v1.12.1/chart/values.yaml
-get longhorn/chart-README-v1.12.1.md       $L/longhorn/v1.12.1/chart/README.md
-get longhorn/install-requirements.md       $L/website/master/content/docs/1.12.1/deploy/install/_index.md
-get longhorn/install-with-helm.md          $L/website/master/content/docs/1.12.1/deploy/install/install-with-helm.md
-get longhorn/best-practices.md             $L/website/master/content/docs/1.12.1/best-practices.md
-get longhorn/storage-class-parameters.md   $L/website/master/content/docs/1.12.1/references/storage-class-parameters.md
-get longhorn/upgrade.md                    $L/website/master/content/docs/1.12.1/deploy/upgrade/_index.md
-get longhorn/troubleshooting.md            $L/website/master/content/docs/1.12.1/troubleshoot/troubleshooting.md
-get longhorn/longhornctl-preflight.md      $L/website/master/content/docs/1.12.1/advanced-resources/longhornctl/install-longhornctl.md
-
 # ---------------- kube-prometheus-stack (chart 88.3.0) ----------------
 P=$GH/prometheus-community/helm-charts/kube-prometheus-stack-88.3.0/charts/kube-prometheus-stack
 get kube-prometheus-stack/README-88.3.0.md   $P/README.md

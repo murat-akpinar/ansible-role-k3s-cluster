@@ -39,7 +39,6 @@ ezilemez (yalnızca `-e`). Bkz. [architecture.md](architecture.md) "Değişken a
 | `gateway_api_install` | `05_gateway_api_install.yml` | helm |
 | `metallb_install` | `06_metallb_install.yml` | helm; `k3s_disable_servicelb: true` ile birlikte |
 | `cert_manager_install` | `07_cert_manager_install.yml` + Gateway + wildcard cert | helm, gateway_api |
-| `longhorn_install` | `08_longhorn_install.yml`; `monitoring_storage_class`'ı etkiler | helm (HTTPRoute için cert_manager) |
 | `grafana_install` | `09_grafana_install.yml` | helm (HTTPRoute için cert_manager) |
 | `rancher_install` | `10_rancher_install.yml` | helm (HTTPRoute için cert_manager) |
 | `argocd_install` | `11_argocd_install.yml` | helm (HTTPRoute için cert_manager) |
@@ -67,12 +66,10 @@ ezilemez (yalnızca `-e`). Bkz. [architecture.md](architecture.md) "Değişken a
 | `helm_install_script_url` | `.../helm/main/scripts/get-helm-3` | Sürümsüz (todo C11). |
 | `helm_repo_metallb` | `https://metallb.github.io/metallb` | `helm upgrade --install ... --repo` ile doğrudan kullanılır (`helm repo add` yok); mirror için değiştir. |
 | `helm_repo_cert_manager` | `https://charts.jetstack.io` | |
-| `helm_repo_longhorn` | `https://charts.longhorn.io` | |
 | `helm_repo_prometheus` | `https://prometheus-community.github.io/helm-charts` | |
 | `helm_repo_argo` | `https://argoproj.github.io/argo-helm` | |
 | `metallb_chart_version` | `0.16.1` | `""` = en son. |
 | `cert_manager_chart_version` | `v1.21.1` | |
-| `longhorn_chart_version` | `1.12.1` | |
 | `kube_prometheus_stack_chart_version` | `88.3.0` | Prometheus Operator v0.93.0 |
 | `argocd_chart_version` | `10.3.3` | ArgoCD v3.5.1 |
 | `rancher_version` | `v2.15.0` | Chart değil, `rancher/rancher:<tag>` imajı. Minor atlamadan yükselt. |
@@ -82,10 +79,9 @@ ezilemez (yalnızca `-e`). Bkz. [architecture.md](architecture.md) "Değişken a
 
 | Değişken | Varsayılan | Not |
 |---|---|---|
-| `monitoring_storage_class` | `longhorn-retain-2` (longhorn açıksa) / `local-path` | `kube-prometheus-stack-values.yml.j2` PVC'leri. |
+| `monitoring_storage_class` | `local-path` | `kube-prometheus-stack-values.yml.j2` PVC'leri. |
 | `metallb_ip_pool_name` | `first-pool` | `metallb-config.yml.j2` |
 | `metallb_ip_addresses` | `["192.168.1.242-192.168.1.242"]` | Aralık veya CIDR listesi. |
-| `longhorn_storage_classes` | 6 giriş: `longhorn-{retain,delete}-{1,2,3}` | `{name, reclaim, replicas}`; `longhorn-storageclass.yml.j2`. Chart'ın kendi `longhorn` class'ı ayrıca default olarak gelir. |
 
 ## update_cluster (`update_cluster/defaults/main.yml`)
 

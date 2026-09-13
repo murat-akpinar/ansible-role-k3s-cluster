@@ -2,7 +2,7 @@
 
 Ansible ile k3s cluster kurulumu (HA/single-master, Keepalived VIP), node ekleme, rolling
 upgrade ve sağlık kontrolü. Opsiyonel bileşenler: Gateway API (Traefik), MetalLB,
-cert-manager, Longhorn, kube-prometheus-stack, Rancher, ArgoCD. Varsayılan: saf k3s.
+cert-manager, kube-prometheus-stack, Rancher, ArgoCD. Varsayılan: saf k3s.
 
 ## Yer imleri — neyi nerede bulurum
 
