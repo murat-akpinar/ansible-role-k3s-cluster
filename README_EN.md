@@ -295,8 +295,7 @@ Next, `00_prerequisites.yml` installs the shared package on every node: `acl`
 Each node's hostname must match the inventory name. The playbook automatically:
 - Checks the hostname
 - Changes it if necessary
-- Updates the `/etc/hosts` file
-- Reboots if necessary
+- Updates the `/etc/hosts` file (hostnamectl takes effect immediately, no reboot)
 
 ### Step 3: NTP Configuration
 
@@ -733,7 +732,7 @@ ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
 
 ### Features
 
-✅ **Automatic Hostname Configuration**: New node's hostname is automatically set (reboot if necessary)  
+✅ **Automatic Hostname Configuration**: New node's hostname is automatically set (no reboot)  
 ✅ **NTP Configuration**: Chrony installation and configuration is done automatically  
 ✅ **Idempotent**: Does not re-add nodes already in the cluster  
 ✅ **Version Compatibility**: New nodes are installed with version compatible with current cluster  
@@ -745,7 +744,7 @@ ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
 
 ⚠️ **Version Compatibility**: The version comes from the `k3s_version` variable in `playbooks/roles/k3s_setup/defaults/main.yml`. **You can leave it empty**: the role then reads the version running on the first master and pins the new node to it (`_resolve_k3s_version.yml`), so a new node never gets a kubelet newer than the cluster. If you set it by hand, use the cluster's version, not a newer one.
 
-⚠️ **Hostname Change**: If the node's hostname doesn't match the inventory name, hostname is changed and system is rebooted.
+⚠️ **Hostname Change**: If the node's hostname doesn't match the inventory name, the hostname is changed (no reboot). `add_node.yml` runs on every node: if a node that is **already running** in the cluster has a hostname different from its inventory name, k3s registers it as a separate node under the new name on its next restart. Keep inventory names equal to the existing hostnames.
 
 ⚠️ **Token Security**: K3s token is automatically retrieved from the first master node.
 

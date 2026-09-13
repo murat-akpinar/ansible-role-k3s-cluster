@@ -158,5 +158,5 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   "herkese açık `8472/udp` + `10250/tcp`" kuralı `state: disabled` ile kapatılır. firewalld
   yoksa (Ubuntu/Debian) tek `[WARN]` satırı; rol firewalld kurmaz (LoadBalancer/NodePort
   trafiğini kesmemek için).
-- `01_configure_hostname.yml`: hostname ≠ inventory_hostname ise değiştir + reboot.
+- `01_configure_hostname.yml`: hostname ≠ inventory_hostname ise değiştir (hostnamectl anında etkili, reboot yok).
 - `00_wellcome.yml`: MOTD (`wellcome.j2`: rol, topoloji, bileşen kutuları, sürümler).

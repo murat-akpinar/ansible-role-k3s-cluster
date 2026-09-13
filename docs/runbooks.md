@@ -21,7 +21,7 @@ Tüm komutlar repo kökünden; `ansible.cfg` envanteri zaten gösteriyor ama aç
    ```sh
    ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --ask-vault-pass
    ```
-   Hostname değişecekse node reboot olur (10 dk timeout). Sonda `K3s CLUSTER KURULUM OZETI`
+   Hostname inventory adından farklıysa değiştirilir (reboot yok). Sonda `K3s CLUSTER KURULUM OZETI`
    tablosu Gateway IP'sini, URL'leri ve parolaları basar.
 6. Doğrula: `ansible-playbook -i inventory/cluster_inventory.yml verify.yml` → `RESULT: ALL CHECKS PASSED`.
 7. Hostname erişimi için istemci `/etc/hosts`'una Gateway IP'sini ekle:

@@ -49,6 +49,8 @@ orada `- name:` satırına):
   `pipefail` tanımıyor.
 - `command-instead-of-module`: `systemctl is-active` (durum okuma; `rc` tüketiliyor).
 - `ignore-errors`: upgrade beklemeleri, zaman aşımı kırmızı "ignoring" olarak görünsün diye.
+- `no-handler`: `01_configure_hostname.yml` `/etc/hosts` satırı; handler play sonunda koşardı, satır
+  k3s kurulumundan önce yazılmalı.
 
 Uzun komutlar `cmd: >-` ile bölünür (katlanan satırlar tek boşlukla birleşir; tek tırnaklı shell
 argümanının içinden bölme). `helm upgrade` task'ları `changed_when: true` (her koşu yeni revision).

@@ -291,8 +291,7 @@ Ardından `00_prerequisites.yml` her node'da `acl` paketini kurar (unprivileged
 Her node'un hostname'i inventory'deki isimle eşleşmelidir. Playbook otomatik olarak:
 - Hostname'i kontrol eder
 - Gerekirse değiştirir
-- `/etc/hosts` dosyasını günceller
-- Gerekirse reboot yapar
+- `/etc/hosts` dosyasını günceller (hostnamectl anında etkilidir, reboot yapılmaz)
 
 ### Adım 3: NTP Yapılandırması
 
@@ -730,7 +729,7 @@ ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
 
 ### Özellikler
 
-✅ **Otomatik Hostname Yapılandırması**: Yeni node'un hostname'i otomatik olarak ayarlanır (gerekirse reboot yapılır)  
+✅ **Otomatik Hostname Yapılandırması**: Yeni node'un hostname'i otomatik olarak ayarlanır (reboot yapılmaz)  
 ✅ **NTP Yapılandırması**: Chrony kurulumu ve yapılandırması otomatik yapılır  
 ✅ **Idempotent**: Zaten cluster'a eklenmiş node'ları tekrar eklemez  
 ✅ **Versiyon Uyumluluğu**: Yeni node'lar mevcut cluster versiyonu ile uyumlu kurulur  
@@ -742,7 +741,7 @@ ansible-playbook -i inventory/cluster_inventory.yml add_node.yml
 
 ⚠️ **Versiyon Uyumluluğu**: Versiyon `playbooks/roles/k3s_setup/defaults/main.yml` dosyasındaki `k3s_version` değişkeninden alınır. **Boş bırakabilirsiniz**: rol o zaman ilk master'da çalışan sürümü okuyup yeni node'a onu pinler (`_resolve_k3s_version.yml`), böylece yeni node cluster'dan daha yeni bir kubelet almaz. Elle doldururken cluster'ın sürümünü verin, daha yenisini değil.
 
-⚠️ **Hostname Değişikliği**: Eğer node'un hostname'i inventory'deki isimle eşleşmiyorsa, hostname değiştirilir ve sistem reboot edilir.
+⚠️ **Hostname Değişikliği**: Eğer node'un hostname'i inventory'deki isimle eşleşmiyorsa hostname değiştirilir (reboot yok). `add_node.yml` tüm node'larda çalışır: cluster'da **zaten çalışan** bir node'un hostname'i inventory adından farklıysa, k3s bir sonraki restart'ta onu yeni adla ayrı bir node olarak kaydeder. Envanter adlarını mevcut hostname'lerle aynı tutun.
 
 ⚠️ **Token Güvenliği**: K3s token'ı otomatik olarak ilk master node'dan alınır.
 

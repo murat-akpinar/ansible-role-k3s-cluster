@@ -47,7 +47,7 @@ playbooks/roles/
 | 0b | `_resolve_k3s_version.yml` | all (`run_once` master[0]) | `k3s_version` boşsa cluster'da çalışan sürümü okur ve tüm node'lara pinler (sürüm kayması). Boş cluster'da no-op. Sonunda `k3s_version_env`'i (kurulum satırlarının `INSTALL_K3S_VERSION` öneki) üretir. |
 | 1 | `00_system_requirements.yml` | all | CPU/RAM uyarısı (fail etmez), swap kapatma, overlay/br_netfilter, sysctl, chrony + `chrony.j2`. |
 | 2 | `00_prerequisites.yml` | all | acl, firewalld aktifse: `6443/tcp` herkese açık; node IP'leri + pod/service CIDR'ları `trusted` zone (node-arası 8472/udp, 10250/tcp, 2379-2380/tcp, VRRP yalnızca node'lardan); eski herkese-açık 8472/10250 kuralı kapatılır. firewalld yoksa `[WARN]`. |
-| 3 | `01_configure_hostname.yml` | all | hostname ≠ inventory_hostname ise hostnamectl + /etc/hosts + **reboot**. |
+| 3 | `01_configure_hostname.yml` | all | hostname ≠ inventory_hostname ise `hostname` modülü (hostnamectl) + /etc/hosts; reboot yok. |
 | 4 | `02_install_keepalived.yml` | master | paket her master'a; `master_count >= 3` ise `keepalived.conf.j2` (state/priority envanter sırasından, `chk_k3s` track_script). |
 | 5 | `03_k3s_config.yml` | all | **k3s'ten önce**: `k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml` (0600), sıkılaştırma sysctl'leri, `audit.yaml` + `psa.yaml` + `k3s-network-policy.yaml` → `server/manifests/` (master). Çalışan k3s varsa restart hatırlatması. |
 | 6 | `03_install_k3s.yml` | all | Tek akış: ilk master `--cluster-init`, token oku, ek master'lar `server --server https://{{ k3s_api_endpoint }}:6443`, worker'lar `agent` (**agent-token** ile). HA/single farkı yalnızca `k3s_api_endpoint`. |
