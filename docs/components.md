@@ -54,8 +54,8 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - `vrrp_script chk_k3s`: `/usr/bin/pidof k3s`, weight -20, fall/rise 2 → k3s ölünce VIP devreder.
 - `keepalived.conf` değişince handler `Reload keepalived` (`systemd state: reloaded`, SIGHUP) koşar;
   restart değil, tüm master'larda aynı anda VIP düşmesin diye.
-- `enable_script_security` + `script_user keepalived_script` (rol kullanıcıyı oluşturur ve
-  `/usr/bin/pidof`'un sahibini değiştirir — todo C5: gereksiz).
+- `enable_script_security` + `script_user keepalived_script` (rol kullanıcıyı oluşturur;
+  `/usr/bin/pidof` `root:root 0755` tutulur — eski sürümler sahibini `keepalived_script` yapıyordu).
 - VRRP firewalld'de node IP'leri `trusted` zone'da olduğu için açıktır (`00_prerequisites.yml`),
   yani yalnızca cluster node'larından kabul edilir. `auth_pass`'ın ilk 8 karakteri kullanılır
   (`keepalived.conf(5)`) ve VRRPv2 PASS auth düz metindir — asıl koruma bu kaynak kısıtıdır.

@@ -38,10 +38,15 @@
         system: true
         shell: /usr/sbin/nologin
 
-    - name: Set ownership for pidof
+    # enable_script_security yalnizca "yola root disinda kimse yazamasin" ister;
+    # root:root 0755 bunu saglar. Eskiden sahibi keepalived_script yapiliyordu:
+    # root'un da calistirdigi bir sistem binary'si ayricaliksiz kullaniciya
+    # yazilabilir oluyordu (todo C5). Bu task onceki kurulumlari da geri alir.
+    - name: Ensure pidof is owned by root (keepalived script security)
       ansible.builtin.file:
         path: /usr/bin/pidof
-        owner: keepalived_script
+        owner: root
+        group: root
         mode: '0755'
       become: true
 
