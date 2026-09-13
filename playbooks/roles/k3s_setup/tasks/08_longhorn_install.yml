@@ -4,7 +4,7 @@
 # ============================
 
 - name: Set longhorn values file for HA (3+ masters)
-  set_fact:
+  ansible.builtin.set_fact:
     longhorn_values_file: "{{ user_home_directory }}/my-charts/longhorn/values-ha.yml"
   when:
     - "'master' in group_names"
@@ -12,7 +12,7 @@
   run_once: true
 
 - name: Set longhorn values file for single master
-  set_fact:
+  ansible.builtin.set_fact:
     longhorn_values_file: "{{ user_home_directory }}/my-charts/longhorn/values-single-master.yml"
   when:
     - "'master' in group_names"
@@ -21,13 +21,18 @@
 
 - name: Install Longhorn Helm chart
   ansible.builtin.command:
-    cmd: helm upgrade --install longhorn longhorn --repo {{ helm_repo_longhorn }} --wait --timeout 10m --namespace longhorn-system --create-namespace {{ ('--version ' ~ longhorn_chart_version) if longhorn_chart_version else '' }} -f {{ longhorn_values_file }}
+    cmd: >-
+      helm upgrade --install longhorn longhorn --repo {{ helm_repo_longhorn }}
+      --wait --timeout 10m --namespace longhorn-system --create-namespace
+      {{ ('--version ' ~ longhorn_chart_version) if longhorn_chart_version else '' }}
+      -f {{ longhorn_values_file }}
   become: true
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: longhorn_helm_result
   until: longhorn_helm_result.rc == 0
+  changed_when: true
   retries: 3
   delay: 30
   when: inventory_hostname == groups['master'][0]
@@ -53,7 +58,7 @@
   when: inventory_hostname == groups['master'][0]
 
 - name: "Disable local-path as default StorageClass"
-  shell: |
+  ansible.builtin.shell: |
     kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
   register: local_path_patch
   changed_when: "'(no change)' not in local_path_patch.stdout"

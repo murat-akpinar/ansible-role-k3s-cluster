@@ -5,15 +5,25 @@ metadata:
   name: argocd
   namespace: argocd
 spec:
+  # API sunucusunun varsayilan degerleri (group/kind/matches/weight) acikca yazili: liste
+  # alanlarinda eksik olursa `kubectl apply` her kosuda "configured" der (D2).
   parentRefs:
-    - name: homelab
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: homelab
       namespace: kube-system
       sectionName: websecure
   hostnames:
     - argocd.{{ cluster_domain }}
   rules:
-    # match yok -> varsayilan PathPrefix "/"
-    - backendRefs:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
         # TLS'i Gateway sonlandirir; backend HTTP (values: server.insecure=true).
-        - name: argocd-server
+        - group: ""
+          kind: Service
+          name: argocd-server
           port: 80
+          weight: 1

@@ -3,13 +3,13 @@
 # This ensures pods are evenly distributed, especially to newly added nodes
 
 - name: Check if any node was upgraded
-  set_fact:
+  ansible.builtin.set_fact:
     any_upgrade_occurred: "{{ groups['all'] | map('extract', hostvars, 'upgrade_needed') | select('equalto', true) | list | length > 0 }}"
   when: inventory_hostname == groups['master'][0]
   run_once: true
 
 - name: Skip rebalancing if no upgrade occurred
-  debug:
+  ansible.builtin.debug:
     msg: "⏭️  SKIPPING REBALANCE - No nodes were upgraded (all nodes already at target version). Rebalancing not needed."
   when:
     - inventory_hostname == groups['master'][0]
@@ -23,7 +23,7 @@
     - any_upgrade_occurred | default(false)
   block:
     - name: Get all worker nodes
-      ansible.builtin.shell:
+      ansible.builtin.shell:  # noqa: risky-shell-pipe
         cmd: kubectl get nodes -l '!node-role.kubernetes.io/master' -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | sort
       become: true
       become_user: "{{ ansible_user }}"
@@ -43,7 +43,7 @@
         - all_worker_nodes.stdout is defined
         - all_worker_nodes.stdout != ""
     - name: Display current pod distribution across worker nodes
-      ansible.builtin.shell:
+      ansible.builtin.shell:  # noqa: risky-shell-pipe
         cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
       become: true
       become_user: "{{ ansible_user }}"
@@ -56,7 +56,7 @@
     - name: Show current pod distribution
       ansible.builtin.debug:
         msg: "Current Pod Distribution (before rebalancing): {{ current_pod_distribution.stdout_lines | default([]) | join(' | ') }}"
-      when: 
+      when:
         - inventory_hostname == groups['master'][0]
         - current_pod_distribution.stdout_lines is defined
 
@@ -129,7 +129,7 @@
         - uncordon_results.results | selectattr('changed', 'equalto', true) | list | length > 0
 
     - name: Display final pod distribution across worker nodes
-      ansible.builtin.shell:
+      ansible.builtin.shell:  # noqa: risky-shell-pipe
         cmd: kubectl get pods --all-namespaces -o wide --no-headers | awk '{print $8}' | sort | uniq -c | sort -rn | awk '{printf "%-6s %s\n", $1, $2}'
       become: true
       become_user: "{{ ansible_user }}"
@@ -142,7 +142,6 @@
     - name: Show final pod distribution
       ansible.builtin.debug:
         msg: "Final Pod Distribution (after rebalancing): {{ final_pod_distribution.stdout_lines | default([]) | join(' | ') }}"
-      when: 
+      when:
         - inventory_hostname == groups['master'][0]
         - final_pod_distribution.stdout_lines is defined
-

@@ -25,16 +25,38 @@
   sorusunda web yerine buraya bak.
 - Chart sürümü pinlenince: `defaults/main.yml` + `docs/fetch-reference-sources.sh` tag'i + `docs/reference-sources.md` tablosu birlikte değişir.
 
-## Yerel kontroller (CI yok — todo B7)
+## Lint ve CI
+
+`.github/workflows/lint.yml` her push/PR'da `ansible/ansible-lint@v26.8.0` çalıştırır. ansible-lint
+yamllint'i (`yaml[...]`) ve dört playbook'un `--syntax-check`'ini kendi içinde yapar,
+`collections/requirements.yml`'i kendisi kurar; ayrı adım yok. Ayarlar `.ansible-lint`'te: yalnızca
+`var-naming[no-role-prefix]` (ayar adları kullanıcının group_vars'ında, önek kırıcı olur) ve
+`run-once[task]` (strategy free yok) kapalı.
+
+Yerelde aynı sürümle (makinede kurulu değil, geçici venv):
 
 ```sh
-ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --syntax-check
-ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml --syntax-check
-ansible-playbook -i inventory/cluster_inventory.yml add_node.yml --syntax-check
-ansible-playbook -i inventory/cluster_inventory.yml verify.yml --syntax-check
-ansible-inventory -i inventory/cluster_inventory.yml --list | head
-pipx install ansible-lint yamllint   # kurulu değil
-ansible-lint playbooks/ *.yml
+python3 -m venv /tmp/al && /tmp/al/bin/pip install -q ansible-lint==26.8.0
+PATH=/tmp/al/bin:$PATH ansible-lint < /dev/null   # stdin bağlı değilse "non-blocking IO" hatası
+```
+
+`# noqa` yalnızca bilinçli istisnada, satır sonunda (block scalar `|`/`>` başlığında tanınmıyor,
+orada `- name:` satırına):
+
+- `risky-shell-pipe`: sadece okuyan, `failed_when: false` ile çıktısı raporlanan pipe'lar. Kurulum
+  pipe'ları (`curl ... | sh -`) `set -o pipefail` + `args: executable: /bin/bash` alır: yoksa curl
+  düştüğünde `sh` boş girdiyle 0 döner ve task başarılı görünür. Debian/Ubuntu `/bin/sh` (dash)
+  `pipefail` tanımıyor.
+- `command-instead-of-module`: `systemctl is-active` (durum okuma; `rc` tüketiliyor).
+- `ignore-errors`: upgrade beklemeleri, zaman aşımı kırmızı "ignoring" olarak görünsün diye.
+
+Uzun komutlar `cmd: >-` ile bölünür (katlanan satırlar tek boşlukla birleşir; tek tırnaklı shell
+argümanının içinden bölme). `helm upgrade` task'ları `changed_when: true` (her koşu yeni revision).
+
+Lint'in görmediği: gerçek cluster davranışı. Syntax-check tek başına:
+
+```sh
+ansible-playbook -i inventory/cluster_inventory.yml k3s_setup.yml --syntax-check   # upgrade/add_node/verify aynı
 ```
 
 `helm` yerelde kurulu değil; values doğrulaması için chart'ı `.tmp/<bileşen>/values-*.yaml`
@@ -47,7 +69,7 @@ ile karşılaştır ya da master[0]'da `helm template ... -f values | less`.
    `become_user: "{{ ansible_user }}"` + `KUBECONFIG: "{{ user_home_directory }}/.kube/config"`,
    `helm upgrade --install <x> <chart> --repo {{ helm_repo_<x> }} --wait --timeout 10m` (repo add yok,
    ayrı pod bekleme task'ı yok; chart dışı kaynak gerekiyorsa `kubectl wait --for=condition=...`),
-   `kubectl apply` task'ına `register` + `changed_when: <reg>.stdout is search('(created|configured)$', multiline=True)`,
+   `changed_when: true`; `kubectl apply` task'ına `register` + `changed_when: <reg>.stdout is search('(created|configured)$', multiline=True)`,
    HTTPRoute apply (`cert_manager_install` şartıyla).
 3. `tasks/main.yml`: `import_tasks` + `when: <x>_install | default(false)` + `tags: ['<x>']`.
 4. `files/my-charts/<x>/values-ha.yml` ve `values-single-master.yml` (master taint tolere etme,

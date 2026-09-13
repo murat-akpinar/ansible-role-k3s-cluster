@@ -40,4 +40,3 @@
 # Cleanup / rebalance / verify calisir calismaz degil, TUM node'lar upgrade
 # edildikten sonra calismali. `serial: 1` yuzunden bu play her seferinde tek
 # host'luk bir batch; bu yuzden o adimlar upgrade.yml'deki ikinci play'de.
-

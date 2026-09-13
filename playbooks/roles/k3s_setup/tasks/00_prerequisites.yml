@@ -28,7 +28,7 @@
 
 - name: "Check if firewalld is running"
   ansible.builtin.command:
-    cmd: systemctl is-active firewalld
+    cmd: systemctl is-active firewalld  # noqa: command-instead-of-module
   register: firewalld_state
   changed_when: false
   failed_when: false

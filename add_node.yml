@@ -1,6 +1,6 @@
 ---
-- hosts: all
+- name: Add new nodes to the cluster
+  hosts: all
   become: true
   roles:
     - extra_node_cluster
-

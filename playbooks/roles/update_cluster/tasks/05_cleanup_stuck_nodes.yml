@@ -20,7 +20,7 @@
     msg: |
       Found nodes with SchedulingDisabled status:
       {{ stuck_nodes.stdout_lines | default(['None']) | join('\n') }}
-  when: 
+  when:
     - inventory_hostname == groups['master'][0]
     - stuck_nodes.stdout is defined
     - stuck_nodes.stdout != ""
@@ -32,7 +32,7 @@
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-  when: 
+  when:
     - inventory_hostname == groups['master'][0]
     - stuck_nodes.stdout is defined
     - stuck_nodes.stdout != ""
@@ -40,12 +40,13 @@
   delegate_to: "{{ groups['master'][0] }}"
   loop: "{{ stuck_nodes.stdout_lines | default([]) }}"
   register: uncordon_results
+  changed_when: uncordon_results.rc == 0
   failed_when: false
 
 - name: Display uncordon results
   ansible.builtin.debug:
     msg: "Uncordoned node: {{ item.item }} (rc: {{ item.rc }})"
-  when: 
+  when:
     - inventory_hostname == groups['master'][0]
     - uncordon_results.results is defined
   loop: "{{ uncordon_results.results | default([]) }}"
@@ -73,4 +74,3 @@
       - Nodes uncordoned: {{ uncordon_results.results | default([]) | selectattr('rc', 'equalto', 0) | list | length }}
       - Remaining stuck nodes: {{ remaining_stuck_nodes.stdout | trim | default('0') }}
   when: inventory_hostname == groups['master'][0]
-

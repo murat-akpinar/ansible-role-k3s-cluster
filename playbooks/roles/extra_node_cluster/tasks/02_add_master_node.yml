@@ -2,7 +2,7 @@
 # Add Master Node to existing K3s cluster
 
 - name: Get K3s token from first master
-  shell: cat /var/lib/rancher/k3s/server/node-token
+  ansible.builtin.command: cat /var/lib/rancher/k3s/server/node-token
   register: k3s_token_raw
   become: true
   changed_when: false
@@ -10,7 +10,7 @@
   delegate_to: "{{ groups['master'][0] }}"
 
 - name: Set K3s token fact
-  set_fact:
+  ansible.builtin.set_fact:
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
 
@@ -26,7 +26,7 @@
   register: cluster_init_check
   changed_when: false
   failed_when: false
-  when: 
+  when:
     - "'master' in group_names"
     - (master_count | int) == 1
   become: true
@@ -37,14 +37,14 @@
   ansible.builtin.fail:
     msg: |
       ERROR: Cannot add additional master nodes!
-      
+
       The first master node was not started with --cluster-init flag.
       This means the cluster cannot be converted to HA mode.
-      
+
       To fix this, you have two options:
       1. Reinstall the first master with --cluster-init flag (data loss will occur)
       2. Start fresh with a new cluster using 3+ master nodes from the beginning
-      
+
       For new installations, the playbook will automatically use --cluster-init
       even for single master setups to allow future HA conversion.
   when:
@@ -58,6 +58,7 @@
 # altinda ilk master'in IP'si. Eskiden bu task iki kopyaydi.
 - name: Install K3s master node
   ansible.builtin.shell: |
+    set -o pipefail
     export K3S_TOKEN="{{ k3s_token }}"
     export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
     export INSTALL_K3S_EXEC="server --server $K3S_URL {{ k3s_server_args }}"
@@ -69,14 +70,17 @@
     - "'master' in group_names"
     - not node_already_joined | default(false)
   become: true
+  args:
+    executable: /bin/bash
+  changed_when: true
   register: join_master
 
 - name: Ensure K3s is enabled and running on master node
   ansible.builtin.systemd:
     name: k3s
-    enabled: yes
+    enabled: true
     state: started
-  when: 
+  when:
     - "'master' in group_names"
     - not node_already_joined | default(false)
   become: true
@@ -85,7 +89,7 @@
   ansible.builtin.wait_for:
     path: /var/lib/rancher/k3s/server/node-token
     state: present
-  when: 
+  when:
     - "'master' in group_names"
     - not node_already_joined | default(false)
   become: true
@@ -93,11 +97,11 @@
   delay: 10
 
 - name: Verify master node joined successfully
-  shell: kubectl get nodes {{ inventory_hostname }}
+  ansible.builtin.command: kubectl get nodes {{ inventory_hostname }}
   register: verify_master_join
   changed_when: false
   failed_when: false
-  when: 
+  when:
     - "'master' in group_names"
     - not node_already_joined | default(false)
   become: true
@@ -109,11 +113,10 @@
   delay: 10
 
 - name: Display master node join status
-  debug:
+  ansible.builtin.debug:
     msg: "Master node {{ inventory_hostname }} successfully joined the cluster"
-  when: 
+  when:
     - "'master' in group_names"
     - verify_master_join is defined
     - verify_master_join.rc is defined
     - verify_master_join.rc == 0
-

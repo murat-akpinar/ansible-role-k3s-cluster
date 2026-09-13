@@ -49,4 +49,3 @@ kube-state-metrics:
 # Node Exporter runs on all nodes (DaemonSet)
 nodeExporter:
   enabled: true
-

@@ -5,13 +5,24 @@ metadata:
   name: grafana
   namespace: monitoring
 spec:
+  # API sunucusunun varsayilan degerleri (group/kind/matches/weight) acikca yazili: liste
+  # alanlarinda eksik olursa `kubectl apply` her kosuda "configured" der (D2).
   parentRefs:
-    - name: homelab
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: homelab
       namespace: kube-system
       sectionName: websecure
   hostnames:
     - grafana.{{ cluster_domain }}
   rules:
-    - backendRefs:
-        - name: kube-prometheus-stack-grafana
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: kube-prometheus-stack-grafana
           port: 80
+          weight: 1

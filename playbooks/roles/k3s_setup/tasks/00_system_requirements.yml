@@ -3,25 +3,14 @@
 # Check system requirements
 # ============================
 
-- name: Check minimum CPU requirements
-  ansible.builtin.command: grep -c ^processor /proc/cpuinfo
-  register: cpu_count
-  changed_when: false
-  ignore_errors: true
-
-- name: Verify CPU count
-  ansible.builtin.fail:
-    msg: "System does not have minimum required CPU cores (4)."
-  when: cpu_count.stdout|int < 3
-  ignore_errors: true
-
-
-- name: Check minimum RAM requirements
-  ansible.builtin.shell: free -m | awk '/^Mem:/ {print $2}'
-  register: ram_size
-  changed_when: false
-  failed_when: ram_size.stdout|int < 4096
-  ignore_errors: true
+# Uyari, durdurma degil (eskiden fail + ignore_errors). Degerler fact'lerden:
+# processor_vcpus = /proc/cpuinfo processor sayisi, memtotal_mb = MemTotal.
+- name: Warn if the node is below the recommended CPU / RAM
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ ansible_facts['processor_vcpus'] }} vCPU / {{ ansible_facts['memtotal_mb'] }} MB RAM,
+      recommended at least 3 vCPU / 4096 MB.
+  when: ansible_facts['processor_vcpus'] < 3 or ansible_facts['memtotal_mb'] < 4096
 
 # ============================
 # Kernel & Swap Hazırlığı (Kubernetes ağ ön gereksinimleri)

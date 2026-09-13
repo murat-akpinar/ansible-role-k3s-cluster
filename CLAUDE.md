@@ -82,4 +82,6 @@ sh docs/fetch-reference-sources.sh                   # referans materyalini indi
 - `.tmp/` ve `todo.md` git'te ASLA izlenmez (commit/push etme); indirme scripti ve indeks `docs/` altında.
 - Bir bulgu kapanınca `todo.md`'de `[x]` ve commit gövdesinde madde numarası.
 - `helm`/`ansible-lint`/`yamllint` yerelde yok; `kubectl`, `ansible-doc`, `git-cliff` var. ansible-core 2.21.3.
+  Lint CI'da (`.github/workflows/lint.yml`, ansible-lint 26.8.0, `.ansible-lint`); commit'ten önce yerelde
+  geçici venv ile çalıştır, `# noqa` kuralı: `docs/development.md` "Lint ve CI".
 - `inventory/cluster_inventory.yml` yerelde skip-worktree: değişiklikleri `git status` göstermez.

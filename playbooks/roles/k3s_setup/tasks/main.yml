@@ -82,5 +82,5 @@
   when: argocd_install | default(false)
   tags: ['argocd']
 
-- name: "Display Installation Results" 
+- name: "Display Installation Results"
   ansible.builtin.import_tasks: 99_result.yml

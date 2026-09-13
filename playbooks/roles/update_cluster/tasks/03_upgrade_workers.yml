@@ -8,7 +8,7 @@
 # Worker'lar SERVER token'i ile degil agent token'i ile katilir (bkz.
 # k3s_setup/tasks/03_install_k3s.yml).
 - name: Get K3s agent token from first master (for workers to join)
-  shell: cat /var/lib/rancher/k3s/server/agent-token
+  ansible.builtin.command: cat /var/lib/rancher/k3s/server/agent-token
   register: k3s_token_raw
   become: true
   changed_when: false
@@ -16,14 +16,17 @@
   delegate_to: "{{ groups['master'][0] }}"
 
 - name: Set K3s token fact (for all workers)
-  set_fact:
+  ansible.builtin.set_fact:
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
 
 - name: Upgrade worker node
+  when:
+    - "'worker' in group_names"
+    - upgrade_needed | default(true)
   block:
     - name: Check pods on worker node before drain
-      ansible.builtin.shell:
+      ansible.builtin.shell:  # noqa: risky-shell-pipe
         cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} -o wide --no-headers | wc -l
       become: true
       become_user: "{{ ansible_user }}"
@@ -34,8 +37,11 @@
       changed_when: false
 
     - name: Check PVC pods on worker node before drain
-      ansible.builtin.shell:
-        cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.metadata.namespace}{\"/\"}{.metadata.name}{\" \"}{range .spec.volumes[*]}{.persistentVolumeClaim.claimName}{\" \"}{end}{\"\\n\"}{end}' | grep -v '^$' || echo "No PVC pods"
+      ansible.builtin.shell:  # noqa: risky-shell-pipe
+        cmd: >-
+          kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }}
+          -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{" "}{.spec.volumes[*].persistentVolumeClaim.claimName}{"\n"}{end}'
+          | awk 'NF > 1'
       become: true
       become_user: "{{ ansible_user }}"
       environment:
@@ -50,11 +56,13 @@
         msg: |
           Worker node {{ inventory_hostname }} status before drain:
           - Total pods: {{ pods_count_before.stdout | trim }}
-          - PVC pods: {{ pvc_pods_before.stdout | default('None') }}
+          - PVC pods: {{ pvc_pods_before.stdout | default('None', true) }}
 
     - name: Drain worker node
       ansible.builtin.command:
-        cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --grace-period={{ upgrade_drain_grace_period | default(60) }} --force
+        cmd: >-
+          kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --force
+          --timeout={{ upgrade_drain_timeout }}s --grace-period={{ upgrade_drain_grace_period | default(60) }}
       become: true
       become_user: "{{ ansible_user }}"
       environment:
@@ -73,13 +81,15 @@
           Return code: {{ drain_worker_result.rc }}
 
     - name: Check pods that could not be evicted
-      ansible.builtin.shell:
-        cmd: kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} --no-headers 2>/dev/null | awk '{print $1"/"$2}' || echo "No pods remaining"
+      ansible.builtin.shell:  # noqa: risky-shell-pipe
+        cmd: >-
+          kubectl get pods --all-namespaces --field-selector spec.nodeName={{ inventory_hostname }} --no-headers 2>/dev/null
+          | awk '{print $1"/"$2}' || echo "No pods remaining"
       become: true
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
+      when:
         - drain_worker_result.rc != 0
       delegate_to: "{{ groups['master'][0] }}"
       register: remaining_pods
@@ -91,34 +101,38 @@
         msg: |
           Pods that could not be evicted from {{ inventory_hostname }}:
           {{ remaining_pods.stdout | default('None') }}
-      when: 
+      when:
         - drain_worker_result.rc != 0
         - remaining_pods.stdout is defined
 
     - name: Check if drain was successful
       ansible.builtin.debug:
         msg: "Drain completed successfully for {{ inventory_hostname }}"
-      when: 
+      when:
         - drain_worker_result.rc == 0
 
     - name: Warn if drain had issues (may continue with force)
       ansible.builtin.debug:
         msg: "Drain had issues for {{ inventory_hostname }}, but continuing with upgrade (some pods may not have been evicted)"
-      when: 
+      when:
         - drain_worker_result.rc != 0
 
     - name: Upgrade K3s agent on worker
-      shell: |
+      ansible.builtin.shell: |
+        set -o pipefail
         export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
         export K3S_TOKEN="{{ k3s_token }}"
         export INSTALL_K3S_VERSION={{ k3s_target_version }}
         curl -sfL {{ k3s_install_url }} | sh -s - agent
       become: true
+      args:
+        executable: /bin/bash
+      changed_when: true
       register: upgrade_worker
 
     - name: Wait for K3s agent service to be running
       ansible.builtin.command:
-        cmd: systemctl is-active k3s-agent
+        cmd: systemctl is-active k3s-agent  # noqa: command-instead-of-module
       register: k3s_agent_status
       until: k3s_agent_status.rc == 0
       retries: 12
@@ -127,10 +141,10 @@
       changed_when: false
 
     - name: Wait for worker node to be Ready in cluster
-      ansible.builtin.shell:
-        cmd: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q True
+      ansible.builtin.command:
+        cmd: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
       register: worker_ready_check
-      until: worker_ready_check.rc == 0
+      until: worker_ready_check.stdout == 'True'
       retries: 12
       delay: 5
       become: true
@@ -155,7 +169,7 @@
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
       changed_when: false
-      ignore_errors: true
+      ignore_errors: true  # noqa: ignore-errors
       when: longhorn_install | bool
 
     # Siradaki worker drain edilmeden once replikalar tamamlanmali.
@@ -179,6 +193,7 @@
     - name: Uncordon worker node
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
+      changed_when: true
       become: true
       become_user: "{{ ansible_user }}"
       environment:
@@ -198,13 +213,9 @@
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
       changed_when: false
-      ignore_errors: true
+      ignore_errors: true  # noqa: ignore-errors
       when: grafana_install | bool
 
     - name: Wait for pods to stabilize after worker upgrade
       ansible.builtin.pause:
         seconds: "{{ upgrade_wait_for_pods }}"
-
-  when: 
-    - "'worker' in group_names"
-    - upgrade_needed | default(true)

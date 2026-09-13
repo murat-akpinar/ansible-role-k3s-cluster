@@ -9,7 +9,7 @@ galaxy_info:
     cert-manager, Longhorn, kube-prometheus-stack, Rancher ve ArgoCD
     bileşenlerini opsiyonel olarak kurar.
   license: MIT
-  min_ansible_version: "2.9"
+  min_ansible_version: "2.15"
   platforms:
     - name: Ubuntu
       versions:

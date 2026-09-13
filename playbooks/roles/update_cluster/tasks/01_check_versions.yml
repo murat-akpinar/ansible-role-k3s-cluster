@@ -2,7 +2,7 @@
 # Check current K3s versions on all nodes
 
 - name: Get current K3s version on master nodes
-  shell: k3s --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"
+  ansible.builtin.shell: k3s --version 2>/dev/null | grep -oP 'k3s version \K[^\s]+' || echo "not_installed"  # noqa: risky-shell-pipe
   register: current_k3s_version_master
   changed_when: false
   failed_when: false
@@ -10,7 +10,7 @@
   become: true
 
 - name: Get current K3s version on worker nodes from kubectl
-  shell: kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null || echo "not_installed"
+  ansible.builtin.shell: kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null || echo "not_installed"
   register: current_k3s_version_worker
   changed_when: false
   failed_when: false
@@ -22,17 +22,19 @@
   delegate_to: "{{ groups['master'][0] }}"
 
 - name: Display current K3s versions
-  debug:
-    msg: "Node {{ inventory_hostname }}: Current={{ current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout) }}, Target={{ k3s_target_version | default(k3s_version | default('not specified')) }}"
+  ansible.builtin.debug:
+    msg: >-
+      Node {{ inventory_hostname }}: Current={{ current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout) }},
+      Target={{ k3s_target_version | default(k3s_version | default('not specified')) }}
   when: "'master' in group_names or 'worker' in group_names"
 
 - name: Set fact for current version (trimmed)
-  set_fact:
+  ansible.builtin.set_fact:
     current_k3s_version: "{{ (current_k3s_version_master.stdout | default(current_k3s_version_worker.stdout)) | trim }}"
   when: "'master' in group_names or 'worker' in group_names"
 
 - name: Set target version for upgrade (use k3s_upgrade_version if specified, otherwise k3s_version)
-  set_fact:
+  ansible.builtin.set_fact:
     k3s_target_version: "{{ k3s_upgrade_version | default('') | trim | default(k3s_version | default(''), true) | trim }}"
   when: "'master' in group_names or 'worker' in group_names"
   run_once: true
@@ -40,14 +42,16 @@
 # Surum karsilastirmasi Ansible'in `version` testi ile yapilir. Eskiden ayni
 # parse_version fonksiyonu iki ayri python3 heredoc'unda kopyaliydi.
 - name: Normalize versions for comparison (strip 'v' prefix and '+k3s1' suffix)
-  set_fact:
+  ansible.builtin.set_fact:
     current_k3s_semver: "{{ current_k3s_version | regex_replace('^v', '') | regex_replace('\\+.*$', '') }}"
     target_k3s_semver: "{{ k3s_target_version | regex_replace('^v', '') | regex_replace('\\+.*$', '') }}"
   when: "'master' in group_names or 'worker' in group_names"
 
 - name: Fail if target version not specified
-  fail:
-    msg: "❌ TARGET VERSION NOT SPECIFIED! Please set k3s_upgrade_version or k3s_version in playbooks/roles/k3s_setup/defaults/main.yml (Example: k3s_upgrade_version: \"v1.32.9+k3s1\")"
+  ansible.builtin.fail:
+    msg: >-
+      ❌ TARGET VERSION NOT SPECIFIED! Please set k3s_upgrade_version or k3s_version
+      in playbooks/roles/k3s_setup/defaults/main.yml (Example: k3s_upgrade_version: "v1.32.9+k3s1")
   when:
     - "'master' in group_names or 'worker' in group_names"
     - (k3s_target_version | default('') | trim) == ''
@@ -55,7 +59,7 @@
   run_once: true
 
 - name: Set upgrade_needed fact based on version comparison
-  set_fact:
+  ansible.builtin.set_fact:
     upgrade_needed: >-
       {{ ((upgrade_force | default(false))
           or current_k3s_version == 'not_installed'
@@ -63,12 +67,14 @@
   when: "'master' in group_names or 'worker' in group_names"
 
 - name: Display upgrade decision
-  debug:
-    msg: "Node {{ inventory_hostname }}: Current={{ current_k3s_version }}, Target={{ k3s_target_version }}, Upgrade needed={{ upgrade_needed | default(false) }}"
+  ansible.builtin.debug:
+    msg: >-
+      Node {{ inventory_hostname }}: Current={{ current_k3s_version }}, Target={{ k3s_target_version }},
+      Upgrade needed={{ upgrade_needed | default(false) }}
   when: "'master' in group_names or 'worker' in group_names"
 
 - name: Skip upgrade if version is higher or equal
-  debug:
+  ansible.builtin.debug:
     msg: "⏭️  SKIP - Node {{ inventory_hostname }}: Current ({{ current_k3s_version }}) >= Target ({{ k3s_target_version }}), skipping upgrade"
   when:
     - "'master' in group_names or 'worker' in group_names"

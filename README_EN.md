@@ -84,7 +84,7 @@ through this VIP. MetalLB hands out IPs for LoadBalancer services.
 ### 1. Ansible and Required Collections
 
 ```bash
-# Ansible must be installed (2.9+)
+# Ansible must be installed (ansible-core 2.15+)
 ansible --version
 
 # Install required collections (community.general + ansible.posix)

@@ -96,7 +96,7 @@
 # Calisan bir k3s ayar dosyasini kendiliginden yeniden okumaz. Otomatik restart
 # YAPMIYORUZ: HA'da tum master'lari ayni anda yeniden baslatmak API kesintisidir.
 - name: "Hardening | Check whether k3s is already running on this node"
-  ansible.builtin.command: "systemctl is-active {{ 'k3s' if 'master' in group_names else 'k3s-agent' }}"
+  ansible.builtin.command: "systemctl is-active {{ 'k3s' if 'master' in group_names else 'k3s-agent' }}"  # noqa: command-instead-of-module
   register: k3s_already_running
   changed_when: false
   failed_when: false

@@ -4,17 +4,17 @@
 # ============================
 
 - name: "Set Keepalived VRRP interface (override edilmemisse otomatik algila)"
-  set_fact:
+  ansible.builtin.set_fact:
     keepalived_network: "{{ keepalived_interface if (keepalived_interface | default('') | length > 0) else ansible_default_ipv4.interface }}"
 
 - name: "Debug Keepalived network interface"
-  debug:
+  ansible.builtin.debug:
     msg: >-
       Keepalived VRRP interface: {{ keepalived_network }}
       ({{ 'manuel override' if (keepalived_interface | default('') | length > 0) else 'otomatik algilandi' }})
 
 - name: "Keepalived Debug Master Count"
-  debug:
+  ansible.builtin.debug:
     msg: "Master Count is {{ master_count }}."
   run_once: true
 
@@ -23,46 +23,42 @@
   block:
     - name: Update apt cache before installing Keepalived (Debian-based)
       ansible.builtin.apt:
-        update_cache: yes
+        update_cache: true
+        cache_valid_time: 3600
       when: ansible_os_family == "Debian"
 
     - name: Install Keepalived package (apt/yum/dnf otomatik secilir)
       ansible.builtin.package:
         name: keepalived
         state: present
-      register: keepalived_install
-
-    - name: Debug Keepalived installation
-      debug:
-        msg: "Keepalived installed (os_family={{ ansible_os_family }}) result: {{ keepalived_install }}"
 
     - name: Ensure keepalived_script user is present
-      user:
+      ansible.builtin.user:
         name: keepalived_script
-        system: yes
+        system: true
         shell: /usr/sbin/nologin
 
     - name: Set ownership for pidof
-      file:
+      ansible.builtin.file:
         path: /usr/bin/pidof
         owner: keepalived_script
         mode: '0755'
       become: true
 
 - name: "Skip Keepalived configuration if HA is not needed"
-  debug:
+  ansible.builtin.debug:
     msg: "Not enough master nodes ({{ master_count }} < 3). Keepalived installed but not configured. Will be configured when 3+ masters are available."
   when: master_count | int < 3
   run_once: true
 
 - name: "Proceed with HA setup if there are at least 3 master nodes"
-  debug:
+  ansible.builtin.debug:
     msg: "HA mode detected ({{ master_count }} masters). Proceeding with Keepalived configuration."
   when: master_count | int >= 3
   run_once: true
 
 - name: "Configure and Start Keepalived if there are at least 3 masters"
-  when: 
+  when:
     - master_count | int >= 3
     - "'master' in group_names"
   block:
@@ -72,38 +68,27 @@
 # ============================
 
     - name: Configure Keepalived
-      template:
+      ansible.builtin.template:
         src: keepalived.conf.j2
         dest: /etc/keepalived/keepalived.conf
-      register: keepalived_config
-
-    - name: Debug Keepalived configuration
-      debug:
-        msg: "Keepalived configuration result: {{ keepalived_config }}"
-
-    - name: Verify Keepalived configuration file
-      command: cat /etc/keepalived/keepalived.conf
-      register: keepalived_conf_content
-
-    - name: Debug Keepalived configuration file content
-      debug:
-        msg: "Keepalived configuration file content: {{ keepalived_conf_content.stdout }}"
+        mode: "0600"
 
     - name: Start and enable Keepalived
-      systemd:
+      ansible.builtin.systemd:
         name: keepalived
         enabled: true
         state: started
       become: true
 
     - name: Check Keepalived service status
-      command: systemctl status keepalived
+      ansible.builtin.command: systemctl status keepalived
       register: keepalived_status
+      changed_when: false
 
     - name: Extract Keepalived service active status
-      set_fact:
+      ansible.builtin.set_fact:
         keepalived_active_status: "{{ keepalived_status.stdout | regex_search('Active:.*') }}"
 
     - name: Debug Keepalived service active status
-      debug:
+      ansible.builtin.debug:
         msg: "Keepalived service status: {{ keepalived_active_status }}"

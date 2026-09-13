@@ -2,7 +2,7 @@
 # Verify cluster status after upgrade
 
 - name: Get all node versions after upgrade
-  ansible.builtin.shell:
+  ansible.builtin.command:
     cmd: kubectl get nodes -o custom-columns=NAME:.metadata.name,VERSION:.status.nodeInfo.kubeletVersion --no-headers
   become: true
   become_user: "{{ ansible_user }}"
@@ -13,14 +13,14 @@
   changed_when: false
 
 - name: Display node versions after upgrade
-  debug:
+  ansible.builtin.debug:
     msg: "{{ node_versions_after.stdout_lines }}"
-  when: 
+  when:
     - inventory_hostname == groups['master'][0]
     - node_versions_after.stdout is defined
 
 - name: Check all nodes are Ready
-  ansible.builtin.shell:
+  ansible.builtin.shell:  # noqa: risky-shell-pipe
     cmd: kubectl get nodes --no-headers | grep -v " Ready " | wc -l
   become: true
   become_user: "{{ ansible_user }}"
@@ -32,14 +32,14 @@
   failed_when: false
 
 - name: Display cluster status
-  debug:
+  ansible.builtin.debug:
     msg: "Cluster upgrade completed. Nodes not ready: {{ not_ready_nodes.stdout | trim }}"
-  when: 
+  when:
     - inventory_hostname == groups['master'][0]
     - not_ready_nodes.stdout is defined
 
 - name: Verify all pods are running
-  ansible.builtin.shell:
+  ansible.builtin.shell:  # noqa: risky-shell-pipe
     cmd: kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers | wc -l
   become: true
   become_user: "{{ ansible_user }}"
@@ -51,9 +51,8 @@
   failed_when: false
 
 - name: Display pod status
-  debug:
+  ansible.builtin.debug:
     msg: "Pods not running: {{ not_running_pods.stdout | trim }}"
-  when: 
+  when:
     - inventory_hostname == groups['master'][0]
     - not_running_pods.stdout is defined
-

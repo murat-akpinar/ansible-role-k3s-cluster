@@ -17,7 +17,8 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - kind: Secret
+          - group: ""  # varsayilan; yazilmazsa apply her kosuda "configured" (D2)
+            kind: Secret
             name: homelab-wildcard-tls
       allowedRoutes:
         namespaces:

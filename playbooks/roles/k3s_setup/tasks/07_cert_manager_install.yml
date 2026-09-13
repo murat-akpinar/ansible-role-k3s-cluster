@@ -4,7 +4,7 @@
 # ============================
 
 - name: Set cert-manager values file for HA (3+ masters)
-  set_fact:
+  ansible.builtin.set_fact:
     cert_manager_values_file: "{{ user_home_directory }}/my-charts/cert-manager/values-ha.yml"
   when:
     - "'master' in group_names"
@@ -12,7 +12,7 @@
   run_once: true
 
 - name: Set cert-manager values file for single master
-  set_fact:
+  ansible.builtin.set_fact:
     cert_manager_values_file: "{{ user_home_directory }}/my-charts/cert-manager/values-single-master.yml"
   when:
     - "'master' in group_names"
@@ -21,13 +21,18 @@
 
 - name: Install Cert-Manager Helm chart
   ansible.builtin.command:
-    cmd: helm upgrade --install cert-manager cert-manager --repo {{ helm_repo_cert_manager }} --wait --timeout 10m --namespace cert-manager --create-namespace {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }} --set crds.enabled=true -f {{ cert_manager_values_file }}
+    cmd: >-
+      helm upgrade --install cert-manager cert-manager --repo {{ helm_repo_cert_manager }}
+      --wait --timeout 10m --namespace cert-manager --create-namespace
+      {{ ('--version ' ~ cert_manager_chart_version) if cert_manager_chart_version else '' }}
+      --set crds.enabled=true -f {{ cert_manager_values_file }}
   become: true
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: cert_manager_helm_result
   until: cert_manager_helm_result.rc == 0
+  changed_when: true
   retries: 3
   delay: 30
   when: inventory_hostname == groups['master'][0]

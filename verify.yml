@@ -42,24 +42,24 @@
         tasks_from: _load_config
 
     - name: Determine expected k3s service name
-      set_fact:
+      ansible.builtin.set_fact:
         k3s_service_name: "{{ 'k3s' if 'master' in group_names else 'k3s-agent' }}"
 
     - name: Check the k3s service status
-      command: "systemctl is-active {{ k3s_service_name }}"
+      ansible.builtin.command: "systemctl is-active {{ k3s_service_name }}"  # noqa: command-instead-of-module
       register: k3s_service_status
       changed_when: false
       failed_when: false
 
     - name: Report service status
-      debug:
+      ansible.builtin.debug:
         msg: >-
           {{ '[OK]  ' if k3s_service_status.stdout == 'active' else '[FAIL]' }}
           {{ inventory_hostname }} — {{ k3s_service_name }}:
           {{ k3s_service_status.stdout | default('unknown') }}
 
-    - name: Determine the Keepalived/primary network interface
-      shell: |
+    - name: Determine the Keepalived/primary network interface  # noqa: risky-shell-pipe
+      ansible.builtin.shell: |
         if [ -n "{{ keepalived_interface | default('') }}" ]; then
           echo "{{ keepalived_interface }}"
         else
@@ -69,13 +69,13 @@
       changed_when: false
 
     - name: Check that the interface exists and is UP
-      command: "ip -o link show {{ vrrp_iface.stdout | trim }}"
+      ansible.builtin.command: "ip -o link show {{ vrrp_iface.stdout | trim }}"
       register: vrrp_iface_link
       changed_when: false
       failed_when: false
 
     - name: Report network interface status
-      debug:
+      ansible.builtin.debug:
         msg: >-
           {{ '[OK]  ' if (vrrp_iface_link.rc == 0 and ',UP' in vrrp_iface_link.stdout) else '[FAIL]' }}
           {{ inventory_hostname }} — interface {{ vrrp_iface.stdout | trim }}:
@@ -107,7 +107,7 @@
           register: kubeconfig_stat
 
         - name: Report that k3s is not installed yet
-          debug:
+          ansible.builtin.debug:
             msg: >-
               k3s kubeconfig not found at {{ kubeconfig_path }} — k3s does not
               appear to be installed yet. Run k3s_setup.yml first, then re-run
@@ -121,37 +121,37 @@
             KUBECONFIG: "{{ kubeconfig_path }}"
           vars:
             components:
-              - { name: "Traefik (Gateway API)",    ns: "kube-system",    selector: "app.kubernetes.io/name=traefik", enabled: true }
-              - { name: "MetalLB",                  ns: "metallb-system", enabled: "{{ metallb_install | default(false) }}" }
-              - { name: "cert-manager",             ns: "cert-manager",   enabled: "{{ cert_manager_install | default(false) }}" }
-              - { name: "Longhorn",                 ns: "longhorn-system", enabled: "{{ longhorn_install | default(false) }}" }
-              - { name: "Monitoring / Grafana",     ns: "monitoring",     enabled: "{{ grafana_install | default(false) }}" }
-              - { name: "Rancher",                  ns: "cattle-system",  enabled: "{{ rancher_install | default(false) }}" }
-              - { name: "ArgoCD",                   ns: "argocd",         enabled: "{{ argocd_install | default(false) }}" }
+              - { name: "Traefik (Gateway API)", ns: "kube-system", selector: "app.kubernetes.io/name=traefik", enabled: true }
+              - { name: "MetalLB", ns: "metallb-system", enabled: "{{ metallb_install | default(false) }}" }
+              - { name: "cert-manager", ns: "cert-manager", enabled: "{{ cert_manager_install | default(false) }}" }
+              - { name: "Longhorn", ns: "longhorn-system", enabled: "{{ longhorn_install | default(false) }}" }
+              - { name: "Monitoring / Grafana", ns: "monitoring", enabled: "{{ grafana_install | default(false) }}" }
+              - { name: "Rancher", ns: "cattle-system", enabled: "{{ rancher_install | default(false) }}" }
+              - { name: "ArgoCD", ns: "argocd", enabled: "{{ argocd_install | default(false) }}" }
           block:
             # Keepalived yalnizca 3+ master'da yapilandiriliyor (bkz.
             # 02_install_keepalived.yml), altinda ortada VIP diye bir sey yok.
             - name: Check Keepalived VIP reachability
-              command: "ping -c 2 -W 2 {{ keepalived_vip }}"
+              ansible.builtin.command: "ping -c 2 -W 2 {{ keepalived_vip }}"
               register: vip_ping
               changed_when: false
               failed_when: false
               when: groups['master'] | length >= 3
 
             - name: Count nodes that are not Ready
-              shell: 'kubectl get nodes --no-headers | grep -v " Ready " | wc -l'
+              ansible.builtin.shell: 'kubectl get nodes --no-headers | grep -v " Ready " | wc -l'  # noqa: risky-shell-pipe
               register: not_ready_nodes
               changed_when: false
               failed_when: false
 
             - name: Count total nodes
-              shell: "kubectl get nodes --no-headers | wc -l"
+              ansible.builtin.shell: "kubectl get nodes --no-headers | wc -l"  # noqa: risky-shell-pipe
               register: total_nodes
               changed_when: false
               failed_when: false
 
-            - name: Count pods that are not Running (all namespaces)
-              shell: >
+            - name: Count pods that are not Running (all namespaces)  # noqa: risky-shell-pipe
+              ansible.builtin.shell: >
                 kubectl get pods -A
                 --field-selector=status.phase!=Running,status.phase!=Succeeded
                 --no-headers 2>/dev/null | wc -l
@@ -160,7 +160,7 @@
               failed_when: false
 
             - name: Check the homelab Gateway is Programmed
-              shell: >
+              ansible.builtin.shell: >
                 kubectl get gateway -n kube-system homelab
                 -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}' 2>/dev/null
               register: gateway_programmed
@@ -168,7 +168,7 @@
               failed_when: false
 
             - name: Get the homelab Gateway address
-              command: >
+              ansible.builtin.command: >
                 kubectl get gateway -n kube-system homelab
                 -o jsonpath={.status.addresses[0].value}
               register: gateway_address
@@ -177,8 +177,8 @@
 
             # Satir basina bir route: N parent -> "TrueTrue...". Hepsi True
             # degilse ya da status yoksa (bos satir) sayilir.
-            - name: Count HTTPRoutes not Accepted by the Gateway
-              shell: >
+            - name: Count HTTPRoutes not Accepted by the Gateway  # noqa: risky-shell-pipe
+              ansible.builtin.shell: >
                 kubectl get httproute -A
                 -o jsonpath='{range .items[*]}{.status.parents[*].conditions[?(@.type=="Accepted")].status}{"\n"}{end}'
                 2>/dev/null | grep -cvE '^(True)+$'
@@ -189,7 +189,7 @@
             # Sikilastirma gercekten yururlukte mi? --dry-run=server admission
             # zincirini calistirir ama cluster'a hicbir sey yazmaz; pod olusmaz.
             - name: Check that Pod Security Admission rejects a privileged pod
-              command: >
+              ansible.builtin.command: >
                 kubectl -n default run psa-probe --image=busybox --restart=Never
                 --privileged=true --dry-run=server
               register: psa_probe
@@ -198,7 +198,7 @@
               when: k3s_hardening | default(true)
 
             - name: Check that Secret encryption at rest is enabled
-              command: k3s secrets-encrypt status
+              ansible.builtin.command: k3s secrets-encrypt status
               register: secrets_encrypt_status
               changed_when: false
               failed_when: false
@@ -208,15 +208,15 @@
             # BASLATILDIGINDA yenilenir (son 90 gun icindeyse). Bir yil restart
             # gormeyen bir cluster sessizce durur. -checkend: 30 gun kaldi mi?
             - name: Check that the k3s client certificate is valid for 30+ days
-              command: >
+              ansible.builtin.command: >
                 openssl x509 -checkend 2592000 -noout
                 -in /var/lib/rancher/k3s/server/tls/client-admin.crt
               register: cert_checkend
               changed_when: false
               failed_when: false
 
-            - name: Check pod health for each enabled component namespace
-              shell: >
+            - name: Check pod health for each enabled component namespace  # noqa: risky-shell-pipe
+              ansible.builtin.shell: >
                 kubectl get pods -n {{ item.ns }}
                 {{ ('-l ' ~ item.selector) if (item.selector | default('')) else '' }}
                 --field-selector=status.phase!=Running,status.phase!=Succeeded
@@ -230,7 +230,7 @@
 
             # --- Assemble the checklist ---
             - name: Build component checklist lines
-              set_fact:
+              ansible.builtin.set_fact:
                 component_lines: >-
                   {{ component_lines | default([]) + [
                        ('[OK]   ' if (item.stdout | int == 0) else '[FAIL] ')
@@ -241,38 +241,44 @@
                 label: "{{ item.item.name }}"
 
             - name: Build checklist header and cluster lines
-              set_fact:
+              ansible.builtin.set_fact:
                 report_lines:
                   - "======================================================================"
                   - "                K3s CLUSTER HEALTH CHECK (verify.yml)"
                   - "======================================================================"
-                  - "{{ ('[OK]  ' if (not_ready_nodes.stdout | int == 0) else '[FAIL]') ~ ' Nodes Ready       — not-ready: ' ~ (not_ready_nodes.stdout | trim) ~ ' / total: ' ~ (total_nodes.stdout | trim) }}"
-                  - "{{ ('[OK]  ' if (not_running_pods.stdout | int == 0) else '[FAIL]') ~ ' Pods Running      — not-running: ' ~ (not_running_pods.stdout | trim) }}"
-                  - "{{ (('[OK]  ' if (vip_ping.rc | default(1) == 0) else '[FAIL]') ~ ' Keepalived VIP    — ' ~ keepalived_vip) if (groups['master'] | length >= 3) else '[SKIP] Keepalived VIP    — <3 master, keepalived kurulmuyor' }}"
+                  - "{{ ('[OK]  ' if (not_ready_nodes.stdout | int == 0) else '[FAIL]') ~ ' Nodes Ready       — not-ready: '
+                      ~ (not_ready_nodes.stdout | trim) ~ ' / total: ' ~ (total_nodes.stdout | trim) }}"
+                  - "{{ ('[OK]  ' if (not_running_pods.stdout | int == 0) else '[FAIL]') ~ ' Pods Running      — not-running: '
+                      ~ (not_running_pods.stdout | trim) }}"
+                  - "{{ (('[OK]  ' if (vip_ping.rc | default(1) == 0) else '[FAIL]') ~ ' Keepalived VIP    — ' ~ keepalived_vip)
+                      if (groups['master'] | length >= 3) else '[SKIP] Keepalived VIP    — <3 master, keepalived kurulmuyor' }}"
 
             - name: Append component lines
-              set_fact:
+              ansible.builtin.set_fact:
                 report_lines: "{{ report_lines + (component_lines | default([])) }}"
 
             - name: Append Gateway API lines
-              set_fact:
+              ansible.builtin.set_fact:
                 report_lines: "{{ report_lines + [
                     ('[OK]  ' if ((gateway_programmed.stdout | default('') | trim) == 'True') else '[FAIL]') ~ ' Gateway Programmed — kube-system/homelab',
-                    ('[OK]  ' if ((httproutes_not_accepted.stdout | default('0') | trim | int) == 0) else '[FAIL]') ~ ' HTTPRoutes Accepted — not-accepted: ' ~ (httproutes_not_accepted.stdout | default('0') | trim),
+                    ('[OK]  ' if ((httproutes_not_accepted.stdout | default('0') | trim | int) == 0) else '[FAIL]')
+                      ~ ' HTTPRoutes Accepted — not-accepted: ' ~ (httproutes_not_accepted.stdout | default('0') | trim),
                     'Gateway LB IP     — ' ~ ((gateway_address.stdout | default('') | trim) | default('N/A (not assigned)', true))
                   ] }}"
               when: cert_manager_install | default(false)
 
             - name: Note that Gateway API checks were skipped
-              set_fact:
+              ansible.builtin.set_fact:
                 report_lines: "{{ report_lines + ['[SKIP] Gateway API      — cert_manager_install: false (Gateway/HTTPRoute kurulmuyor)'] }}"
               when: not (cert_manager_install | default(false))
 
             - name: Append hardening lines
-              set_fact:
+              ansible.builtin.set_fact:
                 report_lines: "{{ report_lines + [
-                    ('[OK]  ' if psa_enforced else '[FAIL]') ~ ' Pod Security      — privileged pod ' ~ ('rejected (baseline)' if psa_enforced else 'ACCEPTED, policy not in effect'),
-                    ('[OK]  ' if secrets_encrypted else '[FAIL]') ~ ' Secrets Encrypted — etcd encryption-at-rest ' ~ ('enabled' if secrets_encrypted else 'DISABLED')
+                    ('[OK]  ' if psa_enforced else '[FAIL]') ~ ' Pod Security      — privileged pod '
+                      ~ ('rejected (baseline)' if psa_enforced else 'ACCEPTED, policy not in effect'),
+                    ('[OK]  ' if secrets_encrypted else '[FAIL]') ~ ' Secrets Encrypted — etcd encryption-at-rest '
+                      ~ ('enabled' if secrets_encrypted else 'DISABLED')
                   ] }}"
               vars:
                 psa_enforced: "{{ 'violates PodSecurity' in (psa_probe.stderr | default('')) }}"
@@ -280,24 +286,22 @@
               when: k3s_hardening | default(true)
 
             - name: Note that hardening checks were skipped
-              set_fact:
+              ansible.builtin.set_fact:
                 report_lines: "{{ report_lines + ['[SKIP] Hardening        — k3s_hardening: false'] }}"
               when: not (k3s_hardening | default(true))
 
             - name: Append certificate expiry line
-              set_fact:
+              ansible.builtin.set_fact:
                 report_lines: "{{ report_lines + [
                     ('[OK]  ' if (cert_checkend.rc == 0) else '[WARN]') ~ ' k3s Certificates  — ' ~
                     ('valid for 30+ more days' if (cert_checkend.rc == 0) else 'EXPIRE WITHIN 30 DAYS: restart k3s to renew (systemctl restart k3s)')
                   ] }}"
 
             - name: Append checklist footer
-              set_fact:
-                report_lines: "{{ report_lines + [
-                    '======================================================================',
+              ansible.builtin.set_fact:
+                report_lines: "{{ report_lines + ['======================================================================',
                     ('RESULT: ALL CHECKS PASSED' if overall_ok else 'RESULT: SOME CHECKS FAILED — review the [FAIL] lines above'),
-                    '======================================================================'
-                  ] }}"
+                    '======================================================================'] }}"
               vars:
                 overall_ok: "{{ (not_ready_nodes.stdout | int == 0)
                                 and (not_running_pods.stdout | int == 0)
@@ -311,5 +315,5 @@
                                          and ('Enabled' in (secrets_encrypt_status.stdout | default(''))))) }}"
 
             - name: Print the health check checklist
-              debug:
+              ansible.builtin.debug:
                 msg: "{{ report_lines }}"

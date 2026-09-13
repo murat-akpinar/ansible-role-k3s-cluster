@@ -1,0 +1,16 @@
+---
+# ansible-lint; yamllint ve 4 playbook'un --syntax-check'i kuralin icinde.
+# collections/requirements.yml'i kendisi kurar. Surum yerel kontrolle ayni
+# tutulur (docs/development.md), yeni surumun yeni kurallari CI'i sessizce kirmasin.
+name: lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ansible-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ansible/ansible-lint@v26.8.0

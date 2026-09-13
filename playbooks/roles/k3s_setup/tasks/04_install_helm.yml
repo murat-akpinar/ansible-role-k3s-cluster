@@ -4,11 +4,11 @@
 # ============================
 
 - name: Check if Helm is installed
-  command: which helm
+  ansible.builtin.command: which helm
   register: helm_installed
   failed_when: false
   changed_when: false
-  check_mode: no
+  check_mode: false
   when: "'master' in group_names"
 
 - name: Download Helm installation script
@@ -17,16 +17,16 @@
     dest: /tmp/get_helm.sh
     mode: '0700'
   when:
-  - "'master' in group_names"
-  - helm_installed.rc != 0
+    - "'master' in group_names"
+    - helm_installed.rc != 0
 
 - name: Install Helm
-  ansible.builtin.shell:
+  ansible.builtin.command:
     cmd: /tmp/get_helm.sh
     creates: /usr/local/bin/helm
-  when: 
-  - "'master' in group_names"
-  - helm_installed.rc != 0
+  when:
+    - "'master' in group_names"
+    - helm_installed.rc != 0
 
 - name: Ensure K3S server is enabled and running
   ansible.builtin.systemd:
@@ -36,15 +36,15 @@
   when: "'master' in group_names"
 
 - name: Copy my-charts directory to user's home directory
-  copy:
+  ansible.builtin.copy:
     src: ./my-charts/
     dest: "{{ user_home_directory }}/my-charts/"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0755'
   when:
-  - "'master' in group_names"
-  - user_home_directory is defined
+    - "'master' in group_names"
+    - user_home_directory is defined
 
 # Domain iceren manifest'ler tek degiskenden (cluster_domain) uretilir.
 - name: Render domain-dependent manifests into my-charts
@@ -62,5 +62,5 @@
     - longhorn/httproute.yml
     - rancher/httproute.yml
   when:
-  - "'master' in group_names"
-  - user_home_directory is defined
+    - "'master' in group_names"
+    - user_home_directory is defined

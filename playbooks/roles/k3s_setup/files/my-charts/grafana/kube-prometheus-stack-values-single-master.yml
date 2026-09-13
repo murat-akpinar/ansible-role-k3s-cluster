@@ -7,7 +7,7 @@ prometheus:
   prometheusSpec:
     # Single Master: 1 replica
     replicas: 1
-    
+
     # Worker preferred (etcd masterlarini bosaltir)
     affinity:
       nodeAffinity:
@@ -34,7 +34,7 @@ alertmanager:
   alertmanagerSpec:
     # Single Master: 1 replica
     replicas: 1
-    
+
     # Worker preferred (etcd masterlarini bosaltir)
     affinity:
       nodeAffinity:
@@ -66,4 +66,3 @@ kube-state-metrics:
           - matchExpressions:
               - key: node-role.kubernetes.io/master
                 operator: DoesNotExist
-

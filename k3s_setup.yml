@@ -1,5 +1,6 @@
 ---
-- hosts: all
+- name: Install the k3s cluster
+  hosts: all
   become: true
   roles:
     - k3s_setup

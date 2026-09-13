@@ -84,7 +84,7 @@ master node'lar arasında bir **VIP** (Virtual IP) yönetir; tüm `kubectl`/agen
 ### 1. Ansible ve Gerekli Collection'lar
 
 ```bash
-# Ansible yüklü olmalı (2.9+)
+# Ansible yüklü olmalı (ansible-core 2.15+)
 ansible --version
 
 # Gerekli collection'ları yükleyin (community.general + ansible.posix)

@@ -16,13 +16,21 @@
 
 - name: Install kube-prometheus-stack Helm chart
   ansible.builtin.command:
-    cmd: helm upgrade --install kube-prometheus-stack kube-prometheus-stack --repo {{ helm_repo_prometheus }} --wait --timeout 10m --namespace monitoring --create-namespace {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml{{ (' -f ' ~ user_home_directory ~ '/my-charts/grafana/kube-prometheus-stack-values-single-master.yml') if (master_count | default(0) | int) < 3 else '' }} -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
+    cmd: >-
+      helm upgrade --install kube-prometheus-stack kube-prometheus-stack --repo {{ helm_repo_prometheus }}
+      --wait --timeout 10m --namespace monitoring --create-namespace
+      {{ ('--version ' ~ kube_prometheus_stack_chart_version) if kube_prometheus_stack_chart_version else '' }}
+      -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values.yml
+      {{ ('-f ' ~ user_home_directory ~ '/my-charts/grafana/kube-prometheus-stack-values-single-master.yml')
+      if (master_count | default(0) | int) < 3 else '' }}
+      -f {{ user_home_directory }}/my-charts/grafana/kube-prometheus-stack-values-master-only.yml
   become: true
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: kube_prometheus_stack_helm_result
   until: kube_prometheus_stack_helm_result.rc == 0
+  changed_when: true
   retries: 3
   delay: 30
   when: inventory_hostname == groups['master'][0]
@@ -53,26 +61,28 @@
     - cert_manager_install | default(false)
 
 - name: Retrieve Grafana admin password
-  ansible.builtin.shell: >
-    kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode
+  ansible.builtin.command: >-
+    kubectl get secret --namespace monitoring kube-prometheus-stack-grafana
+    -o go-template='{% raw %}{{ index .data "admin-password" | base64decode }}{% endraw %}'
   register: grafana_admin_password
   changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Display Grafana admin password
-  debug:
+  ansible.builtin.debug:
     msg: "Grafana admin password: {{ grafana_admin_password.stdout }}"
   when: inventory_hostname == groups['master'][0]
 
 - name: Retrieve Grafana admin user
-  ansible.builtin.shell: >
-    kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-user}" | base64 --decode
+  ansible.builtin.command: >-
+    kubectl get secret --namespace monitoring kube-prometheus-stack-grafana
+    -o go-template='{% raw %}{{ index .data "admin-user" | base64decode }}{% endraw %}'
   register: grafana_admin_user
   changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Display Grafana admin user
-  debug:
+  ansible.builtin.debug:
     msg: "Grafana admin user: {{ grafana_admin_user.stdout }}"
   when: inventory_hostname == groups['master'][0]
 
@@ -84,11 +94,11 @@
   when: inventory_hostname == groups['master'][0]
 
 - name: Display Prometheus service IP address
-  debug:
+  ansible.builtin.debug:
     msg: "Prometheus service IP address: {{ prometheus_server_ip.stdout }}"
   when: inventory_hostname == groups['master'][0]
 
 - name: Display Prometheus data URL
-  debug:
+  ansible.builtin.debug:
     msg: "Prometheus data URL: {{ prometheus_data_url }}"
   when: inventory_hostname == groups['master'][0]

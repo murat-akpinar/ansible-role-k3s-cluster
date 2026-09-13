@@ -1,0 +1,8 @@
+---
+# CI: .github/workflows/lint.yml (yamllint + syntax-check ansible-lint'in icinde)
+skip_list:
+  # Ayarlar kullanicinin group_vars'inda bu adlarla eziliyor (metallb_install,
+  # k3s_version...); rol oneki eklemek herkes icin kirici degisiklik olur.
+  - var-naming[no-role-prefix]
+  # Hicbir play strategy: free kullanmiyor.
+  - run-once[task]

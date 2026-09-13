@@ -54,7 +54,7 @@
     - cert_manager_install | default(false)
 
 - name: Wait for bootstrap-secret to be created
-  command: kubectl get secret -n cattle-system bootstrap-secret
+  ansible.builtin.command: kubectl get secret -n cattle-system bootstrap-secret
   register: bootstrap_secret_check
   until: bootstrap_secret_check.rc == 0
   changed_when: false
@@ -64,17 +64,19 @@
   when: inventory_hostname == groups['master'][0]
 
 - name: Get Rancher bootstrap password from secret
-  shell: kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{% raw %}{{.data.bootstrapPassword|base64decode}}{{"\n"}}{% endraw %}'
+  ansible.builtin.command: >-
+    kubectl get secret --namespace cattle-system bootstrap-secret
+    -o go-template='{% raw %}{{.data.bootstrapPassword|base64decode}}{{"\n"}}{% endraw %}'
   register: rancher_bootstrap_password_raw
   changed_when: false
   when: inventory_hostname == groups['master'][0]
 
 - name: Extract Rancher bootstrap password
-  set_fact:
+  ansible.builtin.set_fact:
     rancher_bootstrap_password: "{{ rancher_bootstrap_password_raw.stdout | trim }}"
   when: inventory_hostname == groups['master'][0]
 
 - name: Show Rancher bootstrap password
-  debug:
+  ansible.builtin.debug:
     msg: "Rancher Bootstrap Password: {{ rancher_bootstrap_password }}"
   when: inventory_hostname == groups['master'][0]

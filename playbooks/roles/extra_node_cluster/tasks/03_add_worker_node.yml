@@ -5,7 +5,7 @@
 # k3s_setup/tasks/03_install_k3s.yml). Dosya her zaman vardir; k3s_agent_token
 # bos ise server token'ina link'tir.
 - name: Get K3s agent token from first master (for workers to join)
-  shell: cat /var/lib/rancher/k3s/server/agent-token
+  ansible.builtin.command: cat /var/lib/rancher/k3s/server/agent-token
   register: k3s_token_raw
   become: true
   changed_when: false
@@ -13,9 +13,9 @@
   when: "'worker' in group_names"
 
 - name: Set K3s token fact (for all workers) - from delegated task result
-  set_fact:
+  ansible.builtin.set_fact:
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
-  when: 
+  when:
     - "'worker' in group_names"
     - k3s_token_raw is defined
     - k3s_token_raw.stdout is defined
@@ -32,6 +32,7 @@
 # altinda ilk master'in IP'si. Eskiden bu task iki kopyaydi.
 - name: Install K3s agent on worker node
   ansible.builtin.shell: |
+    set -o pipefail
     export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
     export K3S_TOKEN="{{ k3s_token | default('') }}"
     {% if k3s_version_env | default('') != '' %}
@@ -44,24 +45,27 @@
     - k3s_token is defined
     - k3s_token | default('') != ''
   become: true
+  args:
+    executable: /bin/bash
+  changed_when: true
   register: join_worker
 
 - name: Ensure K3s agent is enabled and running on worker node
   ansible.builtin.systemd:
     name: k3s-agent
-    enabled: yes
+    enabled: true
     state: started
-  when: 
+  when:
     - "'worker' in group_names"
     - not node_already_joined | default(false)
   become: true
 
 - name: Wait for worker node to appear in cluster
-  ansible.builtin.shell: kubectl get nodes {{ inventory_hostname }} --no-headers
+  ansible.builtin.command: kubectl get nodes {{ inventory_hostname }} --no-headers
   register: verify_worker_join
   changed_when: false
   failed_when: false
-  when: 
+  when:
     - "'worker' in group_names"
     - not node_already_joined | default(false)
   become: true
@@ -74,11 +78,11 @@
   until: verify_worker_join.rc == 0
 
 - name: Wait for worker node to be Ready
-  ansible.builtin.shell: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q True
+  ansible.builtin.command: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
   register: verify_worker_ready
   changed_when: false
   failed_when: false
-  when: 
+  when:
     - "'worker' in group_names"
     - not node_already_joined | default(false)
     - verify_worker_join.rc == 0
@@ -89,14 +93,13 @@
   delegate_to: "{{ groups['master'][0] }}"
   retries: 12
   delay: 5
-  until: verify_worker_ready.rc == 0
+  until: verify_worker_ready.stdout == 'True'
 
 - name: Display worker node join status
-  debug:
+  ansible.builtin.debug:
     msg: "Worker node {{ inventory_hostname }} successfully joined the cluster"
-  when: 
+  when:
     - "'worker' in group_names"
     - verify_worker_join is defined
     - verify_worker_join.rc is defined
     - verify_worker_join.rc == 0
-

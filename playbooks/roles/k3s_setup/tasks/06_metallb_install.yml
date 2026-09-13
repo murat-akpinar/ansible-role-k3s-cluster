@@ -4,7 +4,7 @@
 # ============================
 
 - name: Set metallb values file for HA (3+ masters)
-  set_fact:
+  ansible.builtin.set_fact:
     metallb_values_file: "{{ user_home_directory }}/my-charts/metallb/values-ha.yml"
   when:
     - "'master' in group_names"
@@ -12,7 +12,7 @@
   run_once: true
 
 - name: Set metallb values file for single master
-  set_fact:
+  ansible.builtin.set_fact:
     metallb_values_file: "{{ user_home_directory }}/my-charts/metallb/values-single-master.yml"
   when:
     - "'master' in group_names"
@@ -21,13 +21,18 @@
 
 - name: Install MetalLB using Helm
   ansible.builtin.command:
-    cmd: helm upgrade --install metallb metallb --repo {{ helm_repo_metallb }} --wait --timeout 10m --namespace metallb-system --create-namespace {{ ('--version ' ~ metallb_chart_version) if metallb_chart_version else '' }} -f {{ metallb_values_file }}
+    cmd: >-
+      helm upgrade --install metallb metallb --repo {{ helm_repo_metallb }}
+      --wait --timeout 10m --namespace metallb-system --create-namespace
+      {{ ('--version ' ~ metallb_chart_version) if metallb_chart_version else '' }}
+      -f {{ metallb_values_file }}
   become: true
   become_user: "{{ ansible_user }}"
   environment:
     KUBECONFIG: "{{ user_home_directory }}/.kube/config"
   register: metallb_helm_result
   until: metallb_helm_result.rc == 0
+  changed_when: true
   retries: 3
   delay: 30
   when: inventory_hostname == groups['master'][0]
