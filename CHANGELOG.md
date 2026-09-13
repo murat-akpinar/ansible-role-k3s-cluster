@@ -38,6 +38,7 @@
 ### 🚜 Refactor
 
 - *(k3s_setup)* Main.yml icindeki inline tasklar kendi dosyalarina tasindi ([38992c2](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/38992c2a9ff89caa603cc00e4292034eb76f5b50)) — main.yml artik bastan sona sadece import_tasks; diger tum tasklar gibi bu adimlar da kendine ait yml dosyasinda duruyor.
+- *(k3s_setup)* Helm --repo ve --wait, pod bekleme dongulerinin kaldirilmasi ([ee3200a](https://github.com/murat-akpinar/ansible-role-k3s-cluster/commit/ee3200a40cbd022068bac6b21c1ac30597b69094)) — todo.md B3, B4, D2 (kismi): bilesen kurulumlari (06-11) helm repo eklemeden dogrudan --repo ile kuruluyor ve helm --wait ile hazir olmasi bekleniyor.
 
 ### 📚 Documentation
 
