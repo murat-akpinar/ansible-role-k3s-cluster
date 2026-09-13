@@ -19,7 +19,7 @@ Kaynak: CHANGELOG'daki düzeltmeler, todo.md bulguları ve rolün bekleme/hata m
 | `TARGET VERSION NOT SPECIFIED` | `k3s_upgrade_version` ve `k3s_version` boş | birini doldur |
 | Upgrade'de drain 10 dk takılıyor | PDB `minAvailable` karşılanamıyor / Longhorn volume attach | `kubectl get pdb -A`; `upgrade_drain_timeout`; `--disable-eviction` elle |
 | Upgrade sonrası tüm uygulamalar bir süre kesildi | `06_rebalance_pods.yml` tüm worker'ları drain ediyor (todo A1) | dosyayı sil / import'u kaldır |
-| Upgrade Ubuntu'da Longhorn/monitoring beklemeden geçti | bash döngüleri dash'te çalışmıyor (todo A5) | `kubectl wait` / `until` |
+| Upgrade'de `Wait for Longhorn …` / `Wait for monitoring …` task'ı `...ignoring` bastı | Süre doldu (pod 120 sn, volume 5 dk, monitoring 180 sn); upgrade uyarıyla devam eder | Sıradaki worker'dan önce `kubectl get volumes.longhorn.io -n longhorn-system` (`degraded` kalmamalı), `kubectl get pods -n monitoring` |
 | `GatewayClass traefik` gelmiyor (20 deneme) | HelmChartConfig helm-controller tarafından işlenmedi / traefik pod restart | `kubectl -n kube-system get helmchartconfig traefik -o yaml`, `kubectl -n kube-system logs job/helm-install-traefik`, `kubectl -n kube-system get gatewayclass` |
 | `gateway/homelab` Programmed değil | listener port 8443 ≠ Traefik entryPoint; secret yok; GatewayClass yok | `kubectl -n kube-system describe gateway homelab` conditions; `kubectl -n kube-system get secret homelab-wildcard-tls` |
 | HTTPRoute Accepted değil (`verify.yml` FAIL) | `sectionName: websecure` yanlış, hostname `*.cluster_domain` ile eşleşmiyor, namespace izinli değil | `kubectl describe httproute -n <ns> <ad>` `.status.parents[].conditions` |

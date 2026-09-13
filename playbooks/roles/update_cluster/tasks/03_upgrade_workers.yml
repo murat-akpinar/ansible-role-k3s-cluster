@@ -45,18 +45,6 @@
       changed_when: false
       failed_when: false
 
-    - name: Check Longhorn pods on worker node before drain
-      ansible.builtin.shell:
-        cmd: kubectl get pods -n longhorn-system --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.metadata.name}{\"\\n\"}{end}' || echo ""
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      delegate_to: "{{ groups['master'][0] }}"
-      register: longhorn_pods_before
-      changed_when: false
-      failed_when: false
-
     - name: Display worker node status before drain
       ansible.builtin.debug:
         msg: |
@@ -153,96 +141,40 @@
       changed_when: false
       failed_when: false
 
-    - name: Wait for Longhorn pods to recover after upgrade
-      ansible.builtin.shell:
-        cmd: |
-          # Wait for Longhorn to recover replica pods (max 2 minutes)
-          for i in {1..12}; do
-            failed_replicas=$(kubectl get pods -n longhorn-system --field-selector spec.nodeName={{ inventory_hostname }} -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' | grep -c "Failed" || echo "0")
-            if [ "$failed_replicas" -eq "0" ]; then
-              echo "Longhorn pods recovered"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "Warning: Some Longhorn pods may still be recovering"
-          exit 0
-      become: true
-      become_user: "{{ ansible_user }}"
-      environment:
-        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-      when: 
-        - longhorn_pods_before.stdout is defined
-        - longhorn_pods_before.stdout != ""
-      delegate_to: "{{ groups['master'][0] }}"
-      register: longhorn_recovery
-      changed_when: false
-      failed_when: false
-
-    - name: Wait for Longhorn volumes to rebuild after upgrade
-      ansible.builtin.shell:
-        cmd: |
-          # Wait for Longhorn volumes to rebuild (max 5 minutes)
-          # Check if any volumes are in "rebuilding" or "degraded" state
-          for i in {1..30}; do
-            # Get volumes that are rebuilding or degraded
-            rebuilding_volumes=$(kubectl get volumes -n longhorn-system -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.state}{" "}{.status.robustness}{"\n"}{end}' | grep -E "(rebuilding|degraded)" | wc -l || echo "0")
-            if [ "$rebuilding_volumes" -eq "0" ]; then
-              echo "All Longhorn volumes are healthy"
-              exit 0
-            fi
-            echo "Waiting for $rebuilding_volumes volume(s) to rebuild... (attempt $i/30)"
-            sleep 10
-          done
-          echo "Warning: Some Longhorn volumes may still be rebuilding"
-          exit 0
+    # Beklemeler uyari niteliginde: zaman asiminda task kirmizi "...ignoring"
+    # basar, upgrade durmaz. Eskiden bash dongusuydu; /bin/sh (dash) altinda hic
+    # beklemiyordu (todo A5).
+    - name: Wait for Longhorn pods on worker to be Ready after upgrade
+      ansible.builtin.command:
+        cmd: >-
+          kubectl wait pod -n longhorn-system --for=condition=Ready --timeout=120s
+          --field-selector spec.nodeName={{ inventory_hostname }},status.phase!=Succeeded,status.phase!=Failed
       become: true
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
-      register: longhorn_volume_recovery
       changed_when: false
-      failed_when: false
+      ignore_errors: true
+      when: longhorn_install | bool
 
-    - name: Wait for critical pods to be ready after upgrade
-      ansible.builtin.shell:
-        cmd: |
-          # Wait for critical pods (Grafana, Prometheus, Alertmanager) to be ready (max 3 minutes)
-          critical_namespaces=("monitoring")
-          for namespace in "${critical_namespaces[@]}"; do
-            for i in {1..18}; do
-              # Check if all pods in monitoring namespace are ready
-              not_ready=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.phase}{" "}{range .status.conditions[*]}{.type}{"="}{.status}{" "}{end}{"\n"}{end}' | grep -v "Running=True" | grep -v "Succeeded=True" | wc -l || echo "0")
-              if [ "$not_ready" -eq "0" ]; then
-                echo "All pods in namespace $namespace are ready"
-                break
-              fi
-              if [ "$i" -eq 18 ]; then
-                echo "Warning: Some pods in namespace $namespace may still be starting"
-              fi
-              sleep 10
-            done
-          done
-          exit 0
+    # Siradaki worker drain edilmeden once replikalar tamamlanmali.
+    # robustness: healthy | degraded | faulted | unknown (detached volume).
+    - name: Wait for Longhorn volumes to finish rebuilding after upgrade
+      ansible.builtin.command:
+        cmd: kubectl get volumes.longhorn.io -n longhorn-system -o jsonpath='{.items[*].status.robustness}'
       become: true
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
-      register: critical_pods_recovery
+      register: longhorn_volumes
+      until: longhorn_volumes.rc == 0 and 'degraded' not in longhorn_volumes.stdout
+      retries: 30
+      delay: 10
       changed_when: false
-      failed_when: false
-
-    - name: Display Longhorn recovery status
-      ansible.builtin.debug:
-        msg: |
-          Longhorn recovery status for {{ inventory_hostname }}:
-          - Pods: {{ longhorn_recovery.stdout | default('No Longhorn pods found before drain') }}
-          - Volumes: {{ longhorn_volume_recovery.stdout | default('Checking volumes...') }}
-          - Critical Pods: {{ critical_pods_recovery.stdout | default('Checking critical pods...') }}
-      when: 
-        - longhorn_recovery.stdout is defined
+      ignore_errors: true
+      when: longhorn_install | bool
 
     - name: Uncordon worker node
       ansible.builtin.command:
@@ -252,6 +184,22 @@
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
+
+    # Uncordon'dan SONRA: tek worker'li cluster'da tahliye edilen pod'lar ancak
+    # simdi schedule olabilir.
+    - name: Wait for monitoring pods to be Ready after upgrade
+      ansible.builtin.command:
+        cmd: >-
+          kubectl wait pod -n monitoring --for=condition=Ready --timeout=180s
+          --field-selector status.phase!=Succeeded,status.phase!=Failed
+      become: true
+      become_user: "{{ ansible_user }}"
+      environment:
+        KUBECONFIG: "{{ user_home_directory }}/.kube/config"
+      delegate_to: "{{ groups['master'][0] }}"
+      changed_when: false
+      ignore_errors: true
+      when: grafana_install | bool
 
     - name: Wait for pods to stabilize after worker upgrade
       ansible.builtin.pause:

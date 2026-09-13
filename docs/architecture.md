@@ -91,7 +91,7 @@ orada oluşur.
   (`update_cluster`), `01_check_versions.yml` (hedef = `k3s_upgrade_version` yoksa
   `k3s_version`; `is version(..., '<', semver)`) → `02_upgrade_masters.yml` /
   `03_upgrade_workers.yml`. Her node: drain → install script ile yeniden kur → uncordon →
-  bekle. **Master'lar worker'lardan önce**: kubelet apiserver'dan yeni olamaz (skew).
+  bekle (worker'da `kubectl wait` / `until` ile Longhorn ve monitoring beklemeleri; uyarı niteliğinde). **Master'lar worker'lardan önce**: kubelet apiserver'dan yeni olamaz (skew).
   İki ayrı play olmasının sebebi bu; `hosts: all` iken sıra envanterdeki grup dizilişine
   kalıyordu.
 - **Play 4** `hosts: master` (serial yok): `05_cleanup_stuck_nodes` → `06_rebalance_pods`

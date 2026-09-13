@@ -77,6 +77,9 @@ keepalived **tüm** master'larda yapılandırılır ve VIP kalkar. Sonraki node'
    - Play 2 (master'lar) → Play 3 (worker'lar), her biri `serial: 1`: sürüm karşılaştırması
      → drain → install script ile yeniden kurulum (flag'ler `/etc/rancher/k3s/config.yaml`'dan,
      upgrade öncesi `03_k3s_config` ile tazelenir) → uncordon → `upgrade_wait_for_pods` sn.
+     Worker'da ek olarak: `longhorn_install` ise uncordon'dan önce node'daki Longhorn pod'ları
+     Ready ve hiçbir volume `degraded` değil; `grafana_install` ise uncordon'dan sonra
+     `monitoring` pod'ları Ready. Süre dolarsa uyarı (`...ignoring`), upgrade durmaz.
      Master'lar her zaman önce: kubelet apiserver'dan yeni olamaz.
    - Sürümü hedefe eşit/yüksek node'lar `SKIP`. `upgrade_force: true` ile zorlanır.
    - Sonda play 4: takılı cordon temizliği, (rebalance — todo A1), node/pod özeti.
