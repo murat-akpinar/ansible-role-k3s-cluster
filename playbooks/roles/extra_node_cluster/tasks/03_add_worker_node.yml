@@ -11,6 +11,7 @@
   changed_when: false
   delegate_to: "{{ groups['master'][0] }}"
   when: "'worker' in group_names"
+  no_log: true  # token (todo A6)
 
 - name: Set K3s token fact (for all workers) - from delegated task result
   ansible.builtin.set_fact:
@@ -20,6 +21,7 @@
     - k3s_token_raw is defined
     - k3s_token_raw.stdout is defined
     - k3s_token_raw.stdout | default('') != ''
+  no_log: true
 
 - name: Fail if K3s token is not available
   ansible.builtin.fail:
@@ -34,7 +36,6 @@
   ansible.builtin.shell: |
     set -o pipefail
     export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
-    export K3S_TOKEN="{{ k3s_token | default('') }}"
     {% if k3s_version_env | default('') != '' %}
     export {{ k3s_version_env }}
     {% endif %}
@@ -45,6 +46,9 @@
     - k3s_token is defined
     - k3s_token | default('') != ''
   become: true
+  # Token cmd'de degil env'de: fail eden task'in ciktisi cmd'yi basar.
+  environment:
+    K3S_TOKEN: "{{ k3s_token | default('') }}"
   args:
     executable: /bin/bash
   changed_when: true

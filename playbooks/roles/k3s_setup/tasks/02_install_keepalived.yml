@@ -72,6 +72,8 @@
         src: keepalived.conf.j2
         dest: /etc/keepalived/keepalived.conf
         mode: "0600"
+      # Calisan keepalived dosyayi kendiliginden okumaz (todo A11).
+      notify: Reload keepalived
 
     - name: Start and enable Keepalived
       ansible.builtin.systemd:

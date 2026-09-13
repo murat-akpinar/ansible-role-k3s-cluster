@@ -58,13 +58,8 @@ Tüm helm adımları `helm upgrade --install` — tekrar çalıştırmak values/
 Tek master → HA dönüşümü: ilk master `--cluster-init` ile kurulmuş olmalı (rol bunu
 yapar; elle kurulduysa `02_add_master_node.yml` etcd dizini yoksa fail eder). 2. master
 ilk master IP'si üzerinden katılır; 3. master eklendiğinde `master_count` 3 olur,
-keepalived **tüm** master'larda yapılandırılır ve VIP kalkar. Sonraki node'lar VIP'e katılır.
-
-> ⚠️ 2 → 3 master geçişi şu an tam çalışmıyor: `add_node.yml` join adımını
-> keepalived'den **önce** koşuyor, `master_count` zaten 3 olduğu için 3. master
-> henüz var olmayan VIP'e bağlanmaya çalışır (`connection refused` — bkz.
-> [troubleshooting](troubleshooting.md)). Geçici çözüm: 3. master'ı eklerken
-> `-e k3s_api_endpoint=<ilk master IP>` verin.
+keepalived **tüm** master'larda join'den **önce** yapılandırılır, VIP eski master'larda kalkar;
+3. master VIP'e (port 6443 erişilebilir olunca) katılır. Sonraki node'lar da VIP'e katılır.
 
 ## 4. Upgrade
 

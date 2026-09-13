@@ -14,11 +14,13 @@
   changed_when: false
   run_once: true
   delegate_to: "{{ groups['master'][0] }}"
+  no_log: true  # token (todo A6)
 
 - name: Set K3s token fact (for all workers)
   ansible.builtin.set_fact:
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
+  no_log: true
 
 - name: Upgrade worker node
   when:
@@ -121,10 +123,12 @@
       ansible.builtin.shell: |
         set -o pipefail
         export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
-        export K3S_TOKEN="{{ k3s_token }}"
         export INSTALL_K3S_VERSION={{ k3s_target_version }}
         curl -sfL {{ k3s_install_url }} | sh -s - agent
       become: true
+      # Token cmd'de degil env'de: fail eden task'in ciktisi cmd'yi basar.
+      environment:
+        K3S_TOKEN: "{{ k3s_token }}"
       args:
         executable: /bin/bash
       changed_when: true

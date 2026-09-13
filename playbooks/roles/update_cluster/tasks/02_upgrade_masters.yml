@@ -16,11 +16,13 @@
   changed_when: false
   delegate_to: "{{ groups['master'][0] }}"
   run_once: true
+  no_log: true  # token (todo A6)
 
 - name: Set K3s token fact (for all masters)
   ansible.builtin.set_fact:
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
+  no_log: true
 
 # Master'da drain YOK, yalnizca cordon: k3s dururken container'lar calismaya
 # devam eder (.tmp/k3s/upgrades-manual.md); system-upgrade-controller ornegi de
@@ -53,13 +55,15 @@
     - name: Upgrade K3s on an additional master
       ansible.builtin.shell: |
         set -o pipefail
-        export K3S_TOKEN="{{ k3s_token }}"
         export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
         export INSTALL_K3S_VERSION={{ k3s_target_version }}
         export INSTALL_K3S_EXEC="server --server $K3S_URL {{ k3s_server_args }}"
         curl -sfL {{ k3s_install_url }} | sh -
       when: inventory_hostname != groups['master'][0]
       become: true
+      # Token cmd'de degil env'de: fail eden task'in ciktisi cmd'yi basar.
+      environment:
+        K3S_TOKEN: "{{ k3s_token }}"
       args:
         executable: /bin/bash
       changed_when: true

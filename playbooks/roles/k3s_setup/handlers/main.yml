@@ -3,3 +3,10 @@
   ansible.builtin.service:
     name: "{{ 'chrony' if ansible_os_family == 'Debian' else 'chronyd' }}"
     state: restarted
+
+# reloaded (SIGHUP): yeni ayari servisi durdurmadan okur. restarted tum master'larda
+# ayni anda kosunca VIP kisa sure hicbir node'da kalmazdi.
+- name: Reload keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    state: reloaded

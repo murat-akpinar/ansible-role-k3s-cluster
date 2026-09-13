@@ -70,6 +70,7 @@
   delegate_to: "{{ groups['master'][0] }}"
   changed_when: false
   failed_when: false
+  no_log: true  # token (todo A6)
 
 - name: Set K3s server token fact (for all hosts)
   ansible.builtin.set_fact:
@@ -77,6 +78,7 @@
   when:
     - hostvars[groups['master'][0]]['k3s_token_raw'] is defined
     - hostvars[groups['master'][0]]['k3s_token_raw'].stdout is defined
+  no_log: true
 
 # Worker'lar SERVER token'i ile degil agent token'i ile katilir: server
 # token'i tasiyan bir worker ele gecirilirse saldirgan cluster'a yeni bir
@@ -90,6 +92,7 @@
   delegate_to: "{{ groups['master'][0] }}"
   changed_when: false
   failed_when: false
+  no_log: true
 
 # ---------------------------------------------------------------------------
 # 3) Diger master'lar: cluster'a katilir
@@ -109,7 +112,6 @@
     - name: Install K3s on the additional master node
       ansible.builtin.shell: |
         set -o pipefail
-        export K3S_TOKEN="{{ k3s_token | default('') }}"
         export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
         export INSTALL_K3S_EXEC="server --server $K3S_URL {{ k3s_server_args }}"
         {% if k3s_version_env | default('') != '' %}
@@ -119,6 +121,9 @@
       when:
         - k3s_additional_master_status.rc != 0
         - (k3s_token | default('')) != ''
+      # Token cmd'de degil env'de: fail eden task'in ciktisi cmd'yi basar.
+      environment:
+        K3S_TOKEN: "{{ k3s_token | default('') }}"
       args:
         executable: /bin/bash
       changed_when: true
@@ -157,7 +162,6 @@
       ansible.builtin.shell: |
         set -o pipefail
         export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
-        export K3S_TOKEN="{{ hostvars[groups['master'][0]]['k3s_agent_token_raw'].stdout | default('') }}"
         {% if k3s_version_env | default('') != '' %}
         export {{ k3s_version_env }}
         {% endif %}
@@ -166,6 +170,8 @@
         - k3s_worker_agent_status.rc != 0
         - hostvars[groups['master'][0]]['k3s_agent_token_raw'] is defined
         - hostvars[groups['master'][0]]['k3s_agent_token_raw'].stdout is defined
+      environment:
+        K3S_TOKEN: "{{ hostvars[groups['master'][0]]['k3s_agent_token_raw'].stdout | default('') }}"
       args:
         executable: /bin/bash
       changed_when: true

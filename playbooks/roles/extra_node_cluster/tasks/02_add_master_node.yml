@@ -8,12 +8,17 @@
   changed_when: false
   run_once: true
   delegate_to: "{{ groups['master'][0] }}"
+  no_log: true  # token (todo A6)
 
 - name: Set K3s token fact
   ansible.builtin.set_fact:
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
+  no_log: true
 
+# Kontrol yalnizca EKLENEN master'lar icin: eskiden `master_count == 1` sartina
+# bagliydi, eklenen node zaten groups['master']'da oldugu icin deger hep >= 2'ydi
+# ve kontrol hic kosmuyordu (todo A10).
 - name: Check if first master was started with --cluster-init
   ansible.builtin.shell:
     cmd: |
@@ -28,10 +33,9 @@
   failed_when: false
   when:
     - "'master' in group_names"
-    - (master_count | int) == 1
+    - not node_already_joined | default(false)
   become: true
   delegate_to: "{{ groups['master'][0] }}"
-  run_once: true
 
 - name: Fail if first master was not started with --cluster-init
   ansible.builtin.fail:
@@ -49,17 +53,26 @@
       even for single master setups to allow future HA conversion.
   when:
     - "'master' in group_names"
-    - (master_count | int) == 1
+    - not node_already_joined | default(false)
     - cluster_init_check.stdout is defined
     - cluster_init_check.stdout == "no-cluster-init"
-  run_once: true
+
+# 2 -> 3 master gecisinde VIP bir onceki adimda (main.yml: keepalived join'den
+# once) kalkiyor; VRRP secimi bitmeden join `connection refused` ile duserdi (todo A9).
+- name: Wait for the cluster API endpoint to be reachable
+  ansible.builtin.wait_for:
+    host: "{{ k3s_api_endpoint }}"
+    port: 6443
+    timeout: 60
+  when:
+    - "'master' in group_names"
+    - not node_already_joined | default(false)
 
 # Katilma adresi tek yerden: `k3s_api_endpoint` (_facts.yml) 3+ master'da VIP,
 # altinda ilk master'in IP'si. Eskiden bu task iki kopyaydi.
 - name: Install K3s master node
   ansible.builtin.shell: |
     set -o pipefail
-    export K3S_TOKEN="{{ k3s_token }}"
     export K3S_URL="https://{{ k3s_api_endpoint }}:6443"
     export INSTALL_K3S_EXEC="server --server $K3S_URL {{ k3s_server_args }}"
     {% if k3s_version_env | default('') != '' %}
@@ -70,6 +83,9 @@
     - "'master' in group_names"
     - not node_already_joined | default(false)
   become: true
+  # Token cmd'de degil env'de: fail eden task'in ciktisi cmd'yi basar.
+  environment:
+    K3S_TOKEN: "{{ k3s_token }}"
   args:
     executable: /bin/bash
   changed_when: true

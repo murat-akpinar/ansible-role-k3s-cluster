@@ -76,9 +76,11 @@ orada oluşur.
 2. `add_node.yml` `hosts: all` olduğu için bu adımlar **eski node'larda da** koşar:
    `00_prerequisites`'in `trusted` zone kuralı yeni node'un IP'sini eskilere ekler.
 3. `01_check_existing_node.yml`: `systemctl is-active k3s|k3s-agent` → `node_already_joined`.
-5. master ise `02_add_master_node.yml`: token, `master_count` (`_facts`'ten), ilk master
-   `--cluster-init` ile mi kurulmuş kontrolü (etcd dizini), join (VIP veya IP), `kubectl get nodes` ile doğrula.
-6. master ise `02_install_keepalived` (k3s_setup'tan include_role) — eklemeden sonra 3'e ulaşıldıysa VIP kurulur.
+5. master ise `02_install_keepalived` (k3s_setup'tan include_role) — join'den **önce**; eklemeyle
+   3'e ulaşıldıysa VIP eski master'larda kalkar (yeni master'da k3s yok, `chk_k3s` priority'sini düşürür).
+6. master ise `02_add_master_node.yml`: token, eklenen master için ilk master `--cluster-init` ile mi
+   kurulmuş kontrolü (etcd dizini), `k3s_api_endpoint:6443` erişilebilir olana kadar bekle, join
+   (VIP veya IP), `kubectl get nodes` ile doğrula.
 7. worker ise `03_add_worker_node.yml`: token, join, Ready bekle.
 
 ## `upgrade.yml` akışı (rol: update_cluster)

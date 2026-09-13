@@ -51,6 +51,8 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   `virtual_router_id = keepalived_router_id`; `auth_pass` vault'tan; `interface` otomatik
   (`ansible_default_ipv4.interface`) ya da `keepalived_interface`.
 - `vrrp_script chk_k3s`: `/usr/bin/pidof k3s`, weight -20, fall/rise 2 → k3s ölünce VIP devreder.
+- `keepalived.conf` değişince handler `Reload keepalived` (`systemd state: reloaded`, SIGHUP) koşar;
+  restart değil, tüm master'larda aynı anda VIP düşmesin diye.
 - `enable_script_security` + `script_user keepalived_script` (rol kullanıcıyı oluşturur ve
   `/usr/bin/pidof`'un sahibini değiştirir — todo C5: gereksiz).
 - VRRP firewalld'de node IP'leri `trusted` zone'da olduğu için açıktır (`00_prerequisites.yml`),
