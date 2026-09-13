@@ -68,6 +68,7 @@
     group: root
     mode: '0600'
   become: true
+  register: k3s_audit_policy_file
   when:
     - "'master' in group_names"
     - k3s_hardening | default(true) | bool
@@ -80,6 +81,7 @@
     group: root
     mode: '0600'
   become: true
+  register: k3s_psa_policy_file
   when:
     - "'master' in group_names"
     - k3s_hardening | default(true) | bool
@@ -110,8 +112,9 @@
   become: true
   register: k3s_config_file
 
-# Calisan bir k3s ayar dosyasini kendiliginden yeniden okumaz. Otomatik restart
-# YAPMIYORUZ: HA'da tum master'lari ayni anda yeniden baslatmak API kesintisidir.
+# Calisan bir k3s ayar dosyasini ve apiserver audit/PSA dosyalarini kendiliginden
+# yeniden okumaz. Otomatik restart YAPMIYORUZ: HA'da tum master'lari ayni anda
+# yeniden baslatmak API kesintisidir.
 - name: "Hardening | Check whether k3s is already running on this node"
   ansible.builtin.command: "systemctl is-active {{ 'k3s' if 'master' in group_names else 'k3s-agent' }}"  # noqa: command-instead-of-module
   register: k3s_already_running
@@ -122,11 +125,12 @@
 - name: "Hardening | Warn that a running k3s must be restarted to load the new config"
   ansible.builtin.debug:
     msg: >-
-      /etc/rancher/k3s/config.yaml degisti ama bu node'da k3s zaten calisiyor.
+      k3s ayar dosyasi (config.yaml) ya da audit/PSA politikasi degisti ama bu node'da
+      k3s zaten calisiyor.
       Yeni ayarlar icin elle yeniden baslatin:
       systemctl restart {{ 'k3s' if 'master' in group_names else 'k3s-agent' }}
       (HA'da master'lari TEK TEK, aralarinda 'kubectl get nodes' ile bekleyerek.)
       upgrade.yml zaten yeniden kurdugu icin orada gerek yok.
   when:
-    - k3s_config_file is changed
+    - k3s_config_file is changed or k3s_audit_policy_file is changed or k3s_psa_policy_file is changed
     - (k3s_already_running.rc | default(1)) == 0

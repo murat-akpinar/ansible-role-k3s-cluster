@@ -471,7 +471,7 @@ rolleri de aynı task'ı çağırır.
 | Ayar | Ne yapar |
 |---|---|
 | `secrets-encryption` | Secret'lar etcd'ye AES ile şifreli yazılır. Bu olmadan etcd snapshot'ını veya diski ele geçiren herkes bütün parolaları düz metin okur |
-| Audit log | `/var/lib/rancher/k3s/server/logs/audit.log` (`level: Metadata`, 10 × 100 MB döngü). Kimin hangi Secret'ı okuduğu / hangi RBAC'i değiştirdiği kaydedilir |
+| Audit log | `/var/lib/rancher/k3s/server/logs/audit.log` (`level: Metadata`, 10 × 100 MB döngü; lease heartbeat'leri, Event'ler ve health check'ler kaydedilmez). Kimin hangi Secret'ı okuduğu / hangi RBAC'i değiştirdiği kaydedilir |
 | Pod Security Admission | Varsayılan `baseline`: `privileged` pod, `hostPath`, `hostPID`/`hostNetwork` reddedilir. `restricted` seviyesi uyarı olarak raporlanır. Ayrıcalık isteyen bileşenler (MetalLB speaker, node-exporter, Rancher) muaf namespace listesinde |
 | `agent-token` | Worker'lar server token'ı yerine yalnızca agent ekleyebilen ayrı bir token ile katılır (`vault_k3s_agent_token` dolduruldu ise) |
 | `protect-kernel-defaults` + kubelet flag'leri | Kernel parametreleri beklenen değerlerde değilse kubelet başlamaz; ayrıca `pod-max-pids`, TLS cipher listesi ve streaming timeout. Gerekli sysctl'leri aynı task yazar (`/etc/sysctl.d/99-k3s-hardening.conf`) |

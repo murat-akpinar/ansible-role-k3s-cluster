@@ -13,7 +13,8 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   çağırır. Install script systemd unit'ini her çalıştırmada yeniden yazar ama bu dosyaya
   dokunmaz, o yüzden flag'ler upgrade'de kaybolmaz (eski yöntem `k3s_server_args` idi, cd7de00).
 - `k3s_hardening: true` (varsayılan) ile CIS sıkılaştırması: etcd'de `secrets-encryption`,
-  API audit log (`files/k3s-audit-policy.yaml` → `server/audit.yaml`, `server/logs/` 0700),
+  API audit log (`files/k3s-audit-policy.yaml` → `server/audit.yaml`, `server/logs/` 0700; `RequestReceived`,
+  lease get/update, Event ve health check kaydedilmez — değişince k3s restart gerekir),
   Pod Security Admission baseline (`files/k3s-psa.yaml` → `server/psa.yaml`, muaf namespace'ler
   içinde), `protect-kernel-defaults` + kubelet flag'leri (gerekli sysctl'leri aynı task yazar:
   `99-k3s-hardening.conf`; ayrı dosyada olsaydı `upgrade.yml` onu çalıştırmadığı için eski bir

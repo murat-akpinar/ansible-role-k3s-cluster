@@ -55,6 +55,8 @@ get kubernetes/kubectl-apply.md                $KW/docs/reference/kubectl/genera
 get kubernetes/server-side-apply.md            $KW/docs/reference/using-api/server-side-apply.md
 get kubernetes/jsonpath.md                     $KW/docs/reference/kubectl/jsonpath.md
 get kubernetes/admission-controllers.md        $KW/docs/reference/access-authn-authz/admission-controllers.md
+get kubernetes/audit.md                        $KW/docs/tasks/debug/debug-cluster/audit.md
+get kubernetes/audit-policy.yaml               $KW/examples/audit/audit-policy.yaml
 
 # ---------------- Helm (helm/helm-www main) ----------------
 H=$GH/helm/helm-www/main/docs

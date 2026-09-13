@@ -67,6 +67,7 @@ tag'i güncelle.
 | `kubectl-wait.md`, `kubectl-apply.md`, `server-side-apply.md`, `jsonpath.md` | `kubectl wait --for=condition`, `--server-side`, jsonpath ifadeleri. |
 | `service.md` | Service tipleri / LoadBalancer. |
 | `admission-controllers.md` | `EventRateLimit` yapılandırma biçimi ve `AdmissionConfiguration` dosyası (`files/k3s-psa.yaml`). |
+| `audit.md`, `audit-policy.yaml` | Audit stage'leri, `omitStages`, kural sırası, `level: None` örnekleri (`files/k3s-audit-policy.yaml`, todo E14). |
 
 ## helm/
 | Dosya | Ne için |

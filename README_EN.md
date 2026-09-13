@@ -474,7 +474,7 @@ upgrade roles call the same task.
 | Setting | What it does |
 |---|---|
 | `secrets-encryption` | Secrets are written to etcd encrypted with AES. Without it, anyone who gets the etcd snapshot or the disk reads every password in plaintext |
-| Audit log | `/var/lib/rancher/k3s/server/logs/audit.log` (`level: Metadata`, 10 × 100 MB rotation). Records who read which Secret and who changed which RBAC rule |
+| Audit log | `/var/lib/rancher/k3s/server/logs/audit.log` (`level: Metadata`, 10 × 100 MB rotation; lease heartbeats, Events and health checks are not logged). Records who read which Secret and who changed which RBAC rule |
 | Pod Security Admission | Defaults to `baseline`: `privileged` pods, `hostPath`, `hostPID`/`hostNetwork` are rejected. The `restricted` level is reported as a warning only. Components that genuinely need privileges (MetalLB speaker, node-exporter, Rancher) are in the exempt namespace list |
 | `agent-token` | Workers join with a separate token that can only add agents, instead of the server token (when `vault_k3s_agent_token` is set) |
 | `protect-kernel-defaults` + kubelet flags | The kubelet refuses to start if kernel parameters differ from the expected values; plus `pod-max-pids`, a TLS cipher list and a streaming timeout. The required sysctls are written by the same task (`/etc/sysctl.d/99-k3s-hardening.conf`) |

@@ -4,7 +4,34 @@
 # kube-apiserver-arg audit-policy-file ile verilir.
 # level: Metadata = kim/ne zaman/hangi kaynak kaydedilir, istek/yanit govdesi
 # kaydedilmez (govde Secret icerebilir ve log'u sisirir).
+# Kurallar sirayla eslesir, ilk eslesen kazanir. Bos bir cluster'da kayitlarin
+# yarisi RequestReceived kopyasi, %59'u lider secimi lease'leriydi: 10 x 100 MB
+# rotasyon ~22 saat dayaniyordu (todo E14). Ornek: .tmp/kubernetes/audit-policy.yaml
 apiVersion: audit.k8s.io/v1
 kind: Policy
+# Her istek ResponseComplete'te zaten kaydediliyor; ikinci kopya gereksiz.
+omitStages:
+  - RequestReceived
 rules:
+  # Lider secimi ve node heartbeat'i: saniyede birkac get/update, olay
+  # incelemesinde degeri yok. create/delete kaydedilmeye devam eder.
+  - level: None
+    verbs: ["get", "update"]
+    resources:
+      - group: coordination.k8s.io
+        resources: ["leases"]
+  # Event'ler kendisi bir kayit; audit'e de yazmak log'u ikiye katlar.
+  - level: None
+    resources:
+      - group: ""
+        resources: ["events"]
+      - group: events.k8s.io
+        resources: ["events"]
+  # Saglik kontrolleri (probe'lar, load balancer'lar).
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /readyz*
+      - /livez*
+      - /version
   - level: Metadata
