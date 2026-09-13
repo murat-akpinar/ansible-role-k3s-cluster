@@ -41,7 +41,7 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   `~/.kube/config` **kopya** (symlink değil, kaynak 0600), `03_k3s_post_install.yml`; `.bashrc` KUBECONFIG.
 - Sürüm: `k3s_version` boşsa `_resolve_k3s_version.yml` master[0]'daki çalışan sürümü okur
   ve tüm node'lara pinler (kurulum ve node ekleme); boş cluster'da latest kurulur.
-- Tuzaklar: taint `true` iken worker'sız
+- Tuzaklar: taint `true` iken (varsayılan `false`) worker'sız
   cluster'da tolere etmeyen pod'lar Pending; `--disable servicelb` yalnızca yeni unit'te etkili.
 
 ## Keepalived (master, yalnızca `master_count >= 3`)

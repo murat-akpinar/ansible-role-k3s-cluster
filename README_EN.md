@@ -425,7 +425,7 @@ Other variables living in the same file:
 | `k3s_agent_token` | The token workers use to join the cluster. When left empty k3s makes it equal to the **server token**, so every worker carries a secret valuable enough to add a new server to the cluster. Provide it from Vault (`vault_k3s_agent_token`) |
 | `k3s_server_args` | **Leave it empty.** k3s server/agent flags no longer live on the command line but in the k3s configuration file: `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`. The install script rewrites the systemd unit on every run but never touches this file, so flags survive an upgrade. A flag set here wins over the file and wipes out the list settings (audit, PSA) it contains |
 | `k3s_disable_servicelb` | When `true`, disables the k3s bundled ServiceLB (klipper). Defaults to `false`: MetalLB is off too, so klipper hands out LoadBalancer IPs. **Do not turn both off** — no LB controller would be left and the `traefik` service stays `<pending>`. If you set `metallb_install: true`, set this to `true` as well |
-| `k3s_master_taint` / `k3s_master_taint_value` | Protects masters from heavy workloads (see [Master/Worker Pod Distribution](#masterworker-pod-distribution)) |
+| `k3s_master_taint` / `k3s_master_taint_value` | Protects masters from heavy workloads; default `false`, enable only when you have workers (see [Master/Worker Pod Distribution](#masterworker-pod-distribution)) |
 | `monitoring_storage_class` | StorageClass for the monitoring PVCs; defaults to the k3s built-in `local-path` (not replicated, node-local) |
 | `helm_repo_*`, `helm_install_script_url`, `k3s_install_url` | External source URLs; change these for air-gapped/mirrored environments |
 

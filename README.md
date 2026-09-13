@@ -422,7 +422,7 @@ Ayrıca bu dosyada yer alan diğer değişkenler:
 | `k3s_agent_token` | Worker'ların cluster'a katılırken kullandığı token. Boş bırakılırsa k3s bunu **server token'ına** eşitler; o zaman her worker, cluster'a yeni bir server ekleyebilecek değerde bir secret taşır. Vault'tan verin (`vault_k3s_agent_token`) |
 | `k3s_server_args` | **Boş bırakın.** k3s server/agent flag'leri artık komut satırında değil, k3s'in kendi ayar dosyasında: `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`. Install script systemd unit'ini her çalıştırmada yeniden yazar ama bu dosyaya dokunmaz, böylece flag'ler upgrade'de kaybolmaz. Burada bir flag verirseniz komut satırı kazanır ve config'teki liste ayarlarını (audit, PSA) tümüyle ezer |
 | `k3s_disable_servicelb` | `true` ise k3s gömülü ServiceLB (klipper) kapatılır. Varsayılan `false`: MetalLB de kapalı olduğu için LoadBalancer IP'lerini klipper verir. **İkisini birden kapatmayın** — hiçbir LB controller kalmaz ve `traefik` servisi `<pending>` takılır. `metallb_install: true` yaparsanız bunu da `true` yapın |
-| `k3s_master_taint` / `k3s_master_taint_value` | Master'ları ağır iş yüklerinden korur (bkz. [Master/Worker Pod Dağılımı](#masterworker-pod-dağılımı)) |
+| `k3s_master_taint` / `k3s_master_taint_value` | Master'ları ağır iş yüklerinden korur; varsayılan `false`, yalnızca worker varken açın (bkz. [Master/Worker Pod Dağılımı](#masterworker-pod-dağılımı)) |
 | `monitoring_storage_class` | Monitoring PVC'lerinin StorageClass'ı; varsayılan k3s gömülü `local-path` (replikasyonsuz, node-yerel) |
 | `helm_repo_*`, `helm_install_script_url`, `k3s_install_url` | Dış kaynak URL'leri; air-gapped/mirror ortamda değiştirin |
 
