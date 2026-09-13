@@ -1073,7 +1073,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │           │   ├── 01_check_versions.yml
 │           │   ├── 02_upgrade_masters.yml
 │           │   ├── 03_upgrade_workers.yml
-│           │   ├── 04_verify_cluster.yml
 │           │   └── main.yml
 │           ├── vars
 │           │   └── main.yml

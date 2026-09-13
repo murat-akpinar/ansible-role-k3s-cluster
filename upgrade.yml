@@ -46,23 +46,9 @@
   roles:
     - update_cluster
 
-# Ayri play: `serial` yok, yani tum node'lar upgrade edildikten SONRA calisir.
+# Tum node'lar upgrade edildikten SONRA: saglik kontrolu + node basina kubelet surumu.
 # Eskiden burada unschedulable HER node'u uncordon eden bir adim vardi: bakim icin
 # elle cordon edilmis node'lari da aciyordu (todo D5). Her node kendi upgrade
 # block'unun `always:`'inda uncordon ediliyor.
 - name: Post-upgrade verification
-  hosts: master
-  become: true
-  tasks:
-    # public: true -> k3s_setup ayarlari (defaults/main.yml) bu play'in
-    # gorevlerinde de gorunur; rol defaults onceligiyle, group_vars ezebilir.
-    - name: "Resolve user home and cluster facts (and load k3s_setup config)"
-      ansible.builtin.include_role:
-        name: k3s_setup
-        tasks_from: _facts
-        public: true
-
-    - name: "Verify Cluster Status After Upgrade"
-      ansible.builtin.import_role:
-        name: update_cluster
-        tasks_from: 04_verify_cluster.yml
+  ansible.builtin.import_playbook: verify.yml

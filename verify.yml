@@ -10,7 +10,7 @@
 #
 # What it checks:
 #   - k3s / k3s-agent service is active on every node
-#   - All nodes are Ready
+#   - All nodes are Ready, and they all run the same kubelet version
 #   - All pods are Running/Succeeded
 #   - Keepalived VIP is reachable
 #   - Pod health of each enabled component namespace
@@ -144,9 +144,12 @@
               changed_when: false
               failed_when: false
 
-            - name: Count total nodes
-              ansible.builtin.shell: "kubectl get nodes --no-headers | wc -l"  # noqa: risky-shell-pipe
-              register: total_nodes
+            # upgrade.yml de bu playbook'la bitiyor: upgrade sonrasi asil bilgi.
+            - name: Get node kubelet versions
+              ansible.builtin.command: >
+                kubectl get nodes --no-headers
+                -o custom-columns=NAME:.metadata.name,VERSION:.status.nodeInfo.kubeletVersion
+              register: node_versions
               changed_when: false
               failed_when: false
 
@@ -258,7 +261,9 @@
                   - "                K3s CLUSTER HEALTH CHECK (verify.yml)"
                   - "======================================================================"
                   - "{{ ('[OK]  ' if (not_ready_nodes.stdout | int == 0) else '[FAIL]') ~ ' Nodes Ready       — not-ready: '
-                      ~ (not_ready_nodes.stdout | trim) ~ ' / total: ' ~ (total_nodes.stdout | trim) }}"
+                      ~ (not_ready_nodes.stdout | trim) ~ ' / total: ' ~ (node_versions.stdout_lines | length) }}"
+                  - "{{ ('[OK]  ' if (node_versions.stdout_lines | map('split') | map('last') | unique | length == 1) else '[WARN]')
+                      ~ ' Node Versions     — ' ~ (node_versions.stdout_lines | map('split') | map('join', '=') | join(', ')) }}"
                   - "{{ ('[OK]  ' if (not_running_pods.stdout | int == 0) else '[FAIL]') ~ ' Pods Running      — not-running: '
                       ~ (not_running_pods.stdout | trim) }}"
                   - "{{ (('[OK]  ' if (vip_ping.rc | default(1) == 0) else '[FAIL]') ~ ' Keepalived VIP    — ' ~ keepalived_vip)

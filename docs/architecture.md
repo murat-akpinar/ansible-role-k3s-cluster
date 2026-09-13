@@ -96,7 +96,7 @@ orada oluşur.
   (`always:`) → bekle (worker'da `kubectl wait` ile monitoring beklemesi; uyarı niteliğinde). **Master'lar worker'lardan önce**: kubelet apiserver'dan yeni olamaz (skew).
   İki ayrı play olmasının sebebi bu; `hosts: all` iken sıra envanterdeki grup dizilişine
   kalıyordu.
-- **Play 4** `hosts: master` (serial yok): `04_verify_cluster` (node sürümleri, Ready / Running sayıları).
+- **Play 4+** `import_playbook: verify.yml` (tüm node'lar bittikten sonra; node başına kubelet sürümü dahil).
   Elle cordon edilmiş node'lara dokunulmaz; fail eden serial play playbook'u orada bitirir, bu play koşmaz.
 
 ## `verify.yml` akışı
