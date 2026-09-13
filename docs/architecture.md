@@ -90,12 +90,12 @@ orada oluşur.
 - **Play 2** `hosts: master, serial: 1` → **Play 3** `hosts: worker, serial: 1`: aynı rol
   (`update_cluster`), `01_check_versions.yml` (hedef = `k3s_upgrade_version` yoksa
   `k3s_version`; `is version(..., '<', semver)`) → `02_upgrade_masters.yml` /
-  `03_upgrade_workers.yml`. Her node: drain → install script ile yeniden kur → uncordon →
+  `03_upgrade_workers.yml`. Master: cordon → install script ile yeniden kur → bekle →
+  uncordon (`always:`, upgrade fail etse de). Worker: drain → yeniden kur → uncordon →
   bekle (worker'da `kubectl wait` / `until` ile Longhorn ve monitoring beklemeleri; uyarı niteliğinde). **Master'lar worker'lardan önce**: kubelet apiserver'dan yeni olamaz (skew).
   İki ayrı play olmasının sebebi bu; `hosts: all` iken sıra envanterdeki grup dizilişine
   kalıyordu.
-- **Play 4** `hosts: master` (serial yok): `05_cleanup_stuck_nodes` → `06_rebalance_pods`
-  (todo A1: sil) → `04_verify_cluster`.
+- **Play 4** `hosts: master` (serial yok): `05_cleanup_stuck_nodes` → `04_verify_cluster`.
 
 ## `verify.yml` akışı
 

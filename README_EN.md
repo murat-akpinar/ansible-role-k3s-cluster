@@ -622,16 +622,15 @@ A rolling update strategy is used to update your cluster **without downtime**.
      newer than the apiserver (`.tmp/kubernetes/version-skew-policy.md`)
    - Master nodes are updated **one by one** (`serial: 1`)
    - For each master node:
-     - Node is **drained** (pods are moved to other nodes)
+     - Node is **cordoned** (not drained: pods keep running while k3s is stopped)
      - K3s is upgraded
-     - Node is **uncordoned**
      - Wait for pods to stabilize
+     - Node is **uncordoned** (even if the upgrade fails)
 4. **Worker Node Updates** (Sequentially):
    - Worker nodes are updated **one by one**
-     - Same process is applied
+     - Node is **drained** (pods are moved to other nodes), upgraded and uncordoned
 5. **Automatic Cleanup**: Nodes stuck in `SchedulingDisabled` state are automatically uncordoned
-6. **Pod Rebalancing**: Pods are redistributed after upgrade
-7. **Cluster Verification**: All nodes are verified to be in Ready state
+6. **Cluster Verification**: All nodes are verified to be in Ready state
 
 ### Running Upgrade
 
@@ -1163,7 +1162,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │           │   ├── 03_upgrade_workers.yml
 │           │   ├── 04_verify_cluster.yml
 │           │   ├── 05_cleanup_stuck_nodes.yml
-│           │   ├── 06_rebalance_pods.yml
 │           │   └── main.yml
 │           ├── vars
 │           │   └── main.yml

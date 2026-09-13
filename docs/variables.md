@@ -91,7 +91,7 @@ ezilemez (yalnızca `-e`). Bkz. [architecture.md](architecture.md) "Değişken a
 
 | Değişken | Varsayılan | Not |
 |---|---|---|
-| `upgrade_drain_timeout` | `600` | `kubectl drain --timeout` (sn). |
+| `upgrade_drain_timeout` | `600` | worker `kubectl drain --timeout` (sn); master'lar drain edilmez. |
 | `upgrade_drain_grace_period` | `120` | worker drain `--grace-period`. |
 | `upgrade_wait_for_pods` | `60` | Her node sonrası `pause`. |
 | `upgrade_force` | `false` | Sürüm eşit/yüksek olsa da yeniden kur; hedef boşsa fail'i de atlar. |

@@ -6,7 +6,7 @@ Bu role, K3s cluster'ınızı **rolling update** stratejisi ile güvenli bir şe
 
 ✅ **Rolling Update**: Node'lar sırayla güncellenir, cluster kesintisiz çalışmaya devam eder
 ✅ **Versiyon Kontrolü**: Mevcut versiyonları kontrol eder, gereksiz upgrade'leri önler
-✅ **Drain/Uncordon**: Pod'lar güvenli şekilde diğer node'lara taşınır
+✅ **Cordon/Drain/Uncordon**: Master cordon edilir (pod'lar çalışmaya devam eder), worker drain edilir
 ✅ **HA Desteği**: 3+ master node'lu HA kurulumlarını destekler
 ✅ **Single Master Desteği**: Tek master node'lu kurulumları destekler
 ✅ **Otomatik Doğrulama**: Upgrade sonrası cluster durumunu kontrol eder
@@ -33,13 +33,13 @@ ansible-playbook -i inventory/cluster_inventory.yml upgrade.yml
 2. **Master Node'ları Güncelleme**: 
    - Master node'lar sırayla (serial: 1) güncellenir
    - Her master node:
-     - Drain edilir (pod'lar diğer node'lara taşınır)
+     - Cordon edilir (drain yok: k3s dururken pod'lar çalışmaya devam eder)
      - K3s upgrade edilir
-     - Uncordon edilir (yeni pod'lar alabilir)
      - Pod'ların stabilize olması beklenir
+     - Uncordon edilir (upgrade fail etse de)
 3. **Worker Node'ları Güncelleme**:
    - Worker node'lar sırayla (serial: 1) güncellenir
-   - Her worker node aynı süreçten geçer
+   - Her worker node drain edilir, upgrade edilir, uncordon edilir
 4. **Cluster Doğrulama**: Tüm node'ların Ready durumda olduğu kontrol edilir
 
 ## Yapılandırma
@@ -95,7 +95,7 @@ ok: [master-1] => {
     "msg": "Node master-1: Current version = v1.29.5+k3s1, Target version = v1.31.6+k3s1"
 }
 
-TASK [update_cluster : Drain first master node] **************************
+TASK [update_cluster : Cordon master node] **************************
 changed: [master-1]
 
 TASK [update_cluster : Upgrade K3s on first master (HA mode)] ***********

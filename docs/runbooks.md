@@ -75,14 +75,17 @@ keepalived **tüm** master'larda yapılandırılır ve VIP kalkar. Sonraki node'
      pre-upgrade snapshot'ı bırakan `prune`. Snapshot alınamazsa upgrade orada durur —
      yedeksiz upgrade istemiyoruz. Listelemek için `sudo k3s etcd-snapshot ls`.
    - Play 2 (master'lar) → Play 3 (worker'lar), her biri `serial: 1`: sürüm karşılaştırması
-     → drain → install script ile yeniden kurulum (flag'ler `/etc/rancher/k3s/config.yaml`'dan,
-     upgrade öncesi `03_k3s_config` ile tazelenir) → uncordon → `upgrade_wait_for_pods` sn.
+     → master'da cordon, worker'da drain → install script ile yeniden kurulum (flag'ler
+     `/etc/rancher/k3s/config.yaml`'dan, upgrade öncesi `03_k3s_config` ile tazelenir) →
+     uncordon → `upgrade_wait_for_pods` sn. Master drain edilmez: k3s dururken container'lar
+     çalışmaya devam eder; drain tek master'da tam kesinti, Longhorn'lu master'da PDB takılması
+     demekti. Master'ın uncordon'u `always:` içinde, upgrade fail etse de node cordon'lu kalmaz.
      Worker'da ek olarak: `longhorn_install` ise uncordon'dan önce node'daki Longhorn pod'ları
      Ready ve hiçbir volume `degraded` değil; `grafana_install` ise uncordon'dan sonra
      `monitoring` pod'ları Ready. Süre dolarsa uyarı (`...ignoring`), upgrade durmaz.
      Master'lar her zaman önce: kubelet apiserver'dan yeni olamaz.
    - Sürümü hedefe eşit/yüksek node'lar `SKIP`. `upgrade_force: true` ile zorlanır.
-   - Sonda play 4: takılı cordon temizliği, (rebalance — todo A1), node/pod özeti.
+   - Sonda play 4: takılı cordon temizliği, node/pod özeti.
 3. `verify.yml` çalıştır; `kubectl get nodes` ile tüm `VERSION` sütunu aynı olmalı.
 4. Geri alma: `k3s etcd-snapshot restore` (bkz. `.tmp/k3s/datastore-backup-restore.md`);
    binary'yi eski sürümle yeniden kur (`INSTALL_K3S_VERSION=eski`).

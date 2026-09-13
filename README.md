@@ -634,16 +634,15 @@ Cluster'ınızı **kesintisiz** bir şekilde güncellemek için rolling update s
      vermez (`.tmp/kubernetes/version-skew-policy.md`)
    - Master node'lar **tek tek** (`serial: 1`) güncellenir
    - Her master node için:
-     - Node **drain** edilir (pod'lar diğer node'lara taşınır)
+     - Node **cordon** edilir (drain edilmez: k3s dururken pod'lar çalışmaya devam eder)
      - K3s upgrade edilir
-     - Node **uncordon** edilir
      - Pod'ların stabilize olması beklenir
+     - Node **uncordon** edilir (upgrade fail etse de)
 4. **Worker Node'ları Güncelleme** (Sırayla):
    - Worker node'lar **tek tek** güncellenir
-   - Aynı süreç uygulanır
+   - Node **drain** edilir (pod'lar diğer node'lara taşınır), upgrade edilir, uncordon edilir
 5. **Otomatik Temizlik**: `SchedulingDisabled` durumunda kalan node'lar otomatik uncordon edilir
-6. **Pod Rebalancing**: Upgrade sonrası pod'lar yeniden dağıtılır
-7. **Cluster Doğrulama**: Tüm node'ların Ready durumda olduğu kontrol edilir
+6. **Cluster Doğrulama**: Tüm node'ların Ready durumda olduğu kontrol edilir
 
 ### Upgrade Çalıştırma
 
@@ -1159,7 +1158,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │           │   ├── 03_upgrade_workers.yml
 │           │   ├── 04_verify_cluster.yml
 │           │   ├── 05_cleanup_stuck_nodes.yml
-│           │   ├── 06_rebalance_pods.yml
 │           │   └── main.yml
 │           ├── vars
 │           │   └── main.yml

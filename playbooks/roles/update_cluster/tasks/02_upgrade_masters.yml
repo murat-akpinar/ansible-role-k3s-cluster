@@ -22,12 +22,17 @@
     k3s_token: "{{ k3s_token_raw.stdout | default('') }}"
   when: k3s_token_raw.stdout is defined
 
+# Master'da drain YOK, yalnizca cordon: k3s dururken container'lar calismaya
+# devam eder (.tmp/k3s/upgrades-manual.md); system-upgrade-controller ornegi de
+# server'lar icin yalnizca `cordon: true` kullanir. Drain tek master'da tum
+# pod'lari gidecek yeri olmadan tahliye ediyordu ve Longhorn'un son replikayi
+# koruyan PDB'si drain'i timeout'a kadar bloklayip upgrade'i durduruyordu (todo A12).
 - name: Upgrade master node
   when: upgrade_needed | default(true)
   block:
-    - name: Drain master node
+    - name: Cordon master node
       ansible.builtin.command:
-        cmd: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --timeout={{ upgrade_drain_timeout }}s --force
+        cmd: kubectl cordon {{ inventory_hostname }}
       changed_when: true
       become: true
       become_user: "{{ ansible_user }}"
@@ -68,6 +73,12 @@
       retries: 10
       delay: 10
 
+    - name: Wait for pods to stabilize after master upgrade
+      ansible.builtin.pause:
+        seconds: "{{ upgrade_wait_for_pods }}"
+
+  # always: upgrade yarida fail etse de node cordon'lu kalmasin.
+  always:
     - name: Uncordon master node
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
@@ -76,7 +87,3 @@
       become_user: "{{ ansible_user }}"
       environment:
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
-
-    - name: Wait for pods to stabilize after master upgrade
-      ansible.builtin.pause:
-        seconds: "{{ upgrade_wait_for_pods }}"
