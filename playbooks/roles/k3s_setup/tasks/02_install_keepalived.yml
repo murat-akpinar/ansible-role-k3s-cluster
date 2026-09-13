@@ -5,7 +5,7 @@
 
 - name: "Set Keepalived VRRP interface (override edilmemisse otomatik algila)"
   ansible.builtin.set_fact:
-    keepalived_network: "{{ keepalived_interface if (keepalived_interface | default('') | length > 0) else ansible_default_ipv4.interface }}"
+    keepalived_network: "{{ keepalived_interface if (keepalived_interface | default('') | length > 0) else ansible_facts['default_ipv4']['interface'] }}"
 
 - name: "Debug Keepalived network interface"
   ansible.builtin.debug:
@@ -25,7 +25,7 @@
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 3600
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
 
     - name: Install Keepalived package (apt/yum/dnf otomatik secilir)
       ansible.builtin.package:

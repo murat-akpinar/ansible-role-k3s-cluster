@@ -74,7 +74,7 @@
 - name: Deploy Chrony configuration
   ansible.builtin.template:
     src: chrony.j2
-    dest: "{{ '/etc/chrony/chrony.conf' if ansible_os_family == 'Debian' else '/etc/chrony.conf' }}"
+    dest: "{{ '/etc/chrony/chrony.conf' if ansible_facts['os_family'] == 'Debian' else '/etc/chrony.conf' }}"
     owner: root
     group: root
     mode: '0644'
@@ -82,6 +82,6 @@
 
 - name: Ensure chrony service is enabled and running
   ansible.builtin.service:
-    name: "{{ 'chrony' if ansible_os_family == 'Debian' else 'chronyd' }}"
+    name: "{{ 'chrony' if ansible_facts['os_family'] == 'Debian' else 'chronyd' }}"
     state: started
     enabled: true

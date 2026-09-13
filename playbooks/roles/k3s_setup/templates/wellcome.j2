@@ -13,7 +13,7 @@
 
   » NODE
       Hostname   {{ inventory_hostname }}  ·  {{ 'MASTER' if 'master' in group_names else 'WORKER' }}
-      Address    {{ ansible_default_ipv4.address | default('-') }}
+      Address    {{ ansible_facts.default_ipv4.address | default('-') }}
 
   » CLUSTER
       Topology   {% if (groups['master'] | default([]) | length) >= 3 %}HA — High Availability ({{ groups['master'] | length }} masters){% else %}Single master{% endif %}

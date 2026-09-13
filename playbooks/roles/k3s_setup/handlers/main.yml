@@ -1,7 +1,7 @@
 ---
 - name: Restart NTP service
   ansible.builtin.service:
-    name: "{{ 'chrony' if ansible_os_family == 'Debian' else 'chronyd' }}"
+    name: "{{ 'chrony' if ansible_facts['os_family'] == 'Debian' else 'chronyd' }}"
     state: restarted
 
 # reloaded (SIGHUP): yeni ayari servisi durdurmadan okur. restarted tum master'larda
