@@ -47,7 +47,10 @@
     - update_cluster
 
 # Ayri play: `serial` yok, yani tum node'lar upgrade edildikten SONRA calisir.
-- name: Post-upgrade cleanup and verification
+# Eskiden burada unschedulable HER node'u uncordon eden bir adim vardi: bakim icin
+# elle cordon edilmis node'lari da aciyordu (todo D5). Her node kendi upgrade
+# block'unun `always:`'inda uncordon ediliyor.
+- name: Post-upgrade verification
   hosts: master
   become: true
   tasks:
@@ -58,11 +61,6 @@
         name: k3s_setup
         tasks_from: _facts
         public: true
-
-    - name: "Cleanup Stuck Nodes (Uncordon SchedulingDisabled nodes)"
-      ansible.builtin.import_role:
-        name: update_cluster
-        tasks_from: 05_cleanup_stuck_nodes.yml
 
     - name: "Verify Cluster Status After Upgrade"
       ansible.builtin.import_role:

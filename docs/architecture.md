@@ -92,11 +92,12 @@ orada oluşur.
   (`update_cluster`), `01_check_versions.yml` (hedef = `k3s_upgrade_version` yoksa
   `k3s_version`; `is version(..., '<', semver)`) → `02_upgrade_masters.yml` /
   `03_upgrade_workers.yml`. Master: cordon → install script ile yeniden kur → bekle →
-  uncordon (`always:`, upgrade fail etse de). Worker: drain → yeniden kur → uncordon →
-  bekle (worker'da `kubectl wait` ile monitoring beklemesi; uyarı niteliğinde). **Master'lar worker'lardan önce**: kubelet apiserver'dan yeni olamaz (skew).
+  uncordon (`always:`, upgrade fail etse de). Worker: drain → yeniden kur → uncordon
+  (`always:`) → bekle (worker'da `kubectl wait` ile monitoring beklemesi; uyarı niteliğinde). **Master'lar worker'lardan önce**: kubelet apiserver'dan yeni olamaz (skew).
   İki ayrı play olmasının sebebi bu; `hosts: all` iken sıra envanterdeki grup dizilişine
   kalıyordu.
-- **Play 4** `hosts: master` (serial yok): `05_cleanup_stuck_nodes` → `04_verify_cluster`.
+- **Play 4** `hosts: master` (serial yok): `04_verify_cluster` (node sürümleri, Ready / Running sayıları).
+  Elle cordon edilmiş node'lara dokunulmaz; fail eden serial play playbook'u orada bitirir, bu play koşmaz.
 
 ## `verify.yml` akışı
 

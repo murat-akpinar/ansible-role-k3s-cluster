@@ -159,6 +159,10 @@
       changed_when: false
       failed_when: false
 
+  # always: upgrade yarida fail etse de node drain'li/cordon'lu kalmasin (master'daki
+  # gibi). Eskiden bunu upgrade.yml sonundaki cleanup adimi yapar gibi gorunuyordu ama
+  # fail eden serial play playbook'u orada bitirdigi icin o adim hic kosmuyordu.
+  always:
     - name: Uncordon worker node
       ansible.builtin.command:
         cmd: kubectl uncordon {{ inventory_hostname }}
@@ -169,6 +173,11 @@
         KUBECONFIG: "{{ user_home_directory }}/.kube/config"
       delegate_to: "{{ groups['master'][0] }}"
 
+- name: Wait for workloads after worker upgrade
+  when:
+    - "'worker' in group_names"
+    - upgrade_needed | default(true)
+  block:
     # Beklemeler uyari niteliginde: zaman asiminda task kirmizi "...ignoring"
     # basar, upgrade durmaz. Eskiden bash dongusuydu; /bin/sh (dash) altinda hic
     # beklemiyordu (todo A5).

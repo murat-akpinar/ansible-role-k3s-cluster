@@ -618,9 +618,8 @@ A rolling update strategy is used to update your cluster **without downtime**.
      - Node is **uncordoned** (even if the upgrade fails)
 4. **Worker Node Updates** (Sequentially):
    - Worker nodes are updated **one by one**
-     - Node is **drained** (pods are moved to other nodes), upgraded and uncordoned
-5. **Automatic Cleanup**: Nodes stuck in `SchedulingDisabled` state are automatically uncordoned
-6. **Cluster Verification**: All nodes are verified to be in Ready state
+     - Node is **drained** (pods are moved to other nodes), upgraded and uncordoned (even if the upgrade fails)
+5. **Cluster Verification**: All nodes are verified to be in Ready state
 
 ### Running Upgrade
 
@@ -1081,7 +1080,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │           │   ├── 02_upgrade_masters.yml
 │           │   ├── 03_upgrade_workers.yml
 │           │   ├── 04_verify_cluster.yml
-│           │   ├── 05_cleanup_stuck_nodes.yml
 │           │   └── main.yml
 │           ├── vars
 │           │   └── main.yml

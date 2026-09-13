@@ -630,9 +630,8 @@ Cluster'ınızı **kesintisiz** bir şekilde güncellemek için rolling update s
      - Node **uncordon** edilir (upgrade fail etse de)
 4. **Worker Node'ları Güncelleme** (Sırayla):
    - Worker node'lar **tek tek** güncellenir
-   - Node **drain** edilir (pod'lar diğer node'lara taşınır), upgrade edilir, uncordon edilir
-5. **Otomatik Temizlik**: `SchedulingDisabled` durumunda kalan node'lar otomatik uncordon edilir
-6. **Cluster Doğrulama**: Tüm node'ların Ready durumda olduğu kontrol edilir
+   - Node **drain** edilir (pod'lar diğer node'lara taşınır), upgrade edilir, uncordon edilir (upgrade fail etse de)
+5. **Cluster Doğrulama**: Tüm node'ların Ready durumda olduğu kontrol edilir
 
 ### Upgrade Çalıştırma
 
@@ -1077,7 +1076,6 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │           │   ├── 02_upgrade_masters.yml
 │           │   ├── 03_upgrade_workers.yml
 │           │   ├── 04_verify_cluster.yml
-│           │   ├── 05_cleanup_stuck_nodes.yml
 │           │   └── main.yml
 │           ├── vars
 │           │   └── main.yml
