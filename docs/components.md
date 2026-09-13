@@ -126,8 +126,10 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
 - Bekleme: helm `--wait` (Grafana, operator, kube-state-metrics, node-exporter, Grafana PVC);
   Prometheus StatefulSet'ini operator oluşturduğu için ayrıca
   `kubectl wait --for=condition=Available prometheuses.monitoring.coreos.com/kube-prometheus-stack-prometheus` (600 sn).
-- Tuzaklar: HA'da `podAntiAffinity: required` + replicas 2 → en az 2 worker; k3s'te
-  controller-manager/scheduler/proxy/etcd hedefleri DOWN → sahte alarm (todo C1).
+- k3s controller-manager/scheduler/kube-proxy/etcd'yi tek binary içinde çalıştırır; chart'ın bunlar
+  için Service/ServiceMonitor/kuralları values'ta `*.enabled: false` (yoksa `Kube*Down` kurulumdan
+  itibaren firing). Bu bileşenlerin metrikleri ve Grafana panoları yok.
+- Tuzaklar: HA'da `podAntiAffinity: required` + replicas 2 → en az 2 worker.
 
 ## Rancher (`rancher_install`)
 

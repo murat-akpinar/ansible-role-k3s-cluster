@@ -28,7 +28,7 @@ Kaynak: CHANGELOG'daki düzeltmeler, todo.md bulguları ve rolün bekleme/hata m
 | Tarayıcı `NET::ERR_CERT_AUTHORITY_INVALID` | self-signed (beklenen) | CA zinciri (todo C2) ya da istisna ekle |
 | `*.homelab.local` bazen çözülmüyor | `.local` mDNS (systemd-resolved/avahi) | `resolvectl query`, domain'i `home.arpa` yap (todo C3) |
 | Monitoring PVC Pending | `monitoring_storage_class` yok (varsayılan `local-path`), HA `podAntiAffinity: required` için worker yetersiz | `kubectl get sc`; `kubectl -n monitoring describe pvc` |
-| Alertmanager sürekli `KubeControllerManagerDown/KubeSchedulerDown/KubeProxyDown/etcd*` | k3s bu bileşenleri ayrı pod olarak sunmaz (todo C1) | values'ta ilgili `*.enabled: false` |
+| Alertmanager sürekli `KubeControllerManagerDown/KubeSchedulerDown/KubeProxyDown/etcd*` | k3s bu bileşenleri ayrı pod olarak sunmaz; rol values'ta kapatıyor, eski kurulum ya da values ezilmiş | `k3s_setup.yml --tags grafana`; `kubectl -n kube-system get svc \| grep kube-prometheus-stack` yalnızca coredns/kubelet göstermeli |
 | Rancher pod CrashLoop | Kubernetes sürümü Rancher'ın desteklediği pencerede değil / minor atlandı | `kubectl -n cattle-system logs deploy/rancher`; `rancher_version` ile `.tmp/rancher/installation-requirements.md` |
 | ArgoCD `argocd-initial-admin-secret` yok | secret silinmiş (normal) | `argocd admin initial-password` ya da parola sıfırla |
 | Her playbook koşusunda her şey `changed` | command/shell task'ları changed_when'siz (todo D2) | beklenen; gerçek değişiklik için `--diff` anlamsız |

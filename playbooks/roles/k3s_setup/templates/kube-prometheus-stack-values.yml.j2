@@ -131,6 +131,19 @@ grafana:
   operator:
     dashboardsConfigMapRefEnabled: false
 
+# k3s controller-manager/scheduler/kube-proxy/etcd'yi ayri pod degil tek binary icinde
+# calistiriyor; chart'in bunlar icin actigi hedefler hic bulunmuyor ve
+# KubeControllerManagerDown / KubeSchedulerDown / KubeProxyDown kurulumdan itibaren
+# firing oluyor. enabled: false Service/ServiceMonitor ile birlikte kurallari da kapatir.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
 # Node Exporter (enabled by default)
 nodeExporter:
   enabled: true

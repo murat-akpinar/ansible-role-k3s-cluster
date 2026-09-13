@@ -106,7 +106,7 @@ tag'i güncelle.
 ## kube-prometheus-stack/
 | Dosya | Ne için |
 |---|---|
-| `values-88.3.0.yaml` | Pinli chart'ın tüm values'ı; `kubeControllerManager/kubeScheduler/kubeProxy/kubeEtcd` bölümleri (todo C1), `grafana.*`, `prometheus.prometheusSpec.*`. |
+| `values-88.3.0.yaml` | Pinli chart'ın tüm values'ı; `kubeControllerManager/kubeScheduler/kubeProxy/kubeEtcd` bölümleri (values'ta kapalı), `grafana.*`, `prometheus.prometheusSpec.*`. |
 | `README-88.3.0.md` | Upgrade notları (major sürüm CRD adımları), k3s bölümü. |
 | `grafana-subchart-values.yaml` | Grafana subchart'ının kendi values'ı (`adminPassword`, `persistence`). |
 
