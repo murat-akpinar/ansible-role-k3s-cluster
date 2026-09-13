@@ -53,6 +53,8 @@
   loop:
     - /var/lib/rancher/k3s/server
     - /var/lib/rancher/k3s/server/logs
+    # k3s de 0700 aciyor; copy module ust dizini olusturmaz.
+    - /var/lib/rancher/k3s/server/manifests
   become: true
   when:
     - "'master' in group_names"
@@ -74,6 +76,21 @@
   ansible.builtin.copy:
     src: k3s-psa.yaml
     dest: /var/lib/rancher/k3s/server/psa.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  become: true
+  when:
+    - "'master' in group_names"
+    - k3s_hardening | default(true) | bool
+
+# CIS 5.3.2. k3s manifests dizinini izler: calisan cluster'da restart gerekmeden,
+# kurulmamissa k3s ilk acilista uygular. Dosyayi silmek policy'leri SILMEZ
+# (kubectl delete netpol gerekir).
+- name: "Hardening | Deploy NetworkPolicies for k3s core namespaces"
+  ansible.builtin.copy:
+    src: k3s-network-policy.yaml
+    dest: /var/lib/rancher/k3s/server/manifests/k3s-network-policy.yaml
     owner: root
     group: root
     mode: '0600'

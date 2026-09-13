@@ -17,8 +17,9 @@
 #   - The shared Gateway (kube-system/homelab) is Programmed and has an address
 #   - Every HTTPRoute is Accepted by its parent Gateway
 #   - Hardening (when k3s_hardening is on): Pod Security Admission really
-#     rejects a privileged pod, Secret encryption at rest is enabled, and the
-#     k3s client certificate is not about to expire
+#     rejects a privileged pod, Secret encryption at rest is enabled, the
+#     kube-system NetworkPolicies exist, and the k3s client certificate is not
+#     about to expire
 #
 # Note: kubectl runs as root using /etc/rancher/k3s/k3s.yaml (mode 600 when
 # hardening is on), so no
@@ -204,6 +205,17 @@
               failed_when: false
               when: k3s_hardening | default(true)
 
+            # files/k3s-network-policy.yaml uygulanmis mi? Isimlerden biri
+            # eksikse rc 1. Trafigin gercekten kesildigini test etmez (pod gerekir).
+            - name: Check that the kube-system NetworkPolicies exist
+              ansible.builtin.command: >
+                kubectl get networkpolicy -n kube-system
+                intra-namespace allow-dns allow-all-metrics-server allow-all-traefik allow-all-svclb
+              register: netpol_check
+              changed_when: false
+              failed_when: false
+              when: k3s_hardening | default(true)
+
             # k3s sertifikalari 365 gun gecerli ve yalnizca k3s YENIDEN
             # BASLATILDIGINDA yenilenir (son 90 gun icindeyse). Bir yil restart
             # gormeyen bir cluster sessizce durur. -checkend: 30 gun kaldi mi?
@@ -278,11 +290,14 @@
                     ('[OK]  ' if psa_enforced else '[FAIL]') ~ ' Pod Security      — privileged pod '
                       ~ ('rejected (baseline)' if psa_enforced else 'ACCEPTED, policy not in effect'),
                     ('[OK]  ' if secrets_encrypted else '[FAIL]') ~ ' Secrets Encrypted — etcd encryption-at-rest '
-                      ~ ('enabled' if secrets_encrypted else 'DISABLED')
+                      ~ ('enabled' if secrets_encrypted else 'DISABLED'),
+                    ('[OK]  ' if netpol_present else '[FAIL]') ~ ' NetworkPolicy     — kube-system '
+                      ~ ('policies present' if netpol_present else 'policies MISSING: kubectl describe addon -n kube-system k3s-network-policy')
                   ] }}"
               vars:
                 psa_enforced: "{{ 'violates PodSecurity' in (psa_probe.stderr | default('')) }}"
                 secrets_encrypted: "{{ 'Enabled' in (secrets_encrypt_status.stdout | default('')) }}"
+                netpol_present: "{{ netpol_check.rc | default(1) == 0 }}"
               when: k3s_hardening | default(true)
 
             - name: Note that hardening checks were skipped
@@ -312,7 +327,8 @@
                                 and ((component_health.results | default([]) | map(attribute='stdout') | map('int') | sum) == 0)
                                 and ((not (k3s_hardening | default(true)))
                                      or (('violates PodSecurity' in (psa_probe.stderr | default('')))
-                                         and ('Enabled' in (secrets_encrypt_status.stdout | default(''))))) }}"
+                                         and ('Enabled' in (secrets_encrypt_status.stdout | default('')))
+                                         and (netpol_check.rc | default(1) == 0))) }}"
 
             - name: Print the health check checklist
               ansible.builtin.debug:

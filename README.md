@@ -427,7 +427,7 @@ Ayrıca bu dosyada yer alan diğer değişkenler:
 
 | Değişken | Ne işe yarar |
 |---|---|
-| `k3s_hardening` | Varsayılan `true`. k3s'in CIS sıkılaştırmalarını açar: etcd'de secret şifreleme, API audit log, Pod Security Admission (baseline), `protect-kernel-defaults` ve kubelet flag'leri. Ayrıntı: [k3s Sıkılaştırma](#k3s-sıkılaştırma-hardening) |
+| `k3s_hardening` | Varsayılan `true`. k3s'in CIS sıkılaştırmalarını açar: etcd'de secret şifreleme, API audit log, Pod Security Admission (baseline), `protect-kernel-defaults`, kubelet flag'leri ve k3s namespace'leri için NetworkPolicy. Ayrıntı: [k3s Sıkılaştırma](#k3s-sıkılaştırma-hardening) |
 | `k3s_agent_token` | Worker'ların cluster'a katılırken kullandığı token. Boş bırakılırsa k3s bunu **server token'ına** eşitler; o zaman her worker, cluster'a yeni bir server ekleyebilecek değerde bir secret taşır. Vault'tan verin (`vault_k3s_agent_token`) |
 | `k3s_server_args` | **Boş bırakın.** k3s server/agent flag'leri artık komut satırında değil, k3s'in kendi ayar dosyasında: `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`. Install script systemd unit'ini her çalıştırmada yeniden yazar ama bu dosyaya dokunmaz, böylece flag'ler upgrade'de kaybolmaz. Burada bir flag verirseniz komut satırı kazanır ve config'teki liste ayarlarını (audit, PSA) tümüyle ezer |
 | `k3s_disable_servicelb` | `true` ise k3s gömülü ServiceLB (klipper) kapatılır. Varsayılan `false`: MetalLB de kapalı olduğu için LoadBalancer IP'lerini klipper verir. **İkisini birden kapatmayın** — hiçbir LB controller kalmaz ve `traefik` servisi `<pending>` takılır. `metallb_install: true` yaparsanız bunu da `true` yapın |
@@ -489,6 +489,7 @@ rolleri de aynı task'ı çağırır.
 | kubeconfig `0600` | `/etc/rancher/k3s/k3s.yaml` cluster-admin kimlik bilgisidir; `0644` iken makinedeki her kullanıcı cluster-admin olur (bkz. [kubeconfig Erişimi](#kubeconfig-erişimi)) |
 | PKI dosya izinleri | `/var/lib/rancher/k3s/server/tls/*.crt` dosyaları `0600`'e çekilir (CIS 1.1.20). k3s bunları `0644` yazıyor |
 | ServiceAccount token automount | `default`, `kube-public` ve `kube-node-lease` namespace'lerindeki `default` ServiceAccount'a token otomatik bağlanmaz (CIS 5.1.5). API'ye erişmesi gereken iş yükü kendi ServiceAccount'unu tanımlamalı. `kube-system` bilerek dışarıda |
+| NetworkPolicy | `kube-system`, `kube-public` ve `kube-node-lease` namespace'lerine dışarıdan yalnızca gereken trafik girer (CIS 5.3.2): DNS, metrics-server, Traefik ve ServiceLB pod'ları. Başka bir namespace'teki ele geçirilmiş bir pod, kube-system'deki diğer pod'lara ulaşamaz. Kuralları k3s'in gömülü network policy controller'ı uygular (`files/k3s-network-policy.yaml` → `/var/lib/rancher/k3s/server/manifests/`, restart gerekmez). `default` ve bileşen namespace'leri (Longhorn, monitoring, ArgoCD...) bilerek dışarıda: oradaki uygulamalar Traefik'ten ve NodePort'tan trafik bekler, kuralları uygulamayı kuran yazar |
 
 > **Mevcut bir cluster'da**: ayar dosyası değişse bile çalışan k3s onu kendiliğinden yeniden
 > okumaz. Playbook bunu ekranda hatırlatır ama **kendisi yeniden başlatmaz** — HA'da bütün
@@ -497,6 +498,9 @@ rolleri de aynı task'ı çağırır.
 > kurduğu için orada ek bir şey yapmanız gerekmez.
 >
 > **Kapatmak için**: `k3s_hardening: false`. O zaman yalnızca temel server ayarları yazılır.
+> Daha önce uygulanmış NetworkPolicy'ler cluster'da **kalır**; k3s dosya silinince kaynakları silmez.
+> Kaldırmak için her master'da dosyayı manifests dizininden çıkarın, sonra bir kez silin:
+> `mv /var/lib/rancher/k3s/server/manifests/k3s-network-policy.yaml /root/ && kubectl delete -f /root/k3s-network-policy.yaml`
 
 ### Ansible Vault ile Secret Yönetimi
 
@@ -1099,6 +1103,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │       └── values-single-master.yml
 │       │   │   ├── k3s-audit-policy.yaml        # k3s sıkılaştırma politikaları
 │       │   │   ├── k3s-psa.yaml
+│       │   │   ├── k3s-network-policy.yaml
 │       │   │   └── traefik-gateway-config.yml
 │       │   ├── handlers
 │       │   │   ├── .gitkeep

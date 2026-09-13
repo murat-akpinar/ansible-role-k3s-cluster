@@ -49,11 +49,12 @@ tag'i güncelle.
 | `datastore-ha-embedded.md` | 3+ server HA kurulum akışı, join sırası. |
 | `installation-requirements.md` | **Port tablosu** (2379-2380, 6443, 8472, 10250...) ve kaynak sütunu ("All nodes"/"Servers"), OS/donanım gereksinimleri. |
 | `installation-configuration.md` | config.yaml ile flag verme, env değişkenleri. |
-| `networking-basic-options.md`, `networking-services.md` | Flannel backend'leri, ServiceLB (klipper), Traefik HelmChartConfig, CoreDNS. |
+| `networking-basic-options.md`, `networking-services.md` | Flannel backend'leri, ServiceLB (klipper; svclb pod'ları kube-system'de), Traefik HelmChartConfig, CoreDNS, gömülü network policy controller. |
 | `upgrades-manual.md`, `upgrades-automated.md` | Install script ile upgrade; **system-upgrade-controller Plan** (todo B6). |
 | `add-ons-helm.md` | HelmChart / HelmChartConfig CRD'leri (05_gateway_api_install.yml). |
+| `installation-packaged-components.md` | `server/manifests/` AddOn davranışı: açılışta ve dosya değişince uygulanır, dosyayı silmek kaynakları **silmez**, `.skip`, HA'da dosyaları senkron tutmak kullanıcının işi (`files/k3s-network-policy.yaml`). |
 | `cluster-access.md` | kubeconfig konumu/izinleri. |
-| `security-hardening-guide.md` | CIS sertleştirme, kubeconfig modu (todo C7). |
+| `security-hardening-guide.md` | CIS sertleştirme, kubeconfig modu (todo C7), NetworkPolicy örnekleri (`files/k3s-network-policy.yaml`). |
 | `advanced.md`, `known-issues.md`, `architecture.md`, `related-projects.md`, `installation-private-registry.md`, `installation-uninstall.md`, `cli-token.md` | Diğer. |
 
 ## kubernetes/

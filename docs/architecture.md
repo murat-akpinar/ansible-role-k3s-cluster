@@ -49,7 +49,7 @@ playbooks/roles/
 | 2 | `00_prerequisites.yml` | all | acl + open-iscsi + nfs-common (RHEL karşılıkları), iscsid, firewalld aktifse: `6443/tcp` herkese açık; node IP'leri + pod/service CIDR'ları `trusted` zone (node-arası 8472/udp, 10250/tcp, 2379-2380/tcp, VRRP yalnızca node'lardan); eski herkese-açık 8472/10250 kuralı kapatılır. firewalld yoksa `[WARN]`. |
 | 3 | `01_configure_hostname.yml` | all | hostname ≠ inventory_hostname ise hostnamectl + /etc/hosts + **reboot**. |
 | 4 | `02_install_keepalived.yml` | master | paket her master'a; `master_count >= 3` ise `keepalived.conf.j2` (state/priority envanter sırasından, `chk_k3s` track_script). |
-| 5 | `03_k3s_config.yml` | all | **k3s'ten önce**: `k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml` (0600), sıkılaştırma sysctl'leri, `audit.yaml` + `psa.yaml` (master). Çalışan k3s varsa restart hatırlatması. |
+| 5 | `03_k3s_config.yml` | all | **k3s'ten önce**: `k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml` (0600), sıkılaştırma sysctl'leri, `audit.yaml` + `psa.yaml` + `k3s-network-policy.yaml` → `server/manifests/` (master). Çalışan k3s varsa restart hatırlatması. |
 | 6 | `03_install_k3s.yml` | all | Tek akış: ilk master `--cluster-init`, token oku, ek master'lar `server --server https://{{ k3s_api_endpoint }}:6443`, worker'lar `agent` (**agent-token** ile). HA/single farkı yalnızca `k3s_api_endpoint`. |
 | 7 | `03_wait_api_ready.yml` | master[0] | `kubectl get --raw=/readyz` 30×10 sn; olmazsa fail. |
 | 8 | `03_k3s_post_install.yml` | master | `~/.kube/config` kopyası (0600) + `.bashrc` KUBECONFIG; PKI `*.crt` 0600 (CIS 1.1.20); default SA token automount kapalı (CIS 5.1.5). |

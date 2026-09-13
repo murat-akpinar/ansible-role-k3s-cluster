@@ -430,7 +430,7 @@ Other variables living in the same file:
 
 | Variable | What it does |
 |---|---|
-| `k3s_hardening` | Defaults to `true`. Enables the k3s CIS hardening options that ship disabled: secret encryption at rest in etcd, API audit log, Pod Security Admission (baseline), `protect-kernel-defaults` and kubelet flags. Details: [k3s Hardening](#k3s-hardening) |
+| `k3s_hardening` | Defaults to `true`. Enables the k3s CIS hardening options that ship disabled: secret encryption at rest in etcd, API audit log, Pod Security Admission (baseline), `protect-kernel-defaults`, kubelet flags and NetworkPolicies for the k3s namespaces. Details: [k3s Hardening](#k3s-hardening) |
 | `k3s_agent_token` | The token workers use to join the cluster. When left empty k3s makes it equal to the **server token**, so every worker carries a secret valuable enough to add a new server to the cluster. Provide it from Vault (`vault_k3s_agent_token`) |
 | `k3s_server_args` | **Leave it empty.** k3s server/agent flags no longer live on the command line but in the k3s configuration file: `templates/k3s-config.yaml.j2` → `/etc/rancher/k3s/config.yaml`. The install script rewrites the systemd unit on every run but never touches this file, so flags survive an upgrade. A flag set here wins over the file and wipes out the list settings (audit, PSA) it contains |
 | `k3s_disable_servicelb` | When `true`, disables the k3s bundled ServiceLB (klipper). Defaults to `false`: MetalLB is off too, so klipper hands out LoadBalancer IPs. **Do not turn both off** — no LB controller would be left and the `traefik` service stays `<pending>`. If you set `metallb_install: true`, set this to `true` as well |
@@ -492,6 +492,7 @@ upgrade roles call the same task.
 | kubeconfig `0600` | `/etc/rancher/k3s/k3s.yaml` is a cluster-admin credential; at `0644` every user on the machine is cluster-admin (see [kubeconfig Access](#kubeconfig-access)) |
 | PKI file permissions | `/var/lib/rancher/k3s/server/tls/*.crt` files are set to `0600` (CIS 1.1.20). k3s writes them `0644` |
 | ServiceAccount token automount | The `default` ServiceAccount in the `default`, `kube-public` and `kube-node-lease` namespaces no longer mounts a token automatically (CIS 5.1.5). A workload that needs API access must declare its own ServiceAccount. `kube-system` is deliberately left out |
+| NetworkPolicy | Only the traffic that is needed may enter the `kube-system`, `kube-public` and `kube-node-lease` namespaces from outside (CIS 5.3.2): DNS, metrics-server, Traefik and the ServiceLB pods. A compromised pod in another namespace can no longer reach the other pods in kube-system. The rules are enforced by k3s's embedded network policy controller (`files/k3s-network-policy.yaml` → `/var/lib/rancher/k3s/server/manifests/`, no restart needed). `default` and the component namespaces (Longhorn, monitoring, ArgoCD...) are deliberately left out: applications there expect traffic from Traefik and NodePorts, whoever deploys them writes their rules |
 
 > **On an existing cluster**: a running k3s does not re-read the configuration file on its own.
 > The playbook reminds you on screen but **does not restart anything by itself** — restarting
@@ -499,6 +500,9 @@ upgrade roles call the same task.
 > `kubectl get nodes` in between. `upgrade.yml` reinstalls anyway, so nothing extra is needed there.
 >
 > **To turn it off**: `k3s_hardening: false`. Only the basic server settings are then written.
+> NetworkPolicies that were already applied **stay** in the cluster; k3s does not delete resources when the file is removed.
+> To remove them, take the file out of the manifests directory on every master, then delete once:
+> `mv /var/lib/rancher/k3s/server/manifests/k3s-network-policy.yaml /root/ && kubectl delete -f /root/k3s-network-policy.yaml`
 
 ### Secret Management with Ansible Vault
 
@@ -1103,6 +1107,7 @@ kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonp
 │       │   │   │       └── values-single-master.yml
 │       │   │   ├── k3s-audit-policy.yaml        # k3s hardening policies
 │       │   │   ├── k3s-psa.yaml
+│       │   │   ├── k3s-network-policy.yaml
 │       │   │   └── traefik-gateway-config.yml
 │       │   ├── handlers
 │       │   │   ├── .gitkeep

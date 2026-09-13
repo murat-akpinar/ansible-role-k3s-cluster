@@ -21,6 +21,7 @@ get k3s/installation-requirements.md   $K/installation/requirements.md
 get k3s/installation-configuration.md  $K/installation/configuration.md
 get k3s/installation-private-registry.md $K/installation/private-registry.md
 get k3s/installation-uninstall.md      $K/installation/uninstall.md
+get k3s/installation-packaged-components.md $K/installation/packaged-components.md
 get k3s/datastore-ha-embedded.md       $K/datastore/ha-embedded.md
 get k3s/datastore-backup-restore.md    $K/datastore/backup-restore.md
 get k3s/cli-server.md                  $K/cli/server.md

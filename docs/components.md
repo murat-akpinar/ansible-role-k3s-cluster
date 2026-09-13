@@ -19,6 +19,17 @@ Upstream referans: `.tmp/<bileşen>/` (indeks: `docs/reference-sources.md`).
   `99-k3s-hardening.conf`; ayrı dosyada olsaydı `upgrade.yml` onu çalıştırmadığı için eski bir
   cluster upgrade'de kubelet'i başlatamazdı). Çalışan bir cluster'da ayar dosyası
   değişirse k3s **yeniden başlatılmalı**; task bunu ekranda hatırlatır, kendisi restart etmez.
+- NetworkPolicy (CIS 5.3.2, `k3s_hardening`): `files/k3s-network-policy.yaml` → master'larda
+  `server/manifests/` (0600). k3s'in deploy controller'ı açılışta ve dosya değişince uygular,
+  restart gerekmez; kuralları gömülü kube-router netpol controller'ı uygular. Yalnızca ingress:
+  kube-system'e namespace içi + her yerden DNS (53) ve CoreDNS metrikleri (9153) +
+  metrics-server/Traefik/tüm svclb pod'ları herkese açık; kube-public ve kube-node-lease yalnızca
+  namespace içi. `default` ve bileşen namespace'leri bilerek yok (Traefik/NodePort trafiği bekler).
+  Tuzaklar: dosyayı silmek ya da `k3s_hardening: false` policy'leri **silmez**
+  (`.tmp/k3s/installation-packaged-components.md:7`); upstream örnek svclb için yalnızca
+  `svcname: traefik` seçer, `default`'taki bir LoadBalancer servisi kopardı; 9153 upstream'de yok,
+  kube-prometheus-stack'in CoreDNS hedefi düşerdi. kube-system'e başka namespace'ten erişilen
+  bir şey kurulursa kendi policy'si gerekir (policy'ler toplanır).
 - İlk master `--cluster-init` (tek master'da da), ek master `server --server <URL>`,
   worker `agent`. **Server** join'leri `/var/lib/rancher/k3s/server/node-token`,
   **worker** join'leri `/var/lib/rancher/k3s/server/agent-token` kullanır; ikincisi

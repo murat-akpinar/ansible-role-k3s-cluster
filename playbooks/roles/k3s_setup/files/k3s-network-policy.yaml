@@ -1,0 +1,115 @@
+# k3s cekirdek namespace'leri icin NetworkPolicy (CIS 5.3.2).
+# Kaynak: k3s security-hardening-guide "NetworkPolicies". Master'larda
+# /var/lib/rancher/k3s/server/manifests/ altina kopyalanir; k3s restart gerektirmeden
+# uygular. Kurallari k3s'e gomulu kube-router netpol controller'i uygular.
+#
+# Yalnizca INGRESS kisitlanir, egress serbest. Bir pod'u secen ilk policy'den sonra o pod'a
+# yalnizca izin verilen trafik girer; policy'ler toplanir (ekstra izin = yeni bir policy).
+# Pod'un kendi node'undan gelen trafik (kubelet probe'lari) kube-router'da hep serbest.
+# default ve bilesen namespace'leri (longhorn-system, monitoring, argocd...) BILEREK
+# yok: oradaki is yuku Traefik'ten / NodePort'tan trafik bekler, kurali kurulumu yapan yazar.
+---
+# kube-system icinden kube-system'e her sey serbest; disaridan yalnizca asagidakiler.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: intra-namespace
+  namespace: kube-system
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+---
+# DNS her namespace'ten. 9153: kube-prometheus-stack CoreDNS'i scrape ediyor
+# (coreDns.enabled: true); upstream ornekte yok, izin verilmezse hedef down olur.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+        - { port: 9153, protocol: TCP }
+---
+# apiserver metrics-server'a node IP'sinden gelir (kubectl top, HPA).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-metrics-server
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: metrics-server
+  policyTypes: [Ingress]
+  ingress:
+    - {}
+---
+# Disaridan gelen HTTP/HTTPS (servicelb ya da MetalLB uzerinden).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-traefik
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  policyTypes: [Ingress]
+  ingress:
+    - {}
+---
+# servicelb HER LoadBalancer servisinin svclb pod'unu kube-system'e koyar. Upstream ornek
+# yalnizca svcname=traefik seciyor; o zaman baska namespace'teki LB servisleri kopar.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-svclb
+  namespace: kube-system
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: svccontroller.k3s.cattle.io/svcname, operator: Exists }
+  policyTypes: [Ingress]
+  ingress:
+    - {}
+---
+# kube-public ve kube-node-lease'te pod yok; CIS "her namespace'te policy" istiyor.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: intra-namespace
+  namespace: kube-public
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-public
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: intra-namespace
+  namespace: kube-node-lease
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-node-lease
